@@ -1,6 +1,6 @@
 import { redis } from '../redis.js';
 import { config } from '../config.js';
-import type { Room, RoomPlayer } from '../types.js';
+import type { Room, RoomPlayer, StakeAmount } from '../types.js';
 import type { GameState } from '@poker5o/shared';
 import { createInitialState } from '@poker5o/shared';
 
@@ -16,6 +16,7 @@ export const roomService = {
       player1: null,
       gameState: null,
       status: 'waiting',
+      stake: null,
       createdAt: Date.now(),
     };
     await redis.set(key(roomId), JSON.stringify(room), 'EX', config.roomTtl);
@@ -35,17 +36,17 @@ export const roomService = {
     await redis.del(key(roomId));
   },
 
-  async joinAsPlayer1(roomId: string, player1: RoomPlayer): Promise<Room | null> {
+  async joinAsPlayer1(roomId: string, player1: RoomPlayer, stake: StakeAmount): Promise<Room | null> {
     const room = await this.get(roomId);
     if (!room || room.status !== 'waiting' || room.player1 !== null) return null;
 
-    const updated: Room = { ...room, player1, status: 'active' };
     const gameState = createInitialState(
       roomId,
       { id: room.player0.playerId, name: room.player0.playerName },
       { id: player1.playerId, name: player1.playerName },
     );
-    updated.gameState = gameState;
+
+    const updated: Room = { ...room, player1, gameState, status: 'active', stake };
     await this.save(updated);
     return updated;
   },
@@ -74,17 +75,12 @@ export const roomService = {
   },
 
   async findByPlayerId(playerId: string): Promise<Room | null> {
-    // Scan Redis for rooms containing this player — used for reconnection.
-    // In production with many rooms you'd maintain a separate index; fine for now.
     const keys = await redis.keys('room:*');
     for (const k of keys) {
       const raw = await redis.get(k);
       if (!raw) continue;
       const room = JSON.parse(raw) as Room;
-      if (
-        room.player0.playerId === playerId ||
-        room.player1?.playerId === playerId
-      ) {
+      if (room.player0.playerId === playerId || room.player1?.playerId === playerId) {
         return room;
       }
     }

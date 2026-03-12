@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { roomService } from '../services/roomService.js';
 import { lobbyService } from '../services/lobbyService.js';
+import { supabase } from '../supabase.js';
 import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
 import { config } from '../config.js';
 
@@ -108,16 +109,33 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
       if (newState.phase === 'GAME_OVER') {
         const score = getGameScore(newState);
-        if (score) {
+        if (score && room.player1 && room.stake) {
           io.to(roomId).emit('game:over', score);
           await roomService.save({ ...room, gameState: newState, status: 'finished' });
+
+          // Settle chips and log game via Supabase stored procedure
+          const winnerId = score.winner === 'draw'
+            ? null
+            : newState.players[score.winner].id;
+
+          await supabase.rpc('settle_game', {
+            p_room_id:        roomId,
+            p_player0_id:     room.player0.playerId,
+            p_player1_id:     room.player1.playerId,
+            p_stake:          room.stake,
+            p_winner_id:      winnerId,
+            p_is_draw:        score.winner === 'draw',
+            p_p0_columns:     score.player0Wins,
+            p_p1_columns:     score.player1Wins,
+            p_column_results: JSON.stringify(score.columnResults),
+            p_final_state:    JSON.stringify(newState),
+          });
+
           // Return players to idle in lobby
           await lobbyService.setStatus(room.player0.playerId, 'idle');
-          if (room.player1) await lobbyService.setStatus(room.player1.playerId, 'idle');
+          await lobbyService.setStatus(room.player1.playerId, 'idle');
           io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
-          if (room.player1) {
-            io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
-          }
+          io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
         }
       }
     },

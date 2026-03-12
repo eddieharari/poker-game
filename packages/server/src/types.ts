@@ -1,4 +1,5 @@
-import type { GameState, OnlinePlayer, PlayerStatus } from '@poker5o/shared';
+import type { GameState, OnlinePlayer, PlayerStatus, StakeAmount } from '@poker5o/shared';
+export type { StakeAmount };
 
 export type { OnlinePlayer, PlayerStatus };
 
@@ -27,6 +28,7 @@ export interface Room {
   player1: RoomPlayer | null;
   gameState: GameState | null;
   status: RoomStatus;
+  stake: StakeAmount | null;
   createdAt: number;
 }
 
@@ -39,6 +41,7 @@ export interface Challenge {
   fromAvatarUrl: string;
   toId: string;
   roomId: string;
+  stake: StakeAmount;
   createdAt: number;
 }
 

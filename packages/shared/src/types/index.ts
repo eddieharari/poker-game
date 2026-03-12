@@ -56,6 +56,13 @@ export interface Player {
   columns: Card[][];
 }
 
+// ─── Stakes ───────────────────────────────────────────────────────────────────
+
+export const STAKE_OPTIONS = [10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000] as const;
+export type StakeAmount = typeof STAKE_OPTIONS[number];
+
+// ─── Game Phase ───────────────────────────────────────────────────────────────
+
 export type GamePhase =
   | 'WAITING_FOR_PLAYERS'
   | 'SETUP_PHASE'
@@ -124,7 +131,7 @@ export interface ServerToClientEvents {
   'lobby:player:joined':        (player: OnlinePlayer) => void;
   'lobby:player:left':          (payload: { playerId: string }) => void;
   'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount }) => void;
   'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string }) => void;
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
   'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
@@ -139,7 +146,7 @@ export interface ClientToServerEvents {
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;
-  'lobby:challenge':        (payload: { toPlayerId: string }) => void;
+  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount }) => void;
   'lobby:challenge:accept': (payload: { challengeId: string }) => void;
   'lobby:challenge:decline':(payload: { challengeId: string }) => void;
 }
