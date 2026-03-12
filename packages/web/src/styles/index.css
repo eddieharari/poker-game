@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-felt-dark text-white font-body antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-gold text-black hover:bg-gold-light active:scale-95;
+  }
+  .btn-ghost {
+    @apply btn border border-white/20 hover:border-white/50 hover:bg-white/10;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-500 text-white active:scale-95;
+  }
+  .input {
+    @apply w-full px-3 py-2 rounded-lg bg-black/30 border border-white/20
+           text-white placeholder-white/40 focus:outline-none focus:border-gold
+           transition-colors duration-200;
+  }
+  .card-slot {
+    @apply relative flex items-center justify-center rounded-lg border-2
+           border-white/10 bg-black/20 transition-all duration-200;
+    aspect-ratio: 2.5/3.5;
+  }
+  .card-slot-valid {
+    @apply border-gold/60 bg-gold/10 cursor-pointer animate-pulse-gold;
+  }
+}
+
+/* Playing card flip animation */
+.card-face {
+  backface-visibility: hidden;
+  transition: transform 0.4s ease;
+}
