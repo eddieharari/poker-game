@@ -57,10 +57,6 @@ function buildLookupTables(): void {
   straights.add((1 << 12) | 0b1111);
 
   // Generate all C(13,5) = 1287 rank combinations
-  let strengthFlush    = 1;   // best flush = straight flush (royal = 1)
-  let strengthNonPair  = 1;   // for straights and high cards within non-flush
-
-  // We build flush table by iterating all combinations, classifying, assigning strength
   // Strength bands (CK): 1-10 SF, 11-166 Quads, 167-322 FH, 323-1599 Flush,
   //   1600-1609 Straight, 1610-2467 Trips, 2468-3325 2P, 3326-6185 Pair, 6186-7462 HC
 
@@ -97,19 +93,7 @@ function buildLookupTables(): void {
   // Bands: Quads 11-166, FH 167-322, Straight 1600-1609, Trips 1610-2467,
   //   TwoPair 2468-3325, Pair 3326-6185, HighCard 6186-7462
 
-  // Build by rank frequency pattern
-  interface Combo5 { ranks: number[]; prime: number }
-  const allCombosWithRep: Combo5[] = [];
-
-  for (let a = 12; a >= 0; a--)
-    for (let b = 12; b >= 0; b--)
-      for (let c = b; c >= 0; c--)
-        for (let d = c; d >= 0; d--)
-          for (let e = d; e >= 0; e--) {
-            // skip — too slow; we enumerate by hand-type below
-          }
-
-  // Use simpler direct approach: classify by sorted rank array
+  // Classify by sorted rank array
   function classify(sorted: number[]): string {
     const cnt: Record<number, number> = {};
     for (const r of sorted) cnt[r] = (cnt[r] ?? 0) + 1;
