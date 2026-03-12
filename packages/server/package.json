@@ -11,7 +11,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@poker-game/shared": "*",
+    "@poker5o/shared": "*",
     "@supabase/supabase-js": "^2.43.0",
     "dotenv": "^16.4.0",
     "cors": "^2.8.5",

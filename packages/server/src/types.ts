@@ -1,4 +1,6 @@
-import type { GameState } from '@poker-game/shared';
+import type { GameState, OnlinePlayer, PlayerStatus } from '@poker5o/shared';
+
+export type { OnlinePlayer, PlayerStatus };
 
 // ─── Player Identity ──────────────────────────────────────────────────────────
 
@@ -6,14 +8,6 @@ export interface PlayerProfile {
   id: string;         // Supabase user UUID
   nickname: string;
   avatarUrl: string;
-}
-
-// ─── Lobby ────────────────────────────────────────────────────────────────────
-
-export type PlayerStatus = 'idle' | 'in-game' | 'invited';
-
-export interface OnlinePlayer extends PlayerProfile {
-  status: PlayerStatus;
 }
 
 // ─── Room ─────────────────────────────────────────────────────────────────────
@@ -58,21 +52,3 @@ export interface AuthenticatedSocket {
 
 // ─── Socket.io Typed Events (server-side extension) ───────────────────────────
 
-export interface LobbyServerToClientEvents {
-  'lobby:players': (players: OnlinePlayer[]) => void;
-  'lobby:player:joined': (player: OnlinePlayer) => void;
-  'lobby:player:left': (data: { playerId: string }) => void;
-  'lobby:player:status': (data: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming': (data: { challengeId: string; from: OnlinePlayer }) => void;
-  'lobby:challenge:accepted': (data: { challengeId: string; roomId: string }) => void;
-  'lobby:challenge:declined': (data: { challengeId: string }) => void;
-  'lobby:challenge:expired': (data: { challengeId: string }) => void;
-}
-
-export interface LobbyClientToServerEvents {
-  'lobby:enter': () => void;
-  'lobby:leave': () => void;
-  'lobby:challenge': (data: { toPlayerId: string }) => void;
-  'lobby:challenge:accept': (data: { challengeId: string }) => void;
-  'lobby:challenge:decline': (data: { challengeId: string }) => void;
-}

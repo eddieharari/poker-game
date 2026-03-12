@@ -1,8 +1,8 @@
 import { redis } from '../redis.js';
 import { config } from '../config.js';
 import type { Room, RoomPlayer } from '../types.js';
-import type { GameState } from '@poker-game/shared';
-import { createInitialState } from '@poker-game/shared';
+import type { GameState } from '@poker5o/shared';
+import { createInitialState } from '@poker5o/shared';
 
 function key(roomId: string): string {
   return `room:${roomId}`;

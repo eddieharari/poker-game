@@ -101,16 +101,45 @@ export interface GameScore {
 
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────
 
+export type PlayerStatus = 'idle' | 'in-game' | 'invited';
+
+export interface OnlinePlayer {
+  id: string;
+  nickname: string;
+  avatarUrl: string;
+  status: PlayerStatus;
+}
+
 export interface ServerToClientEvents {
-  'game:state': (state: GameState) => void;
-  'room:joined': (payload: { roomId: string; playerId: string; playerIndex: 0 | 1 }) => void;
-  'room:error': (payload: { message: string }) => void;
-  'game:over': (score: GameScore) => void;
+  // Game room
+  'room:joined':          (payload: { roomId: string; playerId: string; playerIndex: 0 | 1 }) => void;
+  'room:ready':           (payload: { gameState: GameState }) => void;
+  'room:error':           (payload: { message: string }) => void;
+  'game:state':           (state: GameState) => void;
+  'game:over':            (score: GameScore) => void;
+  'player:disconnected':  (payload: { playerIndex: 0 | 1 }) => void;
+  'player:reconnected':   (payload: { playerIndex: 0 | 1 }) => void;
+  // Lobby
+  'lobby:players':              (players: OnlinePlayer[]) => void;
+  'lobby:player:joined':        (player: OnlinePlayer) => void;
+  'lobby:player:left':          (payload: { playerId: string }) => void;
+  'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer }) => void;
+  'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string }) => void;
+  'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
+  'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
 }
 
 export interface ClientToServerEvents {
-  'room:create': (payload: { playerName: string }, callback: (roomId: string) => void) => void;
-  'room:join': (payload: { roomId: string; playerName: string }, callback: (err: string | null) => void) => void;
-  'action:draw': (payload: { gameId: string; playerId: string }) => void;
-  'action:place': (payload: { gameId: string; playerId: string; columnIndex: number }) => void;
+  // Game room
+  'room:join':    (payload: { roomId: string }) => void;
+  'room:rejoin':  (payload: { roomId: string }) => void;
+  'action:draw':  (payload: { roomId: string }) => void;
+  'action:place': (payload: { roomId: string; columnIndex: number }) => void;
+  // Lobby
+  'lobby:enter':            () => void;
+  'lobby:leave':            () => void;
+  'lobby:challenge':        (payload: { toPlayerId: string }) => void;
+  'lobby:challenge:accept': (payload: { challengeId: string }) => void;
+  'lobby:challenge:decline':(payload: { challengeId: string }) => void;
 }

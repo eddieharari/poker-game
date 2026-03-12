@@ -1,7 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { roomService } from '../services/roomService.js';
 import { lobbyService } from '../services/lobbyService.js';
-import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker-game/shared';
+import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
 import { config } from '../config.js';
 
 export function registerGameHandlers(io: Server, socket: Socket): void {
@@ -64,7 +64,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
   // ─── Draw Card ───────────────────────────────────────────────────────────────
 
-  socket.on('action:draw', async ({ roomId }: { roomId: string; playerId: string }) => {
+  socket.on('action:draw', async ({ roomId }: { roomId: string }) => {
     const room = await roomService.get(roomId);
     if (!room?.gameState) {
       socket.emit('room:error', { message: 'Game not found' });
@@ -85,7 +85,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
   socket.on(
     'action:place',
-    async ({ roomId, columnIndex }: { roomId: string; playerId: string; columnIndex: number }) => {
+    async ({ roomId, columnIndex }: { roomId: string; columnIndex: number }) => {
       const room = await roomService.get(roomId);
       if (!room?.gameState) {
         socket.emit('room:error', { message: 'Game not found' });

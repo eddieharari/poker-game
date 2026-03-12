@@ -7,6 +7,7 @@ import { redis } from './redis.js';
 import { createSocketServer } from './socket/index.js';
 import { roomRouter } from './routes/room.js';
 import { lobbyRouter } from './routes/lobby.js';
+import { profileRouter } from './routes/profile.js';
 
 async function main(): Promise<void> {
   await redis.connect();
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.use('/room', roomRouter);
   app.use('/lobby', lobbyRouter);
+  app.use('/profile', profileRouter);
 
   const httpServer = http.createServer(app);
   createSocketServer(httpServer);
