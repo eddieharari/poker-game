@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   app.use('/api/profile', profileRouter);
 
   // Serve React frontend in production
-  const webDist = path.resolve(__dirname, '../../../web/dist');
+  const webDist = path.resolve(__dirname, '../../web/dist');
   app.use(express.static(webDist));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(webDist, 'index.html'));
