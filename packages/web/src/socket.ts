@@ -15,7 +15,7 @@ export function getSocket(): AppSocket {
 export function connectSocket(token: string, nickname: string, avatarUrl: string): AppSocket {
   if (socket) return socket as AppSocket;
 
-  socket = io(import.meta.env.VITE_SERVER_URL as string, {
+  socket = io(import.meta.env.VITE_SERVER_URL || window.location.origin, {
     auth: { token, nickname, avatarUrl },
     autoConnect: true,
     reconnectionAttempts: 5,
