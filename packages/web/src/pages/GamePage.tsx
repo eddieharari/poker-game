@@ -85,7 +85,7 @@ export function GamePage() {
       </header>
 
       {/* Main content: full-width grids */}
-      <div className="flex-1 flex flex-col overflow-hidden px-2 py-1">
+      <div className="flex-1 flex flex-col overflow-hidden px-1 py-0.5">
 
         {/* Opponent grid */}
         <PlayerGrid
@@ -101,36 +101,29 @@ export function GamePage() {
           cardH={cardH}
         />
 
-        {/* Center strip: deck + draw */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-6 py-1 border-y border-white/10 bg-black/30 my-1">
-          {/* Deck */}
-          <div className="flex flex-col items-center gap-0.5">
+        {/* Center strip: compact draw controls */}
+        <div className="flex-shrink-0 flex items-center justify-center gap-4 border-y border-white/10 bg-black/40" style={{ height: 44 }}>
+          {/* Deck count */}
+          <div className="flex items-center gap-1.5">
             <div
               style={{
-                width: cardW * 0.7,
-                height: cardH * 0.7,
-                background: `
-                  repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
-                  repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
-                  linear-gradient(135deg, #1e3a8a, #1e40af)
-                `,
-                backgroundSize: '10px 10px, 10px 10px, 100% 100%',
+                width: 28, height: 20,
+                background: `repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), linear-gradient(135deg, #1e3a8a, #1e40af)`,
+                backgroundSize: '6px 6px, 6px 6px, 100% 100%',
               }}
-              className="rounded-md border border-blue-700 shadow flex items-end justify-center pb-1"
-            >
-              <span className="text-white font-bold" style={{ fontSize: cardH * 0.13 }}>{gameState.deck.length}</span>
-            </div>
-            <p className="text-white/30" style={{ fontSize: 9 }}>Deck</p>
+              className="rounded border border-blue-700"
+            />
+            <span className="text-white/60 text-xs font-mono">{gameState.deck.length}</span>
           </div>
 
-          {/* Drawn card / draw button */}
+          {/* Draw / place indicator */}
           <DrawnCard
             card={isMyTurn ? gameState.drawnCard : null}
             isMyTurn={isMyTurn}
             canDraw={drawAllowed}
             onDraw={handleDraw}
-            cardW={Math.round(cardW * 0.7)}
-            cardH={Math.round(cardH * 0.7)}
+            cardW={28}
+            cardH={40}
           />
         </div>
 

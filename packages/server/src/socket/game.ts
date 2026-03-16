@@ -270,6 +270,11 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       if (p && !p.connected && current.status === 'active') {
         await roomService.save({ ...current, status: 'finished' });
         io.to(room.roomId).emit('room:error', { message: 'Opponent abandoned the game' });
+        // Reset both players back to idle in lobby
+        await lobbyService.setStatus(current.player0.playerId, 'idle');
+        if (current.player1) await lobbyService.setStatus(current.player1.playerId, 'idle');
+        io.to('lobby').emit('lobby:player:status', { playerId: current.player0.playerId, status: 'idle' });
+        if (current.player1) io.to('lobby').emit('lobby:player:status', { playerId: current.player1.playerId, status: 'idle' });
       }
     }, config.disconnectTtl * 1000);
   });

@@ -12,9 +12,9 @@ function compute(): CardSize {
   const HEADER_H     = 48;      // top header bar
   const ROW_LABEL_H  = 20;      // player name row per grid
   const HAND_LABEL_H = 16;      // hand-rank label per column
-  const CENTER_H     = 96;      // center strip (deck + draw button)
-  const PAD_V        = 16;      // top+bottom padding
-  const PAD_H        = 16;      // horizontal padding (both sides)
+  const CENTER_H     = 44;      // compact center strip (draw button only)
+  const PAD_V        = 8;       // top+bottom padding
+  const PAD_H        = 8;       // horizontal padding (both sides)
 
   // Vertical: two grids + center strip
   const availH = window.innerHeight
@@ -31,7 +31,7 @@ function compute(): CardSize {
   const cardWFromWidth = availW / 5;
   const cardHFromWidth = cardWFromWidth * ASPECT;
 
-  const cardH = Math.max(48, Math.min(150, Math.floor(Math.min(cardHFromHeight, cardHFromWidth))));
+  const cardH = Math.max(60, Math.min(220, Math.floor(Math.min(cardHFromHeight, cardHFromWidth))));
   const cardW = Math.floor(cardH / ASPECT);
   const peek  = Math.floor(cardH / 3);
   const colH  = cardH + 4 * peek;
