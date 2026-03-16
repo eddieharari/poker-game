@@ -84,70 +84,69 @@ export function GamePage() {
         )}
       </header>
 
-      {/* Main content: grids + side panel */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main content: full-width grids */}
+      <div className="flex-1 flex flex-col overflow-hidden px-2 py-1">
 
-        {/* Game table: both player grids close together */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 py-3 px-2">
+        {/* Opponent grid */}
+        <PlayerGrid
+          player={themPlayer}
+          isMe={false}
+          currentRow={gameState.currentRow}
+          drawnCard={null}
+          isMyTurn={!isMyTurn}
+          phase={gameState.phase}
+          onPlaceCard={() => {}}
+          avatarUrl={gameState.players[opponentIndex]?.avatarUrl}
+          cardW={cardW}
+          cardH={cardH}
+        />
 
-          {/* Opponent grid (flipped: row 0 closest to center) */}
-          <PlayerGrid
-            player={themPlayer}
-            isMe={false}
-            currentRow={gameState.currentRow}
-            drawnCard={null}
-            isMyTurn={!isMyTurn}
-            phase={gameState.phase}
-            onPlaceCard={() => {}}
-            avatarUrl={gameState.players[opponentIndex]?.avatarUrl}
-            cardW={cardW}
-            cardH={cardH}
-          />
-
-          {/* Center divider */}
-          <div className="w-full max-w-lg h-px bg-white/10 mx-auto" />
-
-          {/* My grid */}
-          <PlayerGrid
-            player={myPlayer}
-            isMe={true}
-            currentRow={gameState.currentRow}
-            drawnCard={gameState.drawnCard}
-            isMyTurn={isMyTurn}
-            phase={gameState.phase}
-            onPlaceCard={handlePlace}
-            avatarUrl={profile.avatar_url}
-            cardW={cardW}
-            cardH={cardH}
-          />
-        </div>
-
-        {/* Side panel: deck + drawn card */}
-        <div
-          className="flex-shrink-0 flex flex-col items-center justify-center gap-6 py-4 px-3 border-l border-white/10 bg-black/50 backdrop-blur-sm"
-          style={{ width: cardW + 32 }}
-        >
+        {/* Center strip: deck + draw */}
+        <div className="flex-shrink-0 flex items-center justify-center gap-6 py-1 border-y border-white/10 bg-black/30 my-1">
           {/* Deck */}
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-0.5">
             <div
-              className="rounded-lg bg-gradient-to-br from-blue-950 to-blue-900 border border-blue-800 flex items-center justify-center shadow-lg"
-              style={{ width: cardW, height: cardH }}
+              style={{
+                width: cardW * 0.7,
+                height: cardH * 0.7,
+                background: `
+                  repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
+                  repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
+                  linear-gradient(135deg, #1e3a8a, #1e40af)
+                `,
+                backgroundSize: '10px 10px, 10px 10px, 100% 100%',
+              }}
+              className="rounded-md border border-blue-700 shadow flex items-end justify-center pb-1"
             >
-              <span className="text-white/60 font-bold text-xl">{gameState.deck.length}</span>
+              <span className="text-white font-bold" style={{ fontSize: cardH * 0.13 }}>{gameState.deck.length}</span>
             </div>
-            <p className="text-xs text-white/30">Deck</p>
+            <p className="text-white/30" style={{ fontSize: 9 }}>Deck</p>
           </div>
 
-          {/* Drawn card */}
+          {/* Drawn card / draw button */}
           <DrawnCard
             card={isMyTurn ? gameState.drawnCard : null}
             isMyTurn={isMyTurn}
             canDraw={drawAllowed}
             onDraw={handleDraw}
-            cardW={cardW}
-            cardH={cardH}
+            cardW={Math.round(cardW * 0.7)}
+            cardH={Math.round(cardH * 0.7)}
           />
         </div>
+
+        {/* My grid */}
+        <PlayerGrid
+          player={myPlayer}
+          isMe={true}
+          currentRow={gameState.currentRow}
+          drawnCard={gameState.drawnCard}
+          isMyTurn={isMyTurn}
+          phase={gameState.phase}
+          onPlaceCard={handlePlace}
+          avatarUrl={profile.avatar_url}
+          cardW={cardW}
+          cardH={cardH}
+        />
       </div>
     </div>
   );

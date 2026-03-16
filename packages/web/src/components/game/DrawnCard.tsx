@@ -39,12 +39,20 @@ export function DrawnCard({ card, isMyTurn, canDraw, onDraw, cardW, cardH }: Pro
       <button
         onClick={onDraw}
         disabled={!canDraw}
-        style={{ width: cardW, height: cardH }}
-        className="rounded-lg bg-gradient-to-br from-blue-900 to-blue-800 border-2 border-blue-600
-          hover:border-gold transition-colors duration-200 flex items-center justify-center
-          disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
+        style={{
+          width: cardW,
+          height: cardH,
+          background: `
+            repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
+            repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%),
+            linear-gradient(135deg, #1e3a8a, #1e40af)
+          `,
+          backgroundSize: '10px 10px, 10px 10px, 100% 100%',
+        }}
+        className="rounded-lg border-2 border-blue-600 hover:border-gold transition-colors duration-200
+          flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
       >
-        <span className="text-2xl">🂠</span>
+        <span className="text-white/60 font-bold text-lg">Draw</span>
       </button>
       <span className="text-xs text-gold font-medium">Draw</span>
     </div>

@@ -49,7 +49,7 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
       </div>
 
       {/* 5 columns */}
-      <div className="flex gap-3 justify-center">
+      <div className="flex justify-around w-full">
         {columns.map(({ colIdx, col, isDropTarget, handLabel }) => (
           <div key={colIdx} className="flex flex-col items-center gap-0.5">
             {/* Hand label above (for me) */}
