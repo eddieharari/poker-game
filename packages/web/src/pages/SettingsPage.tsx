@@ -29,7 +29,6 @@ export function SettingsPage() {
     ? PRESET_AVATARS.find(p => p.id === selectedPreset)?.url ?? ''
     : uploadedUrl ?? profile?.avatar_url ?? '';
 
-  const [initialFourColor] = useState(fourColorDeck);
   const avatarChanged = !!selectedPreset || !!uploadedUrl;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
