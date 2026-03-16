@@ -283,5 +283,5 @@ export function getGameScore(state: GameState): GameScore | null {
   const winner: 0 | 1 | 'draw' =
     p0Wins > p1Wins ? 0 : p1Wins > p0Wins ? 1 : 'draw';
 
-  return { player0Wins: p0Wins, player1Wins: p1Wins, draws, winner, columnResults };
+  return { player0Wins: p0Wins, player1Wins: p1Wins, draws, winner, columnResults, completeWinBonus: false, isCompleteWin: false };
 }
