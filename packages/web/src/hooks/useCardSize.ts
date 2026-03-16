@@ -12,7 +12,7 @@ function compute(): CardSize {
   const HEADER_H     = 48;      // top header bar
   const ROW_LABEL_H  = 20;      // player name row per grid
   const HAND_LABEL_H = 16;      // hand-rank label per column
-  const CENTER_H     = 44;      // compact center strip (draw button only)
+  const CENTER_H     = 120;     // center strip with draw card
   const PAD_V        = 8;       // top+bottom padding
   const PAD_H        = 8;       // horizontal padding (both sides)
 

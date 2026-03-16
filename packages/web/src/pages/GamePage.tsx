@@ -101,19 +101,21 @@ export function GamePage() {
           cardH={cardH}
         />
 
-        {/* Center strip: compact draw controls */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-4 border-y border-white/10 bg-black/40" style={{ height: 44 }}>
+        {/* Center strip: draw controls */}
+        <div className="flex-shrink-0 flex items-center justify-center gap-6 border-y border-white/10 bg-black/40" style={{ height: 120 }}>
           {/* Deck count */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col items-center gap-1">
             <div
               style={{
-                width: 28, height: 20,
+                width: 56, height: 84,
                 background: `repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), linear-gradient(135deg, #1e3a8a, #1e40af)`,
-                backgroundSize: '6px 6px, 6px 6px, 100% 100%',
+                backgroundSize: '10px 10px, 10px 10px, 100% 100%',
               }}
-              className="rounded border border-blue-700"
-            />
-            <span className="text-white/60 text-xs font-mono">{gameState.deck.length}</span>
+              className="rounded-lg border border-blue-700 shadow flex items-center justify-center"
+            >
+              <span className="text-white font-bold text-lg">{gameState.deck.length}</span>
+            </div>
+            <span className="text-white/30 text-xs">Deck</span>
           </div>
 
           {/* Draw / place indicator */}
@@ -122,8 +124,8 @@ export function GamePage() {
             isMyTurn={isMyTurn}
             canDraw={drawAllowed}
             onDraw={handleDraw}
-            cardW={28}
-            cardH={40}
+            cardW={56}
+            cardH={84}
           />
         </div>
 
