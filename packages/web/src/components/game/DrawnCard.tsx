@@ -6,14 +6,19 @@ interface Props {
   isMyTurn: boolean;
   canDraw: boolean;
   onDraw: () => void;
+  cardW: number;
+  cardH: number;
 }
 
-export function DrawnCard({ card, isMyTurn, canDraw, onDraw }: Props) {
+export function DrawnCard({ card, isMyTurn, canDraw, onDraw, cardW, cardH }: Props) {
   if (!isMyTurn) {
     return (
-      <div className="flex flex-col items-center gap-2 text-white/40">
-        <div className="w-14 h-20 rounded-lg border-2 border-dashed border-white/10 flex items-center justify-center">
-          <span className="text-2xl">⏳</span>
+      <div className="flex flex-col items-center gap-1 text-white/40">
+        <div
+          className="rounded-lg border-2 border-dashed border-white/15 flex items-center justify-center"
+          style={{ width: cardW, height: cardH }}
+        >
+          <span className="text-xl">⏳</span>
         </div>
         <span className="text-xs">Opponent's turn</span>
       </div>
@@ -22,28 +27,26 @@ export function DrawnCard({ card, isMyTurn, canDraw, onDraw }: Props) {
 
   if (card) {
     return (
-      <div className="flex flex-col items-center gap-2">
-        <div className="w-14 h-20">
-          <PlayingCard card={card} />
-        </div>
-        <span className="text-xs text-gold">Click a column to place</span>
+      <div className="flex flex-col items-center gap-1">
+        <PlayingCard card={card} width={cardW} height={cardH} />
+        <span className="text-xs text-gold font-medium">Place in a column</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1">
       <button
         onClick={onDraw}
         disabled={!canDraw}
-        className="w-14 h-20 rounded-lg bg-gradient-to-br from-blue-900 to-blue-800
-          border-2 border-blue-600 hover:border-gold transition-colors duration-200
-          flex items-center justify-center text-white/60 hover:text-gold
-          disabled:opacity-40 disabled:cursor-not-allowed animate-pulse-gold"
+        style={{ width: cardW, height: cardH }}
+        className="rounded-lg bg-gradient-to-br from-blue-900 to-blue-800 border-2 border-blue-600
+          hover:border-gold transition-colors duration-200 flex items-center justify-center
+          disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
       >
         <span className="text-2xl">🂠</span>
       </button>
-      <span className="text-xs text-gold">Draw card</span>
+      <span className="text-xs text-gold font-medium">Draw</span>
     </div>
   );
 }

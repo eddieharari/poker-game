@@ -13,9 +13,11 @@ async function requireAuth(
   next: express.NextFunction,
 ): Promise<void> {
   const token = req.headers.authorization?.replace('Bearer ', '');
+  console.log('[requireAuth] token present:', !!token, token?.slice(0, 20));
   if (!token) { res.status(401).json({ error: 'Missing token' }); return; }
 
   const { data, error } = await supabase.auth.getUser(token);
+  console.log('[requireAuth] getUser result — userId:', data?.user?.id, 'error:', error?.message);
   if (error || !data.user) { res.status(401).json({ error: 'Invalid token' }); return; }
 
   (req as express.Request & { userId: string }).userId = data.user.id;
@@ -77,32 +79,33 @@ router.post('/', requireAuth, async (req, res) => {
     return;
   }
 
-  // Check uniqueness one final time before insert
+  // Check nickname uniqueness — but only if this user doesn't already own it
   const { data: existing } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, nickname')
     .eq('nickname', nickname)
     .maybeSingle();
 
-  if (existing) {
+  if (existing && existing.id !== userId) {
     res.status(409).json({ error: 'Nickname already taken' });
     return;
   }
 
+  // Upsert so re-submitting onboarding never fails with a duplicate key error
   const { data, error } = await supabase
     .from('profiles')
-    .insert({
+    .upsert({
       id: userId,
       nickname,
       avatar_url: avatarUrl,
       avatar_is_preset: avatarIsPreset ?? true,
-    })
+    }, { onConflict: 'id' })
     .select()
     .single();
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  res.status(201).json(data);
+  res.status(200).json(data);
 });
 
 // PATCH /profile/avatar — update avatar only

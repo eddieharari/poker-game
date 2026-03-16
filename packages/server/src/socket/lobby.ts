@@ -7,6 +7,7 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS } from '@poker5o/shared';
 import type { StakeAmount } from '@poker5o/shared';
 import type { Challenge } from '../types.js';
+import { log } from '../logger.js';
 
 export function registerLobbyHandlers(io: Server, socket: Socket): void {
   const { playerId, nickname, avatarUrl } = socket.auth;
@@ -14,7 +15,21 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
   // ─── Enter Lobby ────────────────────────────────────────────────────────────
 
   socket.on('lobby:enter', async () => {
-    const player = { id: playerId, nickname, avatarUrl, status: 'idle' as const };
+    const { data: stats } = await supabase
+      .from('profiles')
+      .select('wins, losses, draws')
+      .eq('id', playerId)
+      .maybeSingle();
+
+    const player = {
+      id: playerId,
+      nickname,
+      avatarUrl,
+      status: 'idle' as const,
+      wins: stats?.wins ?? 0,
+      losses: stats?.losses ?? 0,
+      draws: stats?.draws ?? 0,
+    };
     await lobbyService.addPlayer(player);
     socket.join('lobby');
 
@@ -26,14 +41,17 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
   // ─── Leave Lobby ────────────────────────────────────────────────────────────
 
   socket.on('lobby:leave', async () => {
-    await lobbyService.removePlayer(playerId);
+    const player = await lobbyService.getPlayer(playerId);
+    if (player && player.status !== 'in-game') {
+      await lobbyService.removePlayer(playerId);
+      io.to('lobby').emit('lobby:player:left', { playerId });
+    }
     socket.leave('lobby');
-    io.to('lobby').emit('lobby:player:left', { playerId });
   });
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake }: { toPlayerId: string; stake: StakeAmount }) => {
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean }) => {
     if (toPlayerId === playerId) {
       socket.emit('room:error', { message: 'Cannot challenge yourself' });
       return;
@@ -51,6 +69,12 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    const targetPlayer = await lobbyService.getPlayer(toPlayerId);
+    if (targetPlayer?.status === 'busy') {
+      socket.emit('room:error', { message: 'Player is busy and cannot be challenged' });
+      return;
+    }
+
     // Verify both players have sufficient chips
     const { data: profiles } = await supabase
       .from('profiles')
@@ -60,12 +84,17 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     const challenger = profiles?.find(p => p.id === playerId);
     const opponent   = profiles?.find(p => p.id === toPlayerId);
 
-    if (!challenger || challenger.chips < stake) {
-      socket.emit('room:error', { message: `You need at least ${stake} chips to set this stake` });
+    const required = completeWinBonus ? stake * 2 : stake;
+    if (!challenger || challenger.chips < required) {
+      socket.emit('room:error', { message: completeWinBonus
+        ? `You need at least ${required} chips for a complete-win bonus game`
+        : `You need at least ${stake} chips to set this stake` });
       return;
     }
-    if (!opponent || opponent.chips < stake) {
-      socket.emit('room:error', { message: 'Opponent does not have enough chips for this stake' });
+    if (!opponent || opponent.chips < required) {
+      socket.emit('room:error', { message: completeWinBonus
+        ? `Opponent needs at least ${required} chips for a complete-win bonus game`
+        : 'Opponent does not have enough chips for this stake' });
       return;
     }
 
@@ -75,6 +104,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       socketId: socket.id,
       playerId,
       playerName: nickname,
+      avatarUrl,
       connected: true,
     });
 
@@ -87,12 +117,24 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       toId: toPlayerId,
       roomId,
       stake,
+      completeWinBonus,
       createdAt: Date.now(),
     };
 
     await challengeService.create(challenge);
     await lobbyService.setStatus(playerId, 'invited');
     await lobbyService.setStatus(toPlayerId, 'invited');
+
+    const toPlayer = await lobbyService.getPlayer(toPlayerId);
+    log('INVITE_SENT', {
+      challengeId,
+      roomId,
+      fromId: playerId,
+      fromNick: nickname,
+      toId: toPlayerId,
+      toNick: toPlayer?.nickname ?? toPlayerId,
+      stake,
+    });
 
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'invited' });
     io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'invited' });
@@ -104,8 +146,9 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     if (targetSocket) {
       targetSocket.emit('lobby:challenge:incoming', {
         challengeId,
-        from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const },
+        from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
         stake,
+        completeWinBonus,
       });
     }
 
@@ -120,6 +163,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         socket.emit('lobby:challenge:expired', { challengeId });
         io.to('lobby').emit('lobby:player:status', { playerId, status: 'idle' });
         io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'idle' });
+        log('INVITE_EXPIRED', { challengeId, fromId: playerId, fromNick: nickname, toId: toPlayerId, stake });
       }
     }, 30_000);
   });
@@ -142,14 +186,15 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     const challenger = profiles?.find(p => p.id === challenge.fromId);
     const acceptor   = profiles?.find(p => p.id === playerId);
 
-    if (!challenger || challenger.chips < challenge.stake) {
+    const requiredChips = challenge.completeWinBonus ? challenge.stake * 2 : challenge.stake;
+    if (!challenger || challenger.chips < requiredChips) {
       socket.emit('room:error', { message: 'Challenger no longer has enough chips' });
       await challengeService.delete(challengeId);
       await roomService.delete(challenge.roomId);
       return;
     }
-    if (!acceptor || acceptor.chips < challenge.stake) {
-      socket.emit('room:error', { message: `You need at least ${challenge.stake} chips to accept` });
+    if (!acceptor || acceptor.chips < requiredChips) {
+      socket.emit('room:error', { message: `You need at least ${requiredChips} chips to accept` });
       return;
     }
 
@@ -159,8 +204,9 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       socketId: socket.id,
       playerId,
       playerName: nickname,
+      avatarUrl,
       connected: true,
-    }, challenge.stake);
+    }, challenge.stake, challenge.completeWinBonus);
 
     if (!room) {
       socket.emit('room:error', { message: 'Room no longer available' });
@@ -171,6 +217,16 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     await lobbyService.setStatus(challenge.fromId, 'in-game');
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
     io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
+
+    log('INVITE_ACCEPTED', {
+      challengeId,
+      roomId: room.roomId,
+      fromId: challenge.fromId,
+      fromNick: challenge.fromNickname,
+      toId: playerId,
+      toNick: nickname,
+      stake: challenge.stake,
+    });
 
     socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
 
@@ -197,6 +253,15 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'idle' });
     io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'idle' });
 
+    log('INVITE_DECLINED', {
+      challengeId,
+      fromId: challenge.fromId,
+      fromNick: challenge.fromNickname,
+      toId: playerId,
+      toNick: nickname,
+      stake: challenge.stake,
+    });
+
     const allSockets = await io.in('lobby').fetchSockets();
     const challengerSocket = allSockets.find(
       s => (s as unknown as Socket).auth?.playerId === challenge.fromId,
@@ -206,10 +271,23 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     }
   });
 
+  // ─── Set Status (busy / idle) ────────────────────────────────────────────────
+
+  socket.on('lobby:set_status', async ({ status }: { status: 'idle' | 'busy' }) => {
+    const player = await lobbyService.getPlayer(playerId);
+    if (!player || player.status === 'in-game' || player.status === 'invited') return;
+
+    await lobbyService.setStatus(playerId, status);
+    io.to('lobby').emit('lobby:player:status', { playerId, status });
+  });
+
   // ─── Disconnect cleanup ──────────────────────────────────────────────────────
 
   socket.on('disconnect', async () => {
-    await lobbyService.removePlayer(playerId);
-    io.to('lobby').emit('lobby:player:left', { playerId });
+    const player = await lobbyService.getPlayer(playerId);
+    if (player && player.status !== 'in-game') {
+      await lobbyService.removePlayer(playerId);
+      io.to('lobby').emit('lobby:player:left', { playerId });
+    }
   });
 }

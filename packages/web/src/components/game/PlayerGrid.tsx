@@ -1,9 +1,6 @@
 import type { Player, Card } from '@poker5o/shared';
-import { evaluatePartialHand, evaluateHand } from '@poker5o/shared';
+import { evaluateHand } from '@poker5o/shared';
 import { PlayingCard } from './PlayingCard.js';
-
-const ROWS = 5;
-const COLS = 5;
 
 interface Props {
   player: Player;
@@ -13,70 +10,107 @@ interface Props {
   isMyTurn: boolean;
   phase: string;
   onPlaceCard: (columnIndex: number) => void;
+  avatarUrl?: string;
+  cardW: number;
+  cardH: number;
+  revealAll?: boolean;
 }
 
-export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phase, onPlaceCard }: Props) {
+export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phase, onPlaceCard, avatarUrl, cardW, cardH, revealAll = false }: Props) {
+  const peek  = Math.floor(cardH / 3);
+  const colH  = cardH + 4 * peek;
   const canPlace = isMe && isMyTurn && !!drawnCard && phase !== 'GAME_OVER';
 
+  // Opponent: row 0 at bottom (closest to center), row 4 at top
+  // Me: row 0 at top (closest to center), row 4 at bottom
+  function cardTop(rowIdx: number): number {
+    return isMe ? rowIdx * peek : (4 - rowIdx) * peek;
+  }
+
+  const columns = Array.from({ length: 5 }, (_, colIdx) => {
+    const col = player.columns[colIdx] ?? [];
+    const isDropTarget = canPlace && col.length === currentRow;
+    const faceUp = col.filter(c => !c.faceDown);
+    const handLabel = faceUp.length === 5 ? evaluateHand(faceUp).label : null;
+    return { colIdx, col, isDropTarget, handLabel };
+  });
+
   return (
-    <div className="space-y-2">
-      {/* Player label */}
-      <div className={`flex items-center gap-2 ${isMe ? 'justify-start' : 'justify-end'}`}>
-        <img src="#" alt={player.name} className="w-7 h-7 rounded-full border border-white/30 bg-white/10" />
-        <span className="font-semibold text-sm">{player.name}</span>
+    <div className="flex flex-col gap-1">
+      {/* Player header */}
+      <div className={`flex items-center gap-2 px-1 ${isMe ? '' : 'flex-row-reverse justify-end'}`}>
+        {avatarUrl && (
+          <img src={avatarUrl} alt={player.name} className="w-6 h-6 rounded-full border border-white/30 object-cover" />
+        )}
+        <span className="text-sm font-semibold text-white">{player.name}</span>
         {isMyTurn && phase !== 'GAME_OVER' && (
           <span className="text-xs bg-gold text-black px-2 py-0.5 rounded-full font-bold">Your turn</span>
         )}
       </div>
 
-      {/* Grid: 5 columns */}
-      <div className="grid grid-cols-5 gap-1.5">
-        {Array.from({ length: COLS }, (_, colIdx) => {
-          const col = player.columns[colIdx] ?? [];
-          const handLabel = getColumnLabel(col);
-          const isValidDrop = canPlace && col.length === currentRow;
-
-          return (
-            <div key={colIdx} className="space-y-1">
-              {/* Hand label */}
-              <div className="h-5 flex items-center justify-center">
+      {/* 5 columns */}
+      <div className="flex gap-3 justify-center">
+        {columns.map(({ colIdx, col, isDropTarget, handLabel }) => (
+          <div key={colIdx} className="flex flex-col items-center gap-0.5">
+            {/* Hand label above (for me) */}
+            {isMe && (
+              <div className="h-4 flex items-center justify-center">
                 {handLabel && (
-                  <span className="text-xs text-gold/80 font-medium truncate">{handLabel}</span>
+                  <span className="text-xs text-gold font-semibold whitespace-nowrap leading-none">{handLabel}</span>
                 )}
               </div>
+            )}
 
-              {/* 5 card slots */}
-              {Array.from({ length: ROWS }, (_, rowIdx) => {
-                const card = col[rowIdx];
+            {/* Column */}
+            <div
+              className={`relative ${isDropTarget ? 'cursor-pointer' : ''}`}
+              style={{ width: cardW, height: colH }}
+              onClick={() => isDropTarget && onPlaceCard(colIdx)}
+            >
+              {/* Empty column placeholder */}
+              {col.length === 0 && (
+                <div
+                  className="absolute rounded-lg border border-dashed border-white/15"
+                  style={{ width: cardW, height: cardH, top: isMe ? 0 : 4 * peek, zIndex: 0 }}
+                />
+              )}
+
+              {/* Stacked cards */}
+              {col.map((card, rowIdx) => {
+                const displayCard = (!revealAll && !isMe && rowIdx === 4) ? { ...card, faceDown: true } : { ...card, faceDown: false };
                 return (
                   <div
                     key={rowIdx}
-                    onClick={() => isValidDrop && rowIdx === currentRow && onPlaceCard(colIdx)}
-                    className={`card-slot w-full
-                      ${isValidDrop && rowIdx === currentRow ? 'card-slot-valid' : ''}
-                      ${card ? 'border-white/20' : ''}`}
-                    style={{ height: '4.2rem' }}
+                    className="absolute"
+                    style={{ top: cardTop(rowIdx), zIndex: rowIdx + 1 }}
                   >
-                    {card ? (
-                      <PlayingCard card={card} />
-                    ) : isValidDrop && rowIdx === currentRow ? (
-                      <span className="text-gold/60 text-xl">+</span>
-                    ) : null}
+                    <PlayingCard card={displayCard} width={cardW} height={cardH} />
                   </div>
                 );
               })}
+
+              {/* Drop target indicator */}
+              {isDropTarget && (
+                <div
+                  className="absolute rounded-lg border-2 border-dashed border-gold bg-gold/10 flex items-center justify-center animate-pulse"
+                  style={{ top: col.length * peek, width: cardW, height: cardH, zIndex: col.length + 1 }}
+                >
+                  <span className="text-gold text-xl font-bold">+</span>
+                </div>
+              )}
             </div>
-          );
-        })}
+
+            {/* Hand label below (for opponent, toward center) */}
+            {!isMe && (
+              <div className="h-4 flex items-center justify-center">
+                {handLabel && (
+                  <span className="text-xs text-gold font-semibold whitespace-nowrap leading-none">{handLabel}</span>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
-}
-
-function getColumnLabel(col: Card[]): string | null {
-  if (col.length === 0) return null;
-  const visible = col.filter(c => !c.faceDown);
-  if (visible.length === 5) return evaluateHand(visible).label;
-  if (visible.length >= 1) return evaluatePartialHand(visible) > 0 ? '…' : null;
-  return null;
 }

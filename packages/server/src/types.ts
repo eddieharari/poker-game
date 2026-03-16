@@ -19,6 +19,7 @@ export interface RoomPlayer {
   socketId: string;
   playerId: string;
   playerName: string;
+  avatarUrl?: string;
   connected: boolean;
 }
 
@@ -29,6 +30,7 @@ export interface Room {
   gameState: GameState | null;
   status: RoomStatus;
   stake: StakeAmount | null;
+  completeWinBonus: boolean;
   createdAt: number;
 }
 
@@ -42,6 +44,7 @@ export interface Challenge {
   toId: string;
   roomId: string;
   stake: StakeAmount;
+  completeWinBonus: boolean;
   createdAt: number;
 }
 

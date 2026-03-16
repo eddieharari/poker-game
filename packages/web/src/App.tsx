@@ -3,36 +3,49 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from './supabase.js';
 import { useAuthStore } from './store/authStore.js';
-import { connectSocket, disconnectSocket } from './socket.js';
+import { connectSocket, disconnectSocket, getSocket } from './socket.js';
 import { AuthPage } from './pages/AuthPage.js';
 import { OnboardingPage } from './pages/OnboardingPage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
+import { SettingsPage } from './pages/SettingsPage.js';
 
 export function App() {
-  const { session, profile, loading, setSession, fetchProfile } = useAuthStore();
+  const { session, profile, loading, setSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
 
-  // Bootstrap auth state from Supabase
+  // Bootstrap auth state from Supabase.
+  // onAuthStateChange fires immediately with INITIAL_SESSION (replaces getSession),
+  // then again on login/logout — single source of truth for auth state.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) fetchProfile();
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      if (newSession) fetchProfile();
+      fetchProfile(newSession); // pass session directly — no store timing dependency
     });
 
     return () => subscription.unsubscribe();
   }, [setSession, fetchProfile]);
 
-  // Connect socket when session + profile are ready
-  useEffect(() => {
-    if (!session || !profile) return;
+  // Synchronously connect so socket exists before child component effects run
+  if (session && profile) {
     connectSocket(session.access_token, profile.nickname, profile.avatar_url);
-    return () => disconnectSocket();
+  }
+
+  // Keep a useEffect only to disconnect on logout
+  useEffect(() => {
+    if (!session || !profile) {
+      disconnectSocket();
+    }
   }, [session?.access_token, profile?.id]);
+
+  function confirmTakeover() {
+    setDuplicateSession(false);
+    getSocket().emit('session:confirm_takeover');
+  }
+
+  function cancelTakeover() {
+    setDuplicateSession(false);
+    disconnectSocket();
+  }
 
   if (loading) {
     return (
@@ -58,12 +71,19 @@ export function App() {
 
         {/* Requires auth */}
         <Route path="/onboarding" element={
-          !session ? <Navigate to="/auth" replace /> : <OnboardingPage />
+          !session ? <Navigate to="/auth" replace />
+          : profile ? <Navigate to="/lobby" replace />
+          : <OnboardingPage />
         } />
         <Route path="/lobby" element={
           !session ? <Navigate to="/auth" replace />
           : !profile ? <Navigate to="/onboarding" replace />
           : <LobbyPage />
+        } />
+        <Route path="/settings" element={
+          !session ? <Navigate to="/auth" replace />
+          : !profile ? <Navigate to="/onboarding" replace />
+          : <SettingsPage />
         } />
         <Route path="/game/:roomId" element={
           !session ? <Navigate to="/auth" replace />
@@ -79,6 +99,29 @@ export function App() {
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Duplicate session confirmation modal */}
+      {duplicateSession && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 animate-slide-up">
+            <div className="text-center space-y-2">
+              <p className="text-3xl">⚠️</p>
+              <h2 className="font-display text-xl text-gold">Already Logged In</h2>
+              <p className="text-white/60 text-sm">
+                Your account is active in another window or device. Do you want to log in here and close the other session?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={cancelTakeover} className="btn-ghost flex-1">
+                Cancel
+              </button>
+              <button onClick={confirmTakeover} className="btn-primary flex-1">
+                Log In Here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </BrowserRouter>
   );
 }

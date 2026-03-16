@@ -17,14 +17,15 @@ import { evaluateHand, compareHands, evaluatePartialHand } from './handEvaluator
 
 export function createInitialState(
   gameId: string,
-  player0: { id: string; name: string },
-  player1: { id: string; name: string },
+  player0: { id: string; name: string; avatarUrl?: string },
+  player1: { id: string; name: string; avatarUrl?: string },
 ): GameState {
   const deck = shuffleDeck(createDeck());
 
-  const makePlayer = (p: { id: string; name: string }): Player => ({
+  const makePlayer = (p: { id: string; name: string; avatarUrl?: string }): Player => ({
     id: p.id,
     name: p.name,
+    avatarUrl: p.avatarUrl,
     columns: [[], [], [], [], []],
   });
 
@@ -94,13 +95,11 @@ function applyDraw(state: GameState, playerId: string): GameState {
   if (!canDrawCard(state, playerId)) return state;
 
   const [card, remainingDeck] = drawCard(state.deck);
-  const faceDown =
-    state.phase === 'MAIN_PHASE' && state.currentRow === 4; // 5th row = face-down
 
   return {
     ...state,
     deck: remainingDeck,
-    drawnCard: { ...card, faceDown },
+    drawnCard: card,
   };
 }
 
@@ -202,13 +201,13 @@ function advanceMain(state: GameState, justPlacedIdx: 0 | 1): GameState {
     };
   }
 
-  // Current player finished their columns for this row — other player's turn
-  if (justPlacedRowCount === 5) {
-    return { ...state, currentPlayerIndex: otherIdx };
+  // If other player already filled all 5 columns for this row, current player continues
+  if (otherRowCount === 5) {
+    return state;
   }
 
-  // Otherwise same player continues placing in this row
-  return state;
+  // Normal case: alternate to other player after each placement
+  return { ...state, currentPlayerIndex: otherIdx };
 }
 
 // ─── Turn Order ───────────────────────────────────────────────────────────────

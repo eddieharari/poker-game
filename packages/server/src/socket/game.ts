@@ -3,7 +3,86 @@ import { roomService } from '../services/roomService.js';
 import { lobbyService } from '../services/lobbyService.js';
 import { supabase } from '../supabase.js';
 import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
+import type { GameState, Player } from '@poker5o/shared';
+import type { Room } from '../types.js';
 import { config } from '../config.js';
+import { log } from '../logger.js';
+
+// ─── State Filtering ──────────────────────────────────────────────────────────
+
+/** Send each player a version of state appropriate for their perspective:
+ *  - Opponent's last row (rowIdx 4) is face-down
+ *  - Drawn card is hidden if it's not the viewer's turn
+ */
+function filterStateForPlayer(state: GameState, viewerIdx: 0 | 1): GameState {
+  const opponentIdx: 0 | 1 = viewerIdx === 0 ? 1 : 0;
+
+  const players = state.players.map((p, i) => {
+    if (i !== opponentIdx) return p;
+    return {
+      ...p,
+      columns: p.columns.map(col =>
+        col.map((card, rowIdx) =>
+          rowIdx === 4 ? { ...card, faceDown: true } : card,
+        ),
+      ),
+    };
+  }) as [Player, Player];
+
+  // Hide drawn card when it's not the viewer's turn
+  const drawnCard = state.currentPlayerIndex === viewerIdx ? state.drawnCard : null;
+
+  return { ...state, players, drawnCard };
+}
+
+async function emitStateToRoom(io: Server, room: Room, state: GameState): Promise<void> {
+  const p0Id = room.player0.playerId;
+  const p1Id = room.player1?.playerId;
+
+  for (const [, socket] of io.sockets.sockets) {
+    const pid = socket.auth.playerId;
+    if (pid === p0Id) {
+      socket.emit('game:state', filterStateForPlayer(state, 0));
+    } else if (p1Id && pid === p1Id) {
+      socket.emit('game:state', filterStateForPlayer(state, 1));
+    }
+  }
+}
+
+// ─── Auto Setup Phase ─────────────────────────────────────────────────────────
+
+async function runSetupPhase(io: Server, roomId: string): Promise<void> {
+  for (let i = 0; i < 10; i++) {
+    // Delay between each card so players can see them appear one by one
+    await new Promise<void>(r => setTimeout(r, 700));
+
+    const room = await roomService.get(roomId);
+    if (!room?.gameState || room.gameState.phase !== 'SETUP_PHASE') return;
+
+    let state = room.gameState;
+    const playerId = state.players[state.currentPlayerIndex].id;
+
+    // Draw card
+    state = applyAction(state, { type: 'DRAW_CARD', playerId });
+    await roomService.updateGameState(roomId, state);
+    await emitStateToRoom(io, room, state);
+
+    // Brief pause so drawn card is visible
+    await new Promise<void>(r => setTimeout(r, 350));
+
+    // Place in first empty column
+    const colIdx = state.players[state.currentPlayerIndex].columns.findIndex(
+      col => col.length === 0,
+    );
+    if (colIdx === -1) return;
+
+    state = applyAction(state, { type: 'PLACE_CARD', playerId, columnIndex: colIdx });
+    await roomService.updateGameState(roomId, state);
+    await emitStateToRoom(io, room, state);
+  }
+}
+
+// ─── Handlers ─────────────────────────────────────────────────────────────────
 
 export function registerGameHandlers(io: Server, socket: Socket): void {
   const { playerId } = socket.auth;
@@ -30,15 +109,26 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const playerIndex: 0 | 1 = isPlayer0 ? 0 : 1;
     socket.emit('room:joined', { roomId, playerId, playerIndex });
 
-    // If game state is ready, send it immediately (handles page refresh / late join)
+    // If game state is ready, send personalized state
     if (room.gameState) {
-      socket.emit('game:state', room.gameState);
+      socket.emit('game:state', filterStateForPlayer(room.gameState, playerIndex));
     }
 
     // If both players are now in the socket room, notify them the game is ready
     const socketsInRoom = await io.in(roomId).fetchSockets();
     if (socketsInRoom.length === 2 && room.gameState) {
       io.to(roomId).emit('room:ready', { gameState: room.gameState });
+
+      // Auto-deal setup phase if not yet started
+      if (room.gameState.phase === 'SETUP_PHASE' && room.gameState.setupDrawCount === 0) {
+        log('GAME_START', {
+          roomId,
+          player0: room.player0.playerName,
+          player1: room.player1?.playerName,
+          stake: room.stake ?? undefined,
+        });
+        runSetupPhase(io, roomId);
+      }
     }
   });
 
@@ -57,7 +147,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     socket.emit('room:joined', { roomId, playerId, playerIndex });
 
     if (room.gameState) {
-      socket.emit('game:state', room.gameState);
+      socket.emit('game:state', filterStateForPlayer(room.gameState, playerIndex));
     }
 
     socket.to(roomId).emit('player:reconnected', { playerIndex });
@@ -79,7 +169,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
     const newState = applyAction(room.gameState, { type: 'DRAW_CARD', playerId });
     await roomService.updateGameState(roomId, newState);
-    io.to(roomId).emit('game:state', newState);
+    await emitStateToRoom(io, room, newState);
   });
 
   // ─── Place Card ──────────────────────────────────────────────────────────────
@@ -105,13 +195,31 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       });
 
       await roomService.updateGameState(roomId, newState);
-      io.to(roomId).emit('game:state', newState);
+      await emitStateToRoom(io, room, newState);
 
       if (newState.phase === 'GAME_OVER') {
-        const score = getGameScore(newState);
-        if (score && room.player1 && room.stake) {
+        const rawScore = getGameScore(newState);
+        if (rawScore && room.player1 && room.stake) {
+          const isCompleteWin = rawScore.winner !== 'draw' &&
+            (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
+          const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
+          const effectiveStake = (room.completeWinBonus && isCompleteWin) ? room.stake * 2 : room.stake;
           io.to(roomId).emit('game:over', score);
           await roomService.save({ ...room, gameState: newState, status: 'finished' });
+
+          const winnerName =
+            score.winner === 'draw' ? 'draw'
+            : score.winner === 0    ? room.player0.playerName
+                                    : room.player1.playerName;
+          log('GAME_END', {
+            roomId,
+            player0: room.player0.playerName,
+            player1: room.player1.playerName,
+            stake: effectiveStake,
+            winner: winnerName,
+            score: `${score.player0Wins}-${score.player1Wins}` + (score.draws > 0 ? ` (${score.draws} tied)` : ''),
+            durationMs: Date.now() - room.createdAt,
+          });
 
           // Settle chips and log game via Supabase stored procedure
           const winnerId = score.winner === 'draw'
@@ -122,7 +230,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
             p_room_id:        roomId,
             p_player0_id:     room.player0.playerId,
             p_player1_id:     room.player1.playerId,
-            p_stake:          room.stake,
+            p_stake:          effectiveStake,
             p_winner_id:      winnerId,
             p_is_draw:        score.winner === 'draw',
             p_p0_columns:     score.player0Wins,

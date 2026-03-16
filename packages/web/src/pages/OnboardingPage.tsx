@@ -4,17 +4,15 @@ import Cropper, { type Area } from 'react-easy-crop';
 import toast from 'react-hot-toast';
 import { supabase } from '../supabase.js';
 import { useAuthStore } from '../store/authStore.js';
+import type { Profile } from '../supabase.js';
 
-// 20 preset avatars — color + initials placeholder until real assets are added
-const PRESET_AVATARS = Array.from({ length: 20 }, (_, i) => ({
+const PRESET_AVATARS = Array.from({ length: 32 }, (_, i) => ({
   id: `preset_${i + 1}`,
-  url: `/avatars/presets/avatar_${String(i + 1).padStart(2, '0')}.png`,
-  color: ['#e03c31','#2563eb','#16a34a','#d4a017','#7c3aed','#db2777','#0891b2',
-          '#ea580c','#65a30d','#0d9488'][i % 10],
+  url: `/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`,
 }));
 
 export function OnboardingPage() {
-  const { user, fetchProfile } = useAuthStore();
+  const { user, setProfile } = useAuthStore();
   const navigate = useNavigate();
 
   const [nickname, setNickname] = useState('');
@@ -90,20 +88,18 @@ export function OnboardingPage() {
     if (!canSave || !user) return;
     setSaving(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch('/api/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ nickname, avatarUrl, avatarIsPreset: isPreset }),
-      });
-      if (!res.ok) {
-        const { error } = await res.json() as { error: string };
-        throw new Error(error);
-      }
-      await fetchProfile();
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          nickname,
+          avatar_url: avatarUrl,
+          avatar_is_preset: isPreset,
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      setProfile(data as Profile);
       navigate('/lobby');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save profile');
@@ -113,8 +109,16 @@ export function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-felt-dark p-4">
-      <div className="w-full max-w-lg space-y-8 animate-slide-up">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: 'url(/bg-poker.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div className="w-full max-w-lg space-y-8 animate-slide-up bg-black/60 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl">
         <div className="text-center">
           <h1 className="font-display text-4xl text-gold">Choose your identity</h1>
           <p className="text-white/50 mt-1">This is how other players will see you</p>
@@ -172,27 +176,27 @@ export function OnboardingPage() {
           {/* Preview */}
           {avatarUrl && (
             <div className="flex justify-center">
-              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gold ring-4 ring-gold/30">
+              <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-gold ring-4 ring-gold/30 shadow-lg shadow-gold/20">
                 <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
               </div>
             </div>
           )}
 
-          {/* Preset grid */}
-          <div className="grid grid-cols-5 gap-2">
+          {/* Preset grid — 4×4 */}
+          <div className="grid grid-cols-4 gap-3">
             {PRESET_AVATARS.map(preset => (
               <button
                 key={preset.id}
                 onClick={() => { setSelectedPreset(preset.id); setUploadedUrl(null); }}
-                className={`aspect-square rounded-full border-2 overflow-hidden transition-all
-                  ${selectedPreset === preset.id ? 'border-gold scale-110' : 'border-transparent hover:border-white/40'}`}
-                style={{ backgroundColor: preset.color }}
+                className={`aspect-square rounded-xl overflow-hidden border-2 transition-all
+                  ${selectedPreset === preset.id
+                    ? 'border-gold scale-105 ring-2 ring-gold/50 shadow-lg shadow-gold/20'
+                    : 'border-transparent hover:border-white/40'}`}
               >
                 <img
                   src={preset.url}
-                  alt={preset.id}
+                  alt={`Avatar ${preset.id}`}
                   className="w-full h-full object-cover"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </button>
             ))}

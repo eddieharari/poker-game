@@ -7,36 +7,49 @@ interface AuthState {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  duplicateSession: boolean;
   setSession: (session: Session | null) => void;
   setProfile: (profile: Profile | null) => void;
-  fetchProfile: () => Promise<void>;
+  fetchProfile: (session: Session | null) => Promise<void>;
   signOut: () => Promise<void>;
+  setDuplicateSession: (val: boolean) => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+console.log('[authStore] module loaded ✓');
+
+export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   user: null,
   profile: null,
   loading: true,
+  duplicateSession: false,
+  setDuplicateSession: (val) => set({ duplicateSession: val }),
 
   setSession: (session) =>
-    set({ session, user: session?.user ?? null, loading: false }),
+    set({ session, user: session?.user ?? null }),
 
   setProfile: (profile) => set({ profile }),
 
-  fetchProfile: async () => {
-    const { user } = get();
-    if (!user) return;
-    const { data } = await supabase
+  fetchProfile: async (session) => {
+    if (!session) {
+      set({ profile: null, loading: false });
+      return;
+    }
+    set({ loading: true });
+    const { data, error } = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', user.id)
+      .select('id, nickname, avatar_url, avatar_is_preset, chips, wins, losses, draws, created_at')
+      .eq('id', session.user.id)
       .maybeSingle();
-    set({ profile: data ?? null });
+    if (error) {
+      console.error('[fetchProfile] error:', error.message);
+    }
+    console.log('[fetchProfile] userId:', session.user.id, '| profile:', data);
+    set({ profile: data ?? null, loading: false });
   },
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ session: null, user: null, profile: null });
+    set({ session: null, user: null, profile: null, loading: false });
   },
 }));

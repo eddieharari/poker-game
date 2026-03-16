@@ -52,6 +52,7 @@ export interface HandEvaluation {
 export interface Player {
   id: string;
   name: string;
+  avatarUrl?: string;
   /** columns[c][r] = card at column c, row r */
   columns: Card[][];
 }
@@ -104,17 +105,22 @@ export interface GameScore {
   draws: number;
   winner: 0 | 1 | 'draw';
   columnResults: ColumnResult[];
+  completeWinBonus: boolean;
+  isCompleteWin: boolean;
 }
 
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────
 
-export type PlayerStatus = 'idle' | 'in-game' | 'invited';
+export type PlayerStatus = 'idle' | 'busy' | 'in-game' | 'invited';
 
 export interface OnlinePlayer {
   id: string;
   nickname: string;
   avatarUrl: string;
   status: PlayerStatus;
+  wins: number;
+  losses: number;
+  draws: number;
 }
 
 export interface ServerToClientEvents {
@@ -131,10 +137,13 @@ export interface ServerToClientEvents {
   'lobby:player:joined':        (player: OnlinePlayer) => void;
   'lobby:player:left':          (payload: { playerId: string }) => void;
   'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean }) => void;
   'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string }) => void;
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
   'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
+  // Session
+  'session:duplicate':          () => void;
+  'session:kicked':             () => void;
 }
 
 export interface ClientToServerEvents {
@@ -146,7 +155,10 @@ export interface ClientToServerEvents {
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;
-  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount }) => void;
+  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean }) => void;
   'lobby:challenge:accept': (payload: { challengeId: string }) => void;
   'lobby:challenge:decline':(payload: { challengeId: string }) => void;
+  'lobby:set_status':         (payload: { status: 'idle' | 'busy' }) => void;
+  // Session
+  'session:confirm_takeover': () => void;
 }
