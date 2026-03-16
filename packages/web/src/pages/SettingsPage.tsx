@@ -31,7 +31,6 @@ export function SettingsPage() {
 
   const [initialFourColor] = useState(fourColorDeck);
   const avatarChanged = !!selectedPreset || !!uploadedUrl;
-  const hasChange = avatarChanged || fourColorDeck !== initialFourColor;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
