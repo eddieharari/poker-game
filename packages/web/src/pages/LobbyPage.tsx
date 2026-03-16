@@ -28,11 +28,8 @@ export function LobbyPage() {
   useEffect(() => {
     const sock = getSocket();
     const enter = () => sock.emit('lobby:enter');
-    if (sock.connected) {
-      enter();
-    } else {
-      sock.once('connect', enter);
-    }
+    sock.on('connect', enter);
+    if (sock.connected) enter();
     return () => {
       sock.off('connect', enter);
       if (sock.connected) sock.emit('lobby:leave');
