@@ -140,17 +140,12 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'invited' });
 
     const fromPlayer = await lobbyService.getPlayer(playerId);
-    const targetSockets = await io.in('lobby').fetchSockets();
-    const targetSocket = targetSockets.find(s => (s as unknown as Socket).auth?.playerId === toPlayerId);
-
-    if (targetSocket) {
-      targetSocket.emit('lobby:challenge:incoming', {
-        challengeId,
-        from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
-        stake,
-        completeWinBonus,
-      });
-    }
+    io.to(`player:${toPlayerId}`).emit('lobby:challenge:incoming', {
+      challengeId,
+      from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
+      stake,
+      completeWinBonus,
+    });
 
     // Auto-expire after 30s
     setTimeout(async () => {
@@ -229,14 +224,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     });
 
     socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
-
-    const allSockets = await io.in('lobby').fetchSockets();
-    const challengerSocket = allSockets.find(
-      s => (s as unknown as Socket).auth?.playerId === challenge.fromId,
-    );
-    if (challengerSocket) {
-      challengerSocket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
-    }
+    io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
   });
 
   // ─── Decline Challenge ───────────────────────────────────────────────────────
@@ -262,13 +250,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       stake: challenge.stake,
     });
 
-    const allSockets = await io.in('lobby').fetchSockets();
-    const challengerSocket = allSockets.find(
-      s => (s as unknown as Socket).auth?.playerId === challenge.fromId,
-    );
-    if (challengerSocket) {
-      challengerSocket.emit('lobby:challenge:declined', { challengeId });
-    }
+    io.to(`player:${challenge.fromId}`).emit('lobby:challenge:declined', { challengeId });
   });
 
   // ─── Set Status (busy / idle) ────────────────────────────────────────────────

@@ -33,6 +33,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
         existingSocket.emit('session:kicked');
         existingSocket.disconnect(true);
 
+        socket.join(`player:${playerId}`);
         log('PLAYER_LOGIN', { playerId, nickname, note: 'takeover' });
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
@@ -45,6 +46,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
       return;
     }
 
+    socket.join(`player:${playerId}`);
     log('PLAYER_LOGIN', { playerId, nickname });
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
