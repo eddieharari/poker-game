@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import http from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
@@ -10,8 +9,6 @@ import { createSocketServer } from './socket/index.js';
 import { roomRouter } from './routes/room.js';
 import { lobbyRouter } from './routes/lobby.js';
 import { profileRouter } from './routes/profile.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
   await redis.connect();
