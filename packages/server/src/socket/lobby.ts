@@ -15,27 +15,34 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
   // ─── Enter Lobby ────────────────────────────────────────────────────────────
 
   socket.on('lobby:enter', async () => {
-    const { data: stats } = await supabase
-      .from('profiles')
-      .select('wins, losses, draws')
-      .eq('id', playerId)
-      .maybeSingle();
+    try {
+      const { data: stats, error: statsError } = await supabase
+        .from('profiles')
+        .select('wins, losses, draws')
+        .eq('id', playerId)
+        .maybeSingle();
 
-    const player = {
-      id: playerId,
-      nickname,
-      avatarUrl,
-      status: 'idle' as const,
-      wins: stats?.wins ?? 0,
-      losses: stats?.losses ?? 0,
-      draws: stats?.draws ?? 0,
-    };
-    await lobbyService.addPlayer(player);
-    socket.join('lobby');
+      if (statsError) console.error('[lobby:enter] supabase error:', statsError.message);
 
-    const allPlayers = await lobbyService.getAllPlayers();
-    socket.emit('lobby:players', allPlayers.filter(p => p.id !== playerId));
-    socket.to('lobby').emit('lobby:player:joined', player);
+      const player = {
+        id: playerId,
+        nickname,
+        avatarUrl,
+        status: 'idle' as const,
+        wins: stats?.wins ?? 0,
+        losses: stats?.losses ?? 0,
+        draws: stats?.draws ?? 0,
+      };
+      await lobbyService.addPlayer(player);
+      socket.join('lobby');
+
+      const allPlayers = await lobbyService.getAllPlayers();
+      console.log(JSON.stringify({ ts: new Date().toISOString(), event: 'LOBBY_ENTER', playerId, nickname, totalPlayers: allPlayers.length }));
+      socket.emit('lobby:players', allPlayers.filter(p => p.id !== playerId));
+      socket.to('lobby').emit('lobby:player:joined', player);
+    } catch (err) {
+      console.error('[lobby:enter] unexpected error:', err);
+    }
   });
 
   // ─── Leave Lobby ────────────────────────────────────────────────────────────
