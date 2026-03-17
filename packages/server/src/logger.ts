@@ -31,7 +31,20 @@ interface LogPayload {
   [key: string]: unknown;
 }
 
+// ─── Circular Log Buffer ───────────────────────────────────────────────────────
+
+const MAX_LOG_ENTRIES = 500;
+const logBuffer: Array<{ ts: string; event: string; [key: string]: unknown }> = [];
+
+export function getLogs(): Array<{ ts: string; event: string; [key: string]: unknown }> {
+  return [...logBuffer];
+}
+
 export function log(event: LogEvent, payload: LogPayload = {}): void {
   const entry = { ts: new Date().toISOString(), event, ...payload };
+  logBuffer.push(entry);
+  if (logBuffer.length > MAX_LOG_ENTRIES) {
+    logBuffer.shift();
+  }
   console.log(JSON.stringify(entry));
 }

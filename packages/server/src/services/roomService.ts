@@ -18,6 +18,7 @@ export const roomService = {
       status: 'waiting',
       stake: null,
       completeWinBonus: false,
+      useTimer: false,
       createdAt: Date.now(),
     };
     await redis.set(key(roomId), JSON.stringify(room), 'EX', config.roomTtl);
@@ -37,7 +38,7 @@ export const roomService = {
     await redis.del(key(roomId));
   },
 
-  async joinAsPlayer1(roomId: string, player1: RoomPlayer, stake: StakeAmount, completeWinBonus: boolean): Promise<Room | null> {
+  async joinAsPlayer1(roomId: string, player1: RoomPlayer, stake: StakeAmount, completeWinBonus: boolean, useTimer: boolean): Promise<Room | null> {
     const room = await this.get(roomId);
     if (!room || room.status !== 'waiting' || room.player1 !== null) return null;
 
@@ -47,7 +48,7 @@ export const roomService = {
       { id: player1.playerId, name: player1.playerName, avatarUrl: player1.avatarUrl },
     );
 
-    const updated: Room = { ...room, player1, gameState, status: 'active', stake, completeWinBonus };
+    const updated: Room = { ...room, player1, gameState, status: 'active', stake, completeWinBonus, useTimer };
     await this.save(updated);
     return updated;
   },

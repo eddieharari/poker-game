@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -19,6 +19,8 @@ export function GamePage() {
   useSocketEvents();
   const { cardW, cardH } = useCardSize();
   const [confirmForfeit, setConfirmForfeit] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
@@ -26,6 +28,33 @@ export function GamePage() {
     socket.emit('room:join', { roomId });
     return () => { /* socket stays open across nav */ };
   }, [roomId]);
+
+  useEffect(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    const deadline = gameState?.turnDeadline;
+    if (!deadline) {
+      setTimerSeconds(null);
+      return;
+    }
+
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimerSeconds(remaining);
+    };
+    update();
+    timerIntervalRef.current = setInterval(update, 250);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [gameState?.turnDeadline]);
 
   if (!roomId || !profile) return <Navigate to="/lobby" replace />;
 
@@ -98,12 +127,20 @@ export function GamePage() {
         <span className="text-xs text-white/50 bg-black/30 px-3 py-1 rounded-full">
           {phaseLabel[gameState.phase] ?? ''}
         </span>
-        <button
-          onClick={() => setConfirmForfeit(true)}
-          className="text-xs text-red-400/70 hover:text-red-400 border border-red-900/40 hover:border-red-500/50 px-2 py-1 rounded transition-colors"
-        >
-          Give Up
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/lobby')}
+            className="text-xs text-white/50 hover:text-white border border-white/20 hover:border-white/40 px-2 py-1 rounded transition-colors"
+          >
+            Exit to Lobby
+          </button>
+          <button
+            onClick={() => setConfirmForfeit(true)}
+            className="text-xs text-red-400/70 hover:text-red-400 border border-red-900/40 hover:border-red-500/50 px-2 py-1 rounded transition-colors"
+          >
+            Give Up
+          </button>
+        </div>
       </header>
 
       {/* Main content: full-width grids */}
@@ -124,7 +161,7 @@ export function GamePage() {
         />
 
         {/* Center strip: draw controls */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-6 border-y border-white/10 bg-black/40" style={{ height: 120 }}>
+        <div className="flex-shrink-0 flex items-center justify-center gap-6 border-y border-white/10 bg-black/40 relative" style={{ height: 120 }}>
           {/* Deck count */}
           <div className="flex flex-col items-center gap-1">
             <div
@@ -149,6 +186,27 @@ export function GamePage() {
             cardW={56}
             cardH={84}
           />
+
+          {/* Turn countdown timer */}
+          {timerSeconds !== null && (
+            <div className="absolute right-4 flex flex-col items-center gap-1">
+              {isMyTurn ? (
+                <div className={`flex flex-col items-center font-bold tabular-nums transition-colors ${
+                  timerSeconds <= 10 ? 'text-red-400' : timerSeconds <= 20 ? 'text-yellow-400' : 'text-white/70'
+                }`}>
+                  <span className={`text-3xl leading-none ${timerSeconds <= 10 ? 'animate-pulse' : ''}`}>
+                    {timerSeconds}
+                  </span>
+                  <span className="text-xs font-normal mt-0.5">your turn</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center text-white/30">
+                  <span className="text-lg leading-none tabular-nums">{timerSeconds}</span>
+                  <span className="text-xs font-normal mt-0.5">opp. turn</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* My grid */}

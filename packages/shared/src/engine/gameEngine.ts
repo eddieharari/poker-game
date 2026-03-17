@@ -43,6 +43,7 @@ export function createInitialState(
     setupDrawCount: 0,
     winner: null,
     columnResults: null,
+    turnDeadline: null,
   };
 }
 

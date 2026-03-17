@@ -15,6 +15,7 @@ export function LobbyPage() {
   const [challengeTarget, setChallengeTarget] = useState<OnlinePlayer | null>(null);
   const [selectedStake, setSelectedStake] = useState<StakeAmount>(STAKE_OPTIONS[0]);
   const [completeWinBonus, setCompleteWinBonus] = useState(false);
+  const [useTimer, setUseTimer] = useState(false);
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
   function toggleStatus() {
@@ -38,11 +39,13 @@ export function LobbyPage() {
 
   function sendChallenge() {
     if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus });
+    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, useTimer });
     const bonusNote = completeWinBonus ? ' (5-0 bonus active)' : '';
-    toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${bonusNote}!`, { icon: '🃏' });
+    const timerNote = useTimer ? ' (45s timer)' : '';
+    toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${bonusNote}${timerNote}!`, { icon: '🃏' });
     setChallengeTarget(null);
     setCompleteWinBonus(false);
+    setUseTimer(false);
   }
 
   function acceptChallenge() {
@@ -185,8 +188,25 @@ export function LobbyPage() {
               </div>
             </label>
 
+            {/* Move timer option */}
+            <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
+              ${useTimer ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+              <input
+                type="checkbox"
+                checked={useTimer}
+                onChange={e => setUseTimer(e.target.checked)}
+                className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
+              />
+              <div>
+                <p className="text-sm font-semibold text-white/90">⏱ 45-second move timer</p>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Each player must act within 45 seconds or a card is auto-placed.
+                </p>
+              </div>
+            </label>
+
             <div className="flex gap-3">
-              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); }} className="btn-ghost flex-1">Cancel</button>
+              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setUseTimer(false); }} className="btn-ghost flex-1">Cancel</button>
               <button
                 onClick={sendChallenge}
                 disabled={completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2}
@@ -219,6 +239,15 @@ export function LobbyPage() {
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gold">Complete Win Bonus Active</p>
                   <p className="text-xs text-white/50">A 5-0 sweep pays <span className="text-gold font-medium">{(incomingChallenge.stake * 2).toLocaleString()}</span> chips</p>
+                </div>
+              </div>
+            )}
+            {incomingChallenge.useTimer && (
+              <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-2">
+                <span className="text-lg">⏱</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-yellow-400">45-Second Move Timer</p>
+                  <p className="text-xs text-white/50">Auto-plays if you don't act in time</p>
                 </div>
               </div>
             )}

@@ -65,7 +65,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean }) => {
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, useTimer }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean }) => {
     if (toPlayerId === playerId) {
       socket.emit('room:error', { message: 'Cannot challenge yourself' });
       return;
@@ -132,6 +132,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       roomId,
       stake,
       completeWinBonus,
+      useTimer: useTimer ?? false,
       createdAt: Date.now(),
     };
 
@@ -159,6 +160,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
       stake,
       completeWinBonus,
+      useTimer: useTimer ?? false,
     });
 
     // Auto-expire after 30s
@@ -215,7 +217,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       playerName: nickname,
       avatarUrl,
       connected: true,
-    }, challenge.stake, challenge.completeWinBonus);
+    }, challenge.stake, challenge.completeWinBonus, challenge.useTimer);
 
     if (!room) {
       socket.emit('room:error', { message: 'Room no longer available' });

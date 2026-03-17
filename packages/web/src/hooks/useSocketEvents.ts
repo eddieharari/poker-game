@@ -43,8 +43,8 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus });
+    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, useTimer }) => {
+      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, useTimer: useTimer ?? false });
     });
 
     socket.on('lobby:challenge:accepted', ({ roomId }) => {
@@ -94,7 +94,9 @@ export function useSocketEvents() {
     });
 
     socket.on('game:rejoin_required', ({ roomId }) => {
-      navigate(`/game/${roomId}`);
+      if (!window.location.pathname.startsWith('/game/')) {
+        navigate(`/game/${roomId}`);
+      }
     });
 
     socket.on('game:forfeited', ({ forfeiterIndex }) => {

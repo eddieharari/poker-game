@@ -8,6 +8,124 @@ import type { Room } from '../types.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 
+// ─── Turn Timers ──────────────────────────────────────────────────────────────
+
+const turnTimers = new Map<string, NodeJS.Timeout>();
+
+function clearTurnTimer(roomId: string): void {
+  const existing = turnTimers.get(roomId);
+  if (existing) {
+    clearTimeout(existing);
+    turnTimers.delete(roomId);
+  }
+}
+
+async function handleGameOver(io: Server, room: Room, newState: GameState): Promise<void> {
+  const rawScore = getGameScore(newState);
+  if (rawScore && room.player1 && room.stake) {
+    const isCompleteWin = rawScore.winner !== 'draw' &&
+      (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
+    const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
+    const effectiveStake = (room.completeWinBonus && isCompleteWin) ? room.stake * 2 : room.stake;
+    io.to(room.roomId).emit('game:over', score);
+    await roomService.save({ ...room, gameState: newState, status: 'finished' });
+
+    const winnerName =
+      score.winner === 'draw' ? 'draw'
+      : score.winner === 0    ? room.player0.playerName
+                              : room.player1.playerName;
+    log('GAME_END', {
+      roomId: room.roomId,
+      player0: room.player0.playerName,
+      player1: room.player1.playerName,
+      stake: effectiveStake,
+      winner: winnerName,
+      score: `${score.player0Wins}-${score.player1Wins}` + (score.draws > 0 ? ` (${score.draws} tied)` : ''),
+      durationMs: Date.now() - room.createdAt,
+    });
+
+    const winnerId = score.winner === 'draw'
+      ? null
+      : newState.players[score.winner].id;
+
+    await supabase.rpc('settle_game', {
+      p_room_id:        room.roomId,
+      p_player0_id:     room.player0.playerId,
+      p_player1_id:     room.player1.playerId,
+      p_stake:          effectiveStake,
+      p_winner_id:      winnerId,
+      p_is_draw:        score.winner === 'draw',
+      p_p0_columns:     score.player0Wins,
+      p_p1_columns:     score.player1Wins,
+      p_column_results: JSON.stringify(score.columnResults),
+      p_final_state:    JSON.stringify(newState),
+    });
+
+    await lobbyService.setStatus(room.player0.playerId, 'idle');
+    await lobbyService.setStatus(room.player1.playerId, 'idle');
+    io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
+    io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
+  }
+}
+
+async function startTurnTimer(io: Server, roomId: string, state: GameState, room: Room): Promise<void> {
+  clearTurnTimer(roomId);
+
+  if (!room.useTimer || state.phase === 'GAME_OVER') return;
+
+  const deadline = Date.now() + 45000;
+  const stateWithDeadline: GameState = { ...state, turnDeadline: deadline };
+  await roomService.updateGameState(roomId, stateWithDeadline);
+  await emitStateToRoom(io, room, stateWithDeadline);
+
+  const timer = setTimeout(async () => {
+    turnTimers.delete(roomId);
+
+    const currentRoom = await roomService.get(roomId);
+    if (!currentRoom?.gameState || currentRoom.status !== 'active') return;
+
+    let autoState = currentRoom.gameState;
+    const currentPlayerId = autoState.players[autoState.currentPlayerIndex].id;
+
+    // Auto-draw if no card drawn yet
+    if (autoState.drawnCard === null && canDrawCard(autoState, currentPlayerId)) {
+      autoState = applyAction(autoState, { type: 'DRAW_CARD', playerId: currentPlayerId });
+    }
+
+    if (autoState.drawnCard === null) return; // couldn't draw, bail
+
+    // Find a valid column to place in
+    let validColIdx = -1;
+    if (autoState.phase === 'SETUP_PHASE') {
+      validColIdx = autoState.players[autoState.currentPlayerIndex].columns.findIndex(
+        col => col.length === 0,
+      );
+    } else {
+      // MAIN_PHASE: find column where col.length === currentRow
+      validColIdx = autoState.players[autoState.currentPlayerIndex].columns.findIndex(
+        col => col.length === autoState.currentRow,
+      );
+    }
+
+    if (validColIdx === -1) return;
+
+    autoState = applyAction(autoState, { type: 'PLACE_CARD', playerId: currentPlayerId, columnIndex: validColIdx });
+    // Clear deadline after auto-play
+    autoState = { ...autoState, turnDeadline: null };
+
+    await roomService.updateGameState(roomId, autoState);
+    await emitStateToRoom(io, currentRoom, autoState);
+
+    if (autoState.phase === 'GAME_OVER') {
+      await handleGameOver(io, currentRoom, autoState);
+    } else {
+      await startTurnTimer(io, roomId, autoState, currentRoom);
+    }
+  }, 45000);
+
+  turnTimers.set(roomId, timer);
+}
+
 // ─── State Filtering ──────────────────────────────────────────────────────────
 
 /** Send each player a version of state appropriate for their perspective:
@@ -79,6 +197,12 @@ async function runSetupPhase(io: Server, roomId: string): Promise<void> {
     state = applyAction(state, { type: 'PLACE_CARD', playerId, columnIndex: colIdx });
     await roomService.updateGameState(roomId, state);
     await emitStateToRoom(io, room, state);
+  }
+
+  // After setup phase completes, start timer for main phase
+  const roomAfterSetup = await roomService.get(roomId);
+  if (roomAfterSetup?.gameState && roomAfterSetup.gameState.phase === 'MAIN_PHASE') {
+    await startTurnTimer(io, roomId, roomAfterSetup.gameState, roomAfterSetup);
   }
 }
 
@@ -156,6 +280,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
   // ─── Draw Card ───────────────────────────────────────────────────────────────
 
   socket.on('action:draw', async ({ roomId }: { roomId: string }) => {
+    clearTurnTimer(roomId);
+
     const room = await roomService.get(roomId);
     if (!room?.gameState) {
       socket.emit('room:error', { message: 'Game not found' });
@@ -170,6 +296,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const newState = applyAction(room.gameState, { type: 'DRAW_CARD', playerId });
     await roomService.updateGameState(roomId, newState);
     await emitStateToRoom(io, room, newState);
+    await startTurnTimer(io, roomId, newState, room);
   });
 
   // ─── Place Card ──────────────────────────────────────────────────────────────
@@ -177,6 +304,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
   socket.on(
     'action:place',
     async ({ roomId, columnIndex }: { roomId: string; columnIndex: number }) => {
+      clearTurnTimer(roomId);
+
       const room = await roomService.get(roomId);
       if (!room?.gameState) {
         socket.emit('room:error', { message: 'Game not found' });
@@ -198,53 +327,9 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       await emitStateToRoom(io, room, newState);
 
       if (newState.phase === 'GAME_OVER') {
-        const rawScore = getGameScore(newState);
-        if (rawScore && room.player1 && room.stake) {
-          const isCompleteWin = rawScore.winner !== 'draw' &&
-            (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
-          const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
-          const effectiveStake = (room.completeWinBonus && isCompleteWin) ? room.stake * 2 : room.stake;
-          io.to(roomId).emit('game:over', score);
-          await roomService.save({ ...room, gameState: newState, status: 'finished' });
-
-          const winnerName =
-            score.winner === 'draw' ? 'draw'
-            : score.winner === 0    ? room.player0.playerName
-                                    : room.player1.playerName;
-          log('GAME_END', {
-            roomId,
-            player0: room.player0.playerName,
-            player1: room.player1.playerName,
-            stake: effectiveStake,
-            winner: winnerName,
-            score: `${score.player0Wins}-${score.player1Wins}` + (score.draws > 0 ? ` (${score.draws} tied)` : ''),
-            durationMs: Date.now() - room.createdAt,
-          });
-
-          // Settle chips and log game via Supabase stored procedure
-          const winnerId = score.winner === 'draw'
-            ? null
-            : newState.players[score.winner].id;
-
-          await supabase.rpc('settle_game', {
-            p_room_id:        roomId,
-            p_player0_id:     room.player0.playerId,
-            p_player1_id:     room.player1.playerId,
-            p_stake:          effectiveStake,
-            p_winner_id:      winnerId,
-            p_is_draw:        score.winner === 'draw',
-            p_p0_columns:     score.player0Wins,
-            p_p1_columns:     score.player1Wins,
-            p_column_results: JSON.stringify(score.columnResults),
-            p_final_state:    JSON.stringify(newState),
-          });
-
-          // Return players to idle in lobby
-          await lobbyService.setStatus(room.player0.playerId, 'idle');
-          await lobbyService.setStatus(room.player1.playerId, 'idle');
-          io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
-          io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
-        }
+        await handleGameOver(io, room, newState);
+      } else {
+        await startTurnTimer(io, roomId, newState, room);
       }
     },
   );
@@ -252,6 +337,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
   // ─── Forfeit ─────────────────────────────────────────────────────────────────
 
   socket.on('game:forfeit', async ({ roomId }: { roomId: string }) => {
+    clearTurnTimer(roomId);
+
     const room = await roomService.get(roomId);
     if (!room || room.status !== 'active' || !room.player1 || !room.stake) return;
 

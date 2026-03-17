@@ -9,6 +9,7 @@ import { OnboardingPage } from './pages/OnboardingPage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
+import { AdminPage } from './pages/AdminPage.js';
 
 export function App() {
   const { session, profile, loading, setSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
@@ -90,6 +91,9 @@ export function App() {
           : !profile ? <Navigate to="/onboarding" replace />
           : <GamePage />
         } />
+
+        {/* Admin — no auth protection */}
+        <Route path="/admin" element={<AdminPage />} />
 
         {/* Root redirect */}
         <Route path="/" element={

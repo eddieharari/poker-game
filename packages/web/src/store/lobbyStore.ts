@@ -6,6 +6,7 @@ interface IncomingChallenge {
   from: OnlinePlayer;
   stake: StakeAmount;
   completeWinBonus: boolean;
+  useTimer: boolean;
 }
 
 interface LobbyState {
