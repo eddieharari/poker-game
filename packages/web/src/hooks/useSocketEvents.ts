@@ -91,6 +91,16 @@ export function useSocketEvents() {
       toast.success('Opponent reconnected!');
     });
 
+    socket.on('game:forfeited', ({ forfeiterIndex }) => {
+      const { playerIndex } = useGameStore.getState();
+      const forfeiterIsMe = forfeiterIndex === playerIndex;
+      toast(forfeiterIsMe ? 'You forfeited the game.' : 'Opponent forfeited — you win!', {
+        icon: forfeiterIsMe ? '🏳️' : '🏆',
+        duration: 4000,
+      });
+      navigate('/lobby');
+    });
+
     socket.on('room:error', ({ message }) => toast.error(message));
 
     return () => {
@@ -107,7 +117,8 @@ export function useSocketEvents() {
       socket.off('game:over');
       socket.off('player:disconnected');
       socket.off('player:reconnected');
-      socket.off('room:error');
+      socket.off('game:forfeited');
+    socket.off('room:error');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
       setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, fetchProfile]);

@@ -249,6 +249,46 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     },
   );
 
+  // ─── Forfeit ─────────────────────────────────────────────────────────────────
+
+  socket.on('game:forfeit', async ({ roomId }: { roomId: string }) => {
+    const room = await roomService.get(roomId);
+    if (!room || room.status !== 'active' || !room.player1 || !room.stake) return;
+
+    const forfeiterIndex: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
+    const winnerId = forfeiterIndex === 0 ? room.player1.playerId : room.player0.playerId;
+
+    await roomService.save({ ...room, status: 'finished' });
+    io.to(roomId).emit('game:forfeited', { forfeiterIndex });
+
+    await supabase.rpc('settle_game', {
+      p_room_id:        roomId,
+      p_player0_id:     room.player0.playerId,
+      p_player1_id:     room.player1.playerId,
+      p_stake:          room.stake,
+      p_winner_id:      winnerId,
+      p_is_draw:        false,
+      p_p0_columns:     forfeiterIndex === 0 ? 0 : 5,
+      p_p1_columns:     forfeiterIndex === 1 ? 0 : 5,
+      p_column_results: JSON.stringify([]),
+      p_final_state:    JSON.stringify(room.gameState),
+    });
+
+    await lobbyService.setStatus(room.player0.playerId, 'idle');
+    await lobbyService.setStatus(room.player1.playerId, 'idle');
+    io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
+    io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
+
+    log('GAME_END', {
+      roomId,
+      player0: room.player0.playerName,
+      player1: room.player1.playerName,
+      stake: room.stake,
+      winner: forfeiterIndex === 0 ? room.player1.playerName : room.player0.playerName,
+      score: forfeiterIndex === 0 ? '0-5' : '5-0',
+    });
+  });
+
   // ─── Disconnect ──────────────────────────────────────────────────────────────
 
   socket.on('disconnect', async () => {

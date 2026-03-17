@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -17,6 +17,7 @@ export function GamePage() {
 
   useSocketEvents();
   const { cardW, cardH } = useCardSize();
+  const [confirmForfeit, setConfirmForfeit] = useState(false);
 
   useEffect(() => {
     if (!roomId) return;
@@ -52,6 +53,12 @@ export function GamePage() {
     getSocket().emit('action:draw', { roomId });
   }
 
+  function handleForfeit() {
+    if (!roomId) return;
+    getSocket().emit('game:forfeit', { roomId });
+    setConfirmForfeit(false);
+  }
+
   function handlePlace(columnIndex: number) {
     if (!roomId) return;
     getSocket().emit('action:place', { roomId, columnIndex });
@@ -82,6 +89,12 @@ export function GamePage() {
         {opponentDisconnected && (
           <span className="text-xs text-yellow-400 animate-pulse">⚠ Opponent disconnected</span>
         )}
+        <button
+          onClick={() => setConfirmForfeit(true)}
+          className="text-xs text-red-400/70 hover:text-red-400 border border-red-900/40 hover:border-red-500/50 px-2 py-1 rounded transition-colors"
+        >
+          Give Up
+        </button>
       </header>
 
       {/* Main content: full-width grids */}
@@ -143,6 +156,29 @@ export function GamePage() {
           cardH={cardH}
         />
       </div>
+
+      {/* Give Up confirmation */}
+      {confirmForfeit && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-3xl">🏳️</p>
+              <h2 className="font-display text-xl text-gold">Give Up?</h2>
+              <p className="text-white/60 text-sm">
+                You will forfeit the game and lose your stake. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmForfeit(false)} className="btn-ghost flex-1">
+                Cancel
+              </button>
+              <button onClick={handleForfeit} className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold transition-colors">
+                Yes, Give Up
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

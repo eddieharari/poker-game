@@ -130,6 +130,7 @@ export interface ServerToClientEvents {
   'room:error':           (payload: { message: string }) => void;
   'game:state':           (state: GameState) => void;
   'game:over':            (score: GameScore) => void;
+  'game:forfeited':       (payload: { forfeiterIndex: 0 | 1 }) => void;
   'player:disconnected':  (payload: { playerIndex: 0 | 1 }) => void;
   'player:reconnected':   (payload: { playerIndex: 0 | 1 }) => void;
   // Lobby
@@ -151,7 +152,8 @@ export interface ClientToServerEvents {
   'room:join':    (payload: { roomId: string }) => void;
   'room:rejoin':  (payload: { roomId: string }) => void;
   'action:draw':  (payload: { roomId: string }) => void;
-  'action:place': (payload: { roomId: string; columnIndex: number }) => void;
+  'action:place':  (payload: { roomId: string; columnIndex: number }) => void;
+  'game:forfeit':  (payload: { roomId: string }) => void;
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;
