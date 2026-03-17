@@ -16,13 +16,33 @@ interface LogEntry {
   [key: string]: unknown;
 }
 
+interface ChipRequest {
+  id: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+  profiles: { nickname: string; avatar_url: string };
+}
+
+interface HouseSettings {
+  feePercent: number;
+  feeCap: number;
+  housePlayerId: string;
+}
+
 export function AdminPage() {
   const [password, setPassword] = useState('');
   const [authedPassword, setAuthedPassword] = useState<string | null>(null);
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState<'players' | 'logs'>('players');
+  const [activeTab, setActiveTab] = useState<'players' | 'requests' | 'settings' | 'logs'>('players');
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [requests, setRequests] = useState<ChipRequest[]>([]);
+  const [houseSettings, setHouseSettings] = useState<HouseSettings | null>(null);
+  const [settingsFeePercent, setSettingsFeePercent] = useState('');
+  const [settingsFeeCap, setSettingsFeeCap] = useState('');
+  const [settingsHousePlayerId, setSettingsHousePlayerId] = useState('');
+  const [settingsSaved, setSettingsSaved] = useState('');
   const [addChipsPlayerId, setAddChipsPlayerId] = useState<string | null>(null);
   const [chipAmount, setChipAmount] = useState('');
   const [chipsMessage, setChipsMessage] = useState('');
@@ -69,10 +89,34 @@ export function AdminPage() {
     }
   }
 
-  async function handleTabChange(tab: 'players' | 'logs') {
+  async function fetchRequests() {
+    if (!authedPassword) return;
+    const res = await fetch('/api/admin/requests', {
+      headers: { 'x-admin-password': authedPassword },
+    });
+    if (res.ok) setRequests(await res.json());
+  }
+
+  async function fetchSettings() {
+    if (!authedPassword) return;
+    const res = await fetch('/api/admin/settings', {
+      headers: { 'x-admin-password': authedPassword },
+    });
+    if (res.ok) {
+      const data: HouseSettings = await res.json();
+      setHouseSettings(data);
+      setSettingsFeePercent(String(data.feePercent));
+      setSettingsFeeCap(String(data.feeCap));
+      setSettingsHousePlayerId(data.housePlayerId);
+    }
+  }
+
+  async function handleTabChange(tab: 'players' | 'requests' | 'settings' | 'logs') {
     setActiveTab(tab);
     if (tab === 'logs') fetchLogs();
     if (tab === 'players') fetchPlayers();
+    if (tab === 'requests') fetchRequests();
+    if (tab === 'settings') fetchSettings();
   }
 
   async function handleAddChips(e: React.FormEvent) {
@@ -103,6 +147,52 @@ export function AdminPage() {
     } else {
       const data = await res.json();
       alert(`Error: ${data.error ?? 'Failed to add chips'}`);
+    }
+  }
+
+  async function handleApproveRequest(id: string) {
+    if (!authedPassword) return;
+    const res = await fetch(`/api/admin/requests/${id}/approve`, {
+      method: 'POST',
+      headers: { 'x-admin-password': authedPassword },
+    });
+    if (res.ok) fetchRequests();
+    else alert('Failed to approve request');
+  }
+
+  async function handleDeclineRequest(id: string) {
+    if (!authedPassword) return;
+    const res = await fetch(`/api/admin/requests/${id}/decline`, {
+      method: 'POST',
+      headers: { 'x-admin-password': authedPassword },
+    });
+    if (res.ok) fetchRequests();
+    else alert('Failed to decline request');
+  }
+
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!authedPassword) return;
+    setSettingsSaved('');
+    const feePercent = parseFloat(settingsFeePercent);
+    const feeCap = parseFloat(settingsFeeCap);
+    if (isNaN(feePercent) || isNaN(feeCap)) {
+      setSettingsSaved('Invalid numbers');
+      return;
+    }
+    const res = await fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': authedPassword,
+      },
+      body: JSON.stringify({ feePercent, feeCap, housePlayerId: settingsHousePlayerId }),
+    });
+    if (res.ok) {
+      setSettingsSaved('Settings saved!');
+      fetchSettings();
+    } else {
+      setSettingsSaved('Failed to save');
     }
   }
 
@@ -142,6 +232,8 @@ export function AdminPage() {
     );
   }
 
+  const allTabs = ['players', 'requests', 'settings', 'logs'] as const;
+
   return (
     <div
       className="min-h-screen"
@@ -164,7 +256,7 @@ export function AdminPage() {
       <div className="max-w-5xl mx-auto p-6 space-y-4">
         {/* Tabs */}
         <div className="flex gap-2">
-          {(['players', 'logs'] as const).map(tab => (
+          {allTabs.map(tab => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -178,7 +270,12 @@ export function AdminPage() {
             </button>
           ))}
           <button
-            onClick={() => activeTab === 'players' ? fetchPlayers() : fetchLogs()}
+            onClick={() => {
+              if (activeTab === 'players') fetchPlayers();
+              else if (activeTab === 'logs') fetchLogs();
+              else if (activeTab === 'requests') fetchRequests();
+              else if (activeTab === 'settings') fetchSettings();
+            }}
             className="ml-auto px-3 py-2 rounded-lg text-xs border border-white/20 text-white/50 hover:text-white hover:border-white/40 transition-colors"
           >
             Refresh
@@ -232,6 +329,121 @@ export function AdminPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Requests Tab */}
+        {activeTab === 'requests' && (
+          <div className="bg-black/60 border border-white/10 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-white/50 text-xs uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left">Player</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-left">Note</th>
+                  <th className="px-4 py-3 text-left">Requested</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((req, i) => (
+                  <tr
+                    key={req.id}
+                    className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/5' : ''}`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <img src={req.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full border border-white/20 object-cover" />
+                        <span className="font-medium">{req.profiles.nickname}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gold font-semibold">+{req.amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-white/60">{req.note ?? '—'}</td>
+                    <td className="px-4 py-3 text-white/40 text-xs">{new Date(req.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleApproveRequest(req.id)}
+                          className="text-xs px-2 py-1 rounded bg-green-600/20 border border-green-600/40 text-green-400 hover:bg-green-600/30 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleDeclineRequest(req.id)}
+                          className="text-xs px-2 py-1 rounded bg-red-600/20 border border-red-600/40 text-red-400 hover:bg-red-600/30 transition-colors"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {requests.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-white/30">No pending requests</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="bg-black/60 border border-white/10 rounded-2xl p-6 max-w-md space-y-5">
+            <h2 className="font-display text-lg text-gold">House Fee Settings</h2>
+            {houseSettings === null ? (
+              <p className="text-white/40 text-sm">Loading…</p>
+            ) : (
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">Fee Percent (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={settingsFeePercent}
+                    onChange={e => setSettingsFeePercent(e.target.value)}
+                    className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                  />
+                  <p className="text-xs text-white/30 mt-1">Percentage of the pot taken as house fee</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">Fee Cap (0 = no cap)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsFeeCap}
+                    onChange={e => setSettingsFeeCap(e.target.value)}
+                    className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                  />
+                  <p className="text-xs text-white/30 mt-1">Maximum chips taken per game (0 = unlimited)</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">House Player ID</label>
+                  <input
+                    type="text"
+                    value={settingsHousePlayerId}
+                    onChange={e => setSettingsHousePlayerId(e.target.value)}
+                    placeholder="Supabase player UUID"
+                    className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                  />
+                  <p className="text-xs text-white/30 mt-1">Player ID that receives house fees (empty = no fee)</p>
+                </div>
+                {settingsSaved && (
+                  <p className={`text-sm text-center ${settingsSaved.includes('saved') ? 'text-green-400' : 'text-red-400'}`}>
+                    {settingsSaved}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  className="w-full py-2 rounded-xl bg-gold text-black font-semibold hover:bg-yellow-400 transition-colors"
+                >
+                  Save Settings
+                </button>
+              </form>
+            )}
           </div>
         )}
 

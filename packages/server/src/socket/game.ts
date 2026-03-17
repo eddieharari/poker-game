@@ -7,6 +7,7 @@ import type { GameState, Player } from '@poker5o/shared';
 import type { Room } from '../types.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
+import { settingsService, calculateHouseFee } from '../services/settingsService.js';
 
 // ─── Turn Timers ──────────────────────────────────────────────────────────────
 
@@ -59,6 +60,28 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       p_p1_columns:     score.player1Wins,
       p_column_results: JSON.stringify(score.columnResults),
       p_final_state:    JSON.stringify(newState),
+    });
+
+    // House fee
+    const settings = await settingsService.get();
+    const fee = calculateHouseFee(effectiveStake * 2, settings);
+    if (fee > 0 && settings.housePlayerId && winnerId) {
+      await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
+      await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+    }
+    // Write game result for cashier history
+    await supabase.from('game_results').insert({
+      room_id: room.roomId,
+      player0_id: room.player0.playerId,
+      player1_id: room.player1.playerId,
+      player0_name: room.player0.playerName,
+      player1_name: room.player1.playerName,
+      stake: effectiveStake,
+      winner_id: winnerId ?? null,
+      is_draw: score.winner === 'draw',
+      p0_columns: score.player0Wins,
+      p1_columns: score.player1Wins,
+      house_fee: fee,
     });
 
     await lobbyService.setStatus(room.player0.playerId, 'idle');
@@ -231,7 +254,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     socket.join(roomId);
 
     const playerIndex: 0 | 1 = isPlayer0 ? 0 : 1;
-    socket.emit('room:joined', { roomId, playerId, playerIndex });
+    socket.emit('room:joined', { roomId, playerId, playerIndex, stake: room.stake, completeWinBonus: room.completeWinBonus });
 
     // If game state is ready, send personalized state
     if (room.gameState) {
@@ -268,7 +291,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     socket.join(roomId);
 
     const playerIndex: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
-    socket.emit('room:joined', { roomId, playerId, playerIndex });
+    socket.emit('room:joined', { roomId, playerId, playerIndex, stake: room.stake, completeWinBonus: room.completeWinBonus });
 
     if (room.gameState) {
       socket.emit('game:state', filterStateForPlayer(room.gameState, playerIndex));

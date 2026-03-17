@@ -56,7 +56,7 @@ export function useSocketEvents() {
     socket.on('lobby:challenge:expired',  () => toast('Challenge expired', { icon: '⏱' }));
 
     // ─── Game ────────────────────────────────────────────────────────────────
-    socket.on('room:joined', ({ roomId, playerIndex }) => setRoom(roomId, playerIndex));
+    socket.on('room:joined', ({ roomId, playerIndex, stake, completeWinBonus }) => setRoom(roomId, playerIndex, stake, completeWinBonus));
     socket.on('game:state',  (state) => {
       setGameState(state);
 

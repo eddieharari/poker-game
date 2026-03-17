@@ -126,7 +126,7 @@ export interface OnlinePlayer {
 
 export interface ServerToClientEvents {
   // Game room
-  'room:joined':          (payload: { roomId: string; playerId: string; playerIndex: 0 | 1 }) => void;
+  'room:joined':          (payload: { roomId: string; playerId: string; playerIndex: 0 | 1; stake: number | null; completeWinBonus: boolean }) => void;
   'room:ready':           (payload: { gameState: GameState }) => void;
   'room:error':           (payload: { message: string }) => void;
   'game:state':           (state: GameState) => void;

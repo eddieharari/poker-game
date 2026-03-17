@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../supabase.js';
 import { getLogs } from '../logger.js';
 import { lobbyService } from '../services/lobbyService.js';
+import { settingsService } from '../services/settingsService.js';
 
 export const adminRouter = Router();
 
@@ -56,4 +57,59 @@ adminRouter.post('/reset-player', async (req, res) => {
 adminRouter.get('/logs', (req, res) => {
   if (!checkAuth(req, res)) return;
   res.json(getLogs());
+});
+
+// GET /api/admin/settings
+adminRouter.get('/settings', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const settings = await settingsService.get();
+  res.json(settings);
+});
+
+// POST /api/admin/settings
+adminRouter.post('/settings', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { feePercent, feeCap, housePlayerId } = req.body;
+  await settingsService.save({
+    ...(typeof feePercent === 'number' && { feePercent }),
+    ...(typeof feeCap === 'number' && { feeCap }),
+    ...(typeof housePlayerId === 'string' && { housePlayerId }),
+  });
+  res.json({ ok: true });
+});
+
+// GET /api/admin/requests — pending chip requests
+adminRouter.get('/requests', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { data, error } = await supabase
+    .from('chip_requests')
+    .select('id, amount, note, status, created_at, player_id, profiles(nickname, avatar_url)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// POST /api/admin/requests/:id/approve
+adminRouter.post('/requests/:id/approve', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { id } = req.params;
+  const { data: chipReq, error: fetchErr } = await supabase
+    .from('chip_requests')
+    .select('*')
+    .eq('id', id)
+    .eq('status', 'pending')
+    .single();
+  if (fetchErr || !chipReq) return res.status(404).json({ error: 'Request not found' });
+  await supabase.rpc('add_chips', { p_player_id: chipReq.player_id, p_amount: chipReq.amount });
+  await supabase.from('chip_requests').update({ status: 'approved', resolved_at: new Date().toISOString() }).eq('id', id);
+  res.json({ ok: true });
+});
+
+// POST /api/admin/requests/:id/decline
+adminRouter.post('/requests/:id/decline', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { id } = req.params;
+  await supabase.from('chip_requests').update({ status: 'declined', resolved_at: new Date().toISOString() }).eq('id', id);
+  res.json({ ok: true });
 });

@@ -10,6 +10,7 @@ import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
+import { CashierPage } from './pages/CashierPage.js';
 
 export function App() {
   const { session, profile, loading, setSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
@@ -90,6 +91,13 @@ export function App() {
           !session ? <Navigate to="/auth" replace />
           : !profile ? <Navigate to="/onboarding" replace />
           : <GamePage />
+        } />
+
+        {/* Cashier — requires auth */}
+        <Route path="/cashier" element={
+          !session ? <Navigate to="/auth" replace />
+          : !profile ? <Navigate to="/onboarding" replace />
+          : <CashierPage />
         } />
 
         {/* Admin — no auth protection */}

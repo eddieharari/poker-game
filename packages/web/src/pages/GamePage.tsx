@@ -15,7 +15,7 @@ export function GamePage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuthStore();
-  const { gameState, score, playerIndex, opponentLeft, setOpponentLeft } = useGameStore();
+  const { gameState, score, playerIndex, stake, completeWinBonus, opponentLeft, setOpponentLeft } = useGameStore();
   const autoDrawCard = usePreferencesStore(s => s.autoDrawCard);
 
   useSocketEvents();
@@ -136,9 +136,16 @@ export function GamePage() {
           </button>
           <h1 className="font-display text-lg text-gold">Poker5O</h1>
         </div>
-        <span className="text-xs text-white/50 bg-black/30 px-3 py-1 rounded-full">
-          {phaseLabel[gameState.phase] ?? ''}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/50 bg-black/30 px-3 py-1 rounded-full">
+            {phaseLabel[gameState.phase] ?? ''}
+          </span>
+          {stake != null && (
+            <span className="text-xs font-semibold text-gold bg-gold/10 border border-gold/30 px-3 py-1 rounded-full">
+              Pot: {(stake * 2).toLocaleString()} chips{completeWinBonus ? ' (2x bonus)' : ''}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/lobby')}
