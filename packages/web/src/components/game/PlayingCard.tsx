@@ -23,11 +23,10 @@ interface Props {
   card: Card;
   width?: number;
   height?: number;
-  /** Pass true for opponent cards to suppress rotated bottom corners */
-  hideFlippedCorners?: boolean;
+  hideFlippedCorners?: boolean; // kept for API compatibility, no longer used
 }
 
-export function PlayingCard({ card, width = 56, height = 84, hideFlippedCorners = false }: Props) {
+export function PlayingCard({ card, width = 56, height = 84 }: Props) {
   const { fourColorDeck, twoCornerDeck } = usePreferencesStore();
 
   if (card.faceDown) {
@@ -61,13 +60,13 @@ export function PlayingCard({ card, width = 56, height = 84, hideFlippedCorners 
       style={{ width, height, backgroundColor: bgColor, color: inkColor }}
       className={`rounded-lg shadow-md select-none relative overflow-hidden ${borderClass}`}
     >
-      {/* Top-left corner — always shown */}
+      {/* Top-left corner */}
       <div className="absolute top-0.5 left-1 leading-none">
         <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
         <div className="font-black leading-tight" style={{ fontSize: suitSize }}>{symbol}</div>
       </div>
 
-      {/* Top-right corner — only in 4-corner mode */}
+      {/* Top-right corner — 4-corner mode only */}
       {!twoCornerDeck && (
         <div className="absolute top-0.5 right-1 leading-none">
           <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
@@ -80,29 +79,19 @@ export function PlayingCard({ card, width = 56, height = 84, hideFlippedCorners 
         <span style={{ fontSize: height * 0.28 }}>{symbol}</span>
       </div>
 
-      {/* Bottom-left corner — 4-corner mode only, hidden for opponent cards */}
-      {!twoCornerDeck && !hideFlippedCorners && (
-        <div className="absolute bottom-0.5 left-1 leading-none rotate-180">
+      {/* Bottom-left corner — 4-corner mode only, readable (no rotation) */}
+      {!twoCornerDeck && (
+        <div className="absolute bottom-0.5 left-1 leading-none">
           <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
           <div className="font-black leading-tight" style={{ fontSize: suitSize }}>{symbol}</div>
         </div>
       )}
 
-      {/* Bottom-right corner:
-          - 4-corner mode + own card: rotated
-          - 4-corner mode + opponent card: hidden
-          - 2-corner mode: shown normally (no rotation) */}
-      {twoCornerDeck ? (
-        <div className="absolute bottom-0.5 right-1 leading-none">
-          <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
-          <div className="font-black leading-tight" style={{ fontSize: suitSize }}>{symbol}</div>
-        </div>
-      ) : !hideFlippedCorners ? (
-        <div className="absolute bottom-0.5 right-1 leading-none rotate-180">
-          <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
-          <div className="font-black leading-tight" style={{ fontSize: suitSize }}>{symbol}</div>
-        </div>
-      ) : null}
+      {/* Bottom-right corner — always shown, readable (no rotation) */}
+      <div className="absolute bottom-0.5 right-1 leading-none">
+        <div className="font-black leading-tight" style={{ fontSize: rankSize }}>{card.rank}</div>
+        <div className="font-black leading-tight" style={{ fontSize: suitSize }}>{symbol}</div>
+      </div>
     </div>
   );
 }
