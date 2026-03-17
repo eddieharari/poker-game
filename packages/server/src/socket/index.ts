@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { authenticateSocket } from '../middleware/auth.js';
 import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
+import { roomService } from '../services/roomService.js';
 import { log } from '../logger.js';
 
 export function createSocketServer(httpServer: HttpServer): Server {
@@ -50,6 +51,13 @@ export function createSocketServer(httpServer: HttpServer): Server {
     log('PLAYER_LOGIN', { playerId, nickname });
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
+
+    // If player has an active game, push them back to it
+    roomService.findByPlayerId(playerId).then((room) => {
+      if (room && room.status === 'active') {
+        socket.emit('game:rejoin_required', { roomId: room.roomId });
+      }
+    });
 
     socket.on('disconnect', (reason) => {
       log('PLAYER_LOGOUT', { playerId, nickname, reason });

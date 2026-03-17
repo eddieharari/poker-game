@@ -131,6 +131,7 @@ export interface ServerToClientEvents {
   'game:state':           (state: GameState) => void;
   'game:over':            (score: GameScore) => void;
   'game:forfeited':       (payload: { forfeiterIndex: 0 | 1 }) => void;
+  'game:rejoin_required': (payload: { roomId: string }) => void;
   'player:disconnected':  (payload: { playerIndex: 0 | 1 }) => void;
   'player:reconnected':   (payload: { playerIndex: 0 | 1 }) => void;
   // Lobby

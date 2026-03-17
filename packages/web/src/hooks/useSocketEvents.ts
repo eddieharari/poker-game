@@ -31,6 +31,7 @@ export function useSocketEvents() {
   const setScore            = useGameStore(s => s.setScore);
   const setRoom             = useGameStore(s => s.setRoom);
   const setOpponentDisconnected = useGameStore(s => s.setOpponentDisconnected);
+  const setOpponentLeft = useGameStore(s => s.setOpponentLeft);
   const fetchProfile        = useAuthStore(s => s.fetchProfile);
 
   useEffect(() => {
@@ -83,12 +84,17 @@ export function useSocketEvents() {
 
     socket.on('player:disconnected', () => {
       setOpponentDisconnected(true);
-      toast.error('Opponent disconnected — waiting for reconnect…');
+      setOpponentLeft(true);
     });
 
     socket.on('player:reconnected', () => {
       setOpponentDisconnected(false);
+      setOpponentLeft(false);
       toast.success('Opponent reconnected!');
+    });
+
+    socket.on('game:rejoin_required', ({ roomId }) => {
+      navigate(`/game/${roomId}`);
     });
 
     socket.on('game:forfeited', ({ forfeiterIndex }) => {
@@ -118,8 +124,9 @@ export function useSocketEvents() {
       socket.off('player:disconnected');
       socket.off('player:reconnected');
       socket.off('game:forfeited');
-    socket.off('room:error');
+      socket.off('game:rejoin_required');
+      socket.off('room:error');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
-      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, fetchProfile]);
+      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, fetchProfile]);
 }

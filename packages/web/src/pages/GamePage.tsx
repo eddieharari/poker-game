@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
@@ -12,8 +12,9 @@ import { ScoreScreen } from '../components/game/ScoreScreen.js';
 
 export function GamePage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
   const { profile } = useAuthStore();
-  const { gameState, score, playerIndex, opponentDisconnected } = useGameStore();
+  const { gameState, score, playerIndex, opponentLeft, setOpponentLeft } = useGameStore();
 
   useSocketEvents();
   const { cardW, cardH } = useCardSize();
@@ -82,13 +83,21 @@ export function GamePage() {
     >
       {/* Header */}
       <header className="flex-shrink-0 bg-black/60 backdrop-blur-sm border-b border-white/10 px-4 py-2 flex items-center justify-between">
-        <h1 className="font-display text-lg text-gold">Poker5O</h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setConfirmForfeit(true)}
+            className="text-white/50 hover:text-white transition-colors"
+            aria-label="Back to lobby"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="font-display text-lg text-gold">Poker5O</h1>
+        </div>
         <span className="text-xs text-white/50 bg-black/30 px-3 py-1 rounded-full">
           {phaseLabel[gameState.phase] ?? ''}
         </span>
-        {opponentDisconnected && (
-          <span className="text-xs text-yellow-400 animate-pulse">⚠ Opponent disconnected</span>
-        )}
         <button
           onClick={() => setConfirmForfeit(true)}
           className="text-xs text-red-400/70 hover:text-red-400 border border-red-900/40 hover:border-red-500/50 px-2 py-1 rounded transition-colors"
@@ -156,6 +165,35 @@ export function GamePage() {
           cardH={cardH}
         />
       </div>
+
+      {/* Opponent disconnected modal */}
+      {opponentLeft && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-3xl animate-pulse">📡</p>
+              <h2 className="font-display text-xl text-gold">Opponent Disconnected</h2>
+              <p className="text-white/60 text-sm">
+                Your opponent lost connection. They have 10 minutes to reconnect before the game is abandoned.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOpponentLeft(false)}
+                className="btn-ghost flex-1"
+              >
+                Wait
+              </button>
+              <button
+                onClick={() => { setOpponentLeft(false); navigate('/lobby'); }}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
+              >
+                Go to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Give Up confirmation */}
       {confirmForfeit && (

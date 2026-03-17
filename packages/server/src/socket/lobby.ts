@@ -9,12 +9,19 @@ import type { StakeAmount } from '@poker5o/shared';
 import type { Challenge } from '../types.js';
 import { log } from '../logger.js';
 
+// Grace-period timers: playerId → timeout handle
+const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 export function registerLobbyHandlers(io: Server, socket: Socket): void {
   const { playerId, nickname, avatarUrl } = socket.auth;
 
   // ─── Enter Lobby ────────────────────────────────────────────────────────────
 
   socket.on('lobby:enter', async () => {
+    // Cancel any pending removal from a previous disconnect
+    const pending = disconnectTimers.get(playerId);
+    if (pending) { clearTimeout(pending); disconnectTimers.delete(playerId); }
+
     try {
       const { data: stats, error: statsError } = await supabase
         .from('profiles')
@@ -275,8 +282,16 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
   socket.on('disconnect', async () => {
     const player = await lobbyService.getPlayer(playerId);
     if (player && player.status !== 'in-game') {
-      await lobbyService.removePlayer(playerId);
-      io.to('lobby').emit('lobby:player:left', { playerId });
+      // 30s grace period — remove only if still disconnected
+      const timer = setTimeout(async () => {
+        disconnectTimers.delete(playerId);
+        const current = await lobbyService.getPlayer(playerId);
+        if (current && current.status !== 'in-game') {
+          await lobbyService.removePlayer(playerId);
+          io.to('lobby').emit('lobby:player:left', { playerId });
+        }
+      }, 30_000);
+      disconnectTimers.set(playerId, timer);
     }
   });
 }

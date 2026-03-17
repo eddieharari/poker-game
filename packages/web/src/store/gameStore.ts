@@ -7,11 +7,13 @@ interface GameStore {
   playerIndex: 0 | 1 | null;
   roomId: string | null;
   opponentDisconnected: boolean;
+  opponentLeft: boolean;
 
   setGameState: (state: GameState) => void;
   setScore: (score: GameScore) => void;
   setRoom: (roomId: string, playerIndex: 0 | 1) => void;
   setOpponentDisconnected: (v: boolean) => void;
+  setOpponentLeft: (v: boolean) => void;
   reset: () => void;
 }
 
@@ -21,10 +23,12 @@ export const useGameStore = create<GameStore>((set) => ({
   playerIndex: null,
   roomId: null,
   opponentDisconnected: false,
+  opponentLeft: false,
 
   setGameState: (gameState) => set({ gameState }),
   setScore: (score) => set({ score }),
   setRoom: (roomId, playerIndex) => set({ roomId, playerIndex }),
   setOpponentDisconnected: (v) => set({ opponentDisconnected: v }),
-  reset: () => set({ gameState: null, score: null, playerIndex: null, roomId: null, opponentDisconnected: false }),
+  setOpponentLeft: (v: boolean) => set({ opponentLeft: v }),
+  reset: () => set({ gameState: null, score: null, playerIndex: null, roomId: null, opponentDisconnected: false, opponentLeft: false }),
 }));
