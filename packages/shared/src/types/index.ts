@@ -148,6 +148,7 @@ export interface ServerToClientEvents {
   'session:duplicate':          () => void;
   'session:kicked':             () => void;
   'session:init':               (payload: { bootId: string }) => void;
+  'profile:chips_updated':      (payload: { chips: number }) => void;
 }
 
 export interface ClientToServerEvents {

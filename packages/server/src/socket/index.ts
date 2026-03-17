@@ -11,6 +11,9 @@ import { log } from '../logger.js';
 // Changes on every server restart — clients detect a new bootId and re-authenticate
 const SERVER_BOOT_ID = randomUUID();
 
+let _io: Server | null = null;
+export function getIo(): Server | null { return _io; }
+
 export function createSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -20,6 +23,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     },
   });
 
+  _io = io;
   io.use(authenticateSocket);
 
   io.on('connection', (socket) => {

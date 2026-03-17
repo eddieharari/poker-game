@@ -111,6 +111,14 @@ export function useSocketEvents() {
 
     socket.on('room:error', ({ message }) => toast.error(message));
 
+    socket.on('profile:chips_updated', ({ chips }) => {
+      const { profile, setProfile } = useAuthStore.getState();
+      if (profile) {
+        setProfile({ ...profile, chips });
+        toast(`Your chip balance updated: ${chips.toLocaleString()} chips`, { icon: '💰' });
+      }
+    });
+
     return () => {
       socket.off('lobby:players');
       socket.off('lobby:player:joined');
@@ -128,6 +136,7 @@ export function useSocketEvents() {
       socket.off('game:forfeited');
       socket.off('game:rejoin_required');
       socket.off('room:error');
+      socket.off('profile:chips_updated');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
       setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, fetchProfile]);

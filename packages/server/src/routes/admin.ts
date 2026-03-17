@@ -3,6 +3,12 @@ import { supabase } from '../supabase.js';
 import { getLogs } from '../logger.js';
 import { lobbyService } from '../services/lobbyService.js';
 import { settingsService } from '../services/settingsService.js';
+import { getIo } from '../socket/index.js';
+
+async function pushChipsUpdate(playerId: string): Promise<void> {
+  const { data } = await supabase.from('profiles').select('chips').eq('id', playerId).single();
+  if (data) getIo()?.to(`player:${playerId}`).emit('profile:chips_updated', { chips: data.chips });
+}
 
 export const adminRouter = Router();
 
@@ -40,6 +46,7 @@ adminRouter.post('/chips', async (req, res) => {
     const { error: e2 } = await supabase.from('profiles').update({ chips: profile.chips + amount }).eq('id', playerId);
     if (e2) return res.status(500).json({ error: e2.message });
   }
+  await pushChipsUpdate(playerId);
   res.json({ ok: true });
 });
 
@@ -103,6 +110,7 @@ adminRouter.post('/requests/:id/approve', async (req, res) => {
   if (fetchErr || !chipReq) return res.status(404).json({ error: 'Request not found' });
   await supabase.rpc('add_chips', { p_player_id: chipReq.player_id, p_amount: chipReq.amount });
   await supabase.from('chip_requests').update({ status: 'approved', resolved_at: new Date().toISOString() }).eq('id', id);
+  await pushChipsUpdate(chipReq.player_id);
   res.json({ ok: true });
 });
 
