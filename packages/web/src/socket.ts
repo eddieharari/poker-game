@@ -36,6 +36,18 @@ export function connectSocket(token: string, nickname: string, avatarUrl: string
     });
   });
 
+  socket.on('session:init', ({ bootId }) => {
+    const stored = sessionStorage.getItem('serverBootId');
+    if (stored && stored !== bootId) {
+      // Server restarted — force sign out so player re-authenticates fresh
+      import('./store/authStore.js').then(({ useAuthStore }) => {
+        useAuthStore.getState().signOut();
+      });
+    } else {
+      sessionStorage.setItem('serverBootId', bootId);
+    }
+  });
+
   return socket;
 }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Server } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { config } from '../config.js';
@@ -6,6 +7,9 @@ import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
 import { roomService } from '../services/roomService.js';
 import { log } from '../logger.js';
+
+// Changes on every server restart — clients detect a new bootId and re-authenticate
+const SERVER_BOOT_ID = randomUUID();
 
 export function createSocketServer(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
@@ -35,6 +39,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
         existingSocket.disconnect(true);
 
         socket.join(`player:${playerId}`);
+        socket.emit('session:init', { bootId: SERVER_BOOT_ID });
         log('PLAYER_LOGIN', { playerId, nickname, note: 'takeover' });
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
@@ -48,6 +53,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     }
 
     socket.join(`player:${playerId}`);
+    socket.emit('session:init', { bootId: SERVER_BOOT_ID });
     log('PLAYER_LOGIN', { playerId, nickname });
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);

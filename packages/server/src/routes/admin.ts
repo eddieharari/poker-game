@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../supabase.js';
 import { getLogs } from '../logger.js';
+import { lobbyService } from '../services/lobbyService.js';
 
 export const adminRouter = Router();
 
@@ -38,6 +39,16 @@ adminRouter.post('/chips', async (req, res) => {
     const { error: e2 } = await supabase.from('profiles').update({ chips: profile.chips + amount }).eq('id', playerId);
     if (e2) return res.status(500).json({ error: e2.message });
   }
+  res.json({ ok: true });
+});
+
+// POST /api/admin/reset-player — body: { playerId }
+// Removes a player from the lobby (clears stuck in-game status)
+adminRouter.post('/reset-player', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { playerId } = req.body;
+  if (!playerId) return res.status(400).json({ error: 'playerId required' });
+  await lobbyService.removePlayer(playerId);
   res.json({ ok: true });
 });
 

@@ -13,6 +13,8 @@ import { adminRouter } from './routes/admin.js';
 
 async function main(): Promise<void> {
   await redis.connect();
+  // Clear stale lobby state from previous server instance
+  await redis.del('lobby:online');
 
   const app = express();
 
