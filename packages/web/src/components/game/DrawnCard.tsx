@@ -8,9 +8,10 @@ interface Props {
   onDraw: () => void;
   cardW: number;
   cardH: number;
+  autoDraw?: boolean;
 }
 
-export function DrawnCard({ card, isMyTurn, canDraw, onDraw, cardW, cardH }: Props) {
+export function DrawnCard({ card, isMyTurn, canDraw, onDraw, cardW, cardH, autoDraw = false }: Props) {
   if (!isMyTurn) {
     return (
       <div className="flex flex-col items-center gap-1 text-white/40">
@@ -30,6 +31,21 @@ export function DrawnCard({ card, isMyTurn, canDraw, onDraw, cardW, cardH }: Pro
       <div className="flex flex-col items-center gap-1">
         <PlayingCard card={card} width={cardW} height={cardH} />
         <span className="text-xs text-gold font-medium">Place in a column</span>
+      </div>
+    );
+  }
+
+  // Auto-draw mode: show a pulsing placeholder while waiting for server to auto-draw
+  if (autoDraw) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div
+          style={{ width: cardW, height: cardH }}
+          className="rounded-lg border-2 border-blue-600/50 flex items-center justify-center animate-pulse"
+        >
+          <span className="text-white/40 text-xs">...</span>
+        </div>
+        <span className="text-xs text-white/40">Drawing…</span>
       </div>
     );
   }

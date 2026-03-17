@@ -163,7 +163,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       useTimer: useTimer ?? false,
     });
 
-    // Auto-expire after 30s
+    // Auto-expire after 25s
     setTimeout(async () => {
       const still = await challengeService.exists(challengeId);
       if (still) {
@@ -176,7 +176,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'idle' });
         log('INVITE_EXPIRED', { challengeId, fromId: playerId, fromNick: nickname, toId: toPlayerId, stake });
       }
-    }, 30_000);
+    }, 25_000);
   });
 
   // ─── Accept Challenge ────────────────────────────────────────────────────────

@@ -139,6 +139,7 @@ export function ScoreScreen({ score, state, playerIndex }: Props) {
           <div className="w-full max-w-lg h-px bg-white/10 mx-auto" />
 
           {/* My grid */}
+
           <PlayerGrid
             player={me}
             isMe={true}
@@ -153,6 +154,16 @@ export function ScoreScreen({ score, state, playerIndex }: Props) {
             revealAll
           />
         </div>
+
+        {/* Big back to lobby button — shown once all columns are revealed */}
+        {allRevealed && (
+          <button
+            onClick={goToLobby}
+            className="btn-primary px-10 py-3 text-base font-bold shadow-lg shadow-gold/20"
+          >
+            Back to Lobby
+          </button>
+        )}
 
         {/* Side panel: column-by-column breakdown */}
         <div

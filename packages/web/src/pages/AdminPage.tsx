@@ -83,22 +83,26 @@ export function AdminPage() {
       setChipsMessage('Invalid amount');
       return;
     }
+    const targetId = addChipsPlayerId;
+    const targetName = players.find(p => p.id === targetId)?.nickname ?? targetId;
+    // Close modal immediately
+    setAddChipsPlayerId(null);
+    setChipAmount('');
+    setChipsMessage('');
     const res = await fetch('/api/admin/chips', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-password': authedPassword,
       },
-      body: JSON.stringify({ playerId: addChipsPlayerId, amount }),
+      body: JSON.stringify({ playerId: targetId, amount }),
     });
     if (res.ok) {
-      setChipsMessage(`Added ${amount} chips successfully`);
-      setChipAmount('');
-      setAddChipsPlayerId(null);
+      alert(`Added ${amount} chips to ${targetName}`);
       fetchPlayers();
     } else {
       const data = await res.json();
-      setChipsMessage(data.error ?? 'Error');
+      alert(`Error: ${data.error ?? 'Failed to add chips'}`);
     }
   }
 

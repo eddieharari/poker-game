@@ -14,7 +14,7 @@ const PRESET_AVATARS = Array.from({ length: 32 }, (_, i) => ({
 
 export function SettingsPage() {
   const { user, profile, setProfile } = useAuthStore();
-  const { fourColorDeck, setFourColorDeck } = usePreferencesStore();
+  const { fourColorDeck, setFourColorDeck, twoCornerDeck, setTwoCornerDeck, autoDrawCard, setAutoDrawCard } = usePreferencesStore();
   const navigate = useNavigate();
 
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -183,12 +183,12 @@ export function SettingsPage() {
           <h2 className="text-white/80 font-semibold text-sm uppercase tracking-wider border-b border-white/10 pb-2">
             Deck Style
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {/* Classic deck */}
             <button
-              onClick={() => setFourColorDeck(false)}
-              className={`rounded-xl p-4 border-2 transition-all space-y-3 ${
-                !fourColorDeck
+              onClick={() => { setFourColorDeck(false); setTwoCornerDeck(false); }}
+              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
+                !fourColorDeck && !twoCornerDeck
                   ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
                   : 'border-white/10 bg-white/5 hover:border-white/30'
               }`}
@@ -196,32 +196,73 @@ export function SettingsPage() {
               <div className="flex justify-center gap-1">
                 {(['♠','♣','♥','♦'] as const).map((s, i) => (
                   <span key={i} style={{ color: i < 2 ? '#111827' : '#dc2626' }}
-                    className="text-xl font-black bg-white rounded px-1">{s}</span>
+                    className="text-base font-black bg-white rounded px-0.5">{s}</span>
                 ))}
               </div>
               <p className="text-xs text-white/70 font-medium">Classic</p>
-              <p className="text-xs text-white/40">Black & Red</p>
+              <p className="text-xs text-white/40">4 corners</p>
             </button>
 
             {/* 4-color deck */}
             <button
-              onClick={() => setFourColorDeck(true)}
-              className={`rounded-xl p-4 border-2 transition-all space-y-3 ${
-                fourColorDeck
+              onClick={() => { setFourColorDeck(true); setTwoCornerDeck(false); }}
+              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
+                fourColorDeck && !twoCornerDeck
                   ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
                   : 'border-white/10 bg-white/5 hover:border-white/30'
               }`}
             >
               <div className="flex justify-center gap-1">
-                <span style={{ color: '#111827' }} className="text-xl font-black bg-white rounded px-1">♠</span>
-                <span style={{ color: '#16a34a' }} className="text-xl font-black bg-white rounded px-1">♣</span>
-                <span style={{ color: '#dc2626' }} className="text-xl font-black bg-white rounded px-1">♥</span>
-                <span style={{ color: '#2563eb' }} className="text-xl font-black bg-white rounded px-1">♦</span>
+                <span style={{ color: '#111827' }} className="text-base font-black bg-white rounded px-0.5">♠</span>
+                <span style={{ color: '#16a34a' }} className="text-base font-black bg-white rounded px-0.5">♣</span>
+                <span style={{ color: '#dc2626' }} className="text-base font-black bg-white rounded px-0.5">♥</span>
+                <span style={{ color: '#2563eb' }} className="text-base font-black bg-white rounded px-0.5">♦</span>
               </div>
               <p className="text-xs text-white/70 font-medium">4-Color</p>
-              <p className="text-xs text-white/40">Black, Green, Red, Blue</p>
+              <p className="text-xs text-white/40">4 corners</p>
+            </button>
+
+            {/* 2-corner deck */}
+            <button
+              onClick={() => setTwoCornerDeck(true)}
+              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
+                twoCornerDeck
+                  ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
+                  : 'border-white/10 bg-white/5 hover:border-white/30'
+              }`}
+            >
+              <div className="flex justify-center gap-1">
+                {(['♠','♥'] as const).map((s, i) => (
+                  <span key={i} style={{ color: i === 0 ? '#111827' : '#dc2626' }}
+                    className="text-base font-black bg-white rounded px-0.5">{s}</span>
+                ))}
+              </div>
+              <p className="text-xs text-white/70 font-medium">2-Corner</p>
+              <p className="text-xs text-white/40">Diagonal only</p>
             </button>
           </div>
+        </section>
+
+        {/* ── Gameplay ───────────────────────────────────────────── */}
+        <section className="space-y-4">
+          <h2 className="text-white/80 font-semibold text-sm uppercase tracking-wider border-b border-white/10 pb-2">
+            Gameplay
+          </h2>
+          <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
+            ${autoDrawCard ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+            <input
+              type="checkbox"
+              checked={autoDrawCard}
+              onChange={e => setAutoDrawCard(e.target.checked)}
+              className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
+            />
+            <div>
+              <p className="text-sm font-semibold text-white/90">Auto-Draw Card</p>
+              <p className="text-xs text-white/50 mt-0.5">
+                Card is drawn automatically on your turn — just click a column to place it.
+              </p>
+            </div>
+          </label>
         </section>
 
         {/* ── Save ───────────────────────────────────────────────── */}

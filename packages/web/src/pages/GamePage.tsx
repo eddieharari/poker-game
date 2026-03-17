@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
 import { useCardSize } from '../hooks/useCardSize.js';
+import { usePreferencesStore } from '../store/preferencesStore.js';
 import { getSocket } from '../socket.js';
 import { canDrawCard } from '@poker5o/shared';
 import { PlayerGrid } from '../components/game/PlayerGrid.js';
@@ -15,6 +16,7 @@ export function GamePage() {
   const navigate = useNavigate();
   const { profile } = useAuthStore();
   const { gameState, score, playerIndex, opponentLeft, setOpponentLeft } = useGameStore();
+  const autoDrawCard = usePreferencesStore(s => s.autoDrawCard);
 
   useSocketEvents();
   const { cardW, cardH } = useCardSize();
@@ -28,6 +30,16 @@ export function GamePage() {
     socket.emit('room:join', { roomId });
     return () => { /* socket stays open across nav */ };
   }, [roomId]);
+
+  // Auto-draw: when it's my turn and no card drawn yet, draw automatically
+  useEffect(() => {
+    if (!autoDrawCard || !roomId || !profile || playerIndex === null || !gameState) return;
+    if (gameState.phase === 'GAME_OVER') return;
+    if (gameState.currentPlayerIndex !== playerIndex) return;
+    if (gameState.drawnCard !== null) return;
+    if (!canDrawCard(gameState, profile.id)) return;
+    getSocket().emit('action:draw', { roomId });
+  }, [autoDrawCard, roomId, profile, playerIndex, gameState]);
 
   useEffect(() => {
     if (timerIntervalRef.current) {
@@ -185,6 +197,7 @@ export function GamePage() {
             onDraw={handleDraw}
             cardW={56}
             cardH={84}
+            autoDraw={autoDrawCard && isMyTurn && !gameState.drawnCard}
           />
 
           {/* Turn countdown timer */}

@@ -84,7 +84,7 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
                     className="absolute"
                     style={{ top: cardTop(rowIdx), zIndex: rowIdx + 1 }}
                   >
-                    <PlayingCard card={displayCard} width={cardW} height={cardH} />
+                    <PlayingCard card={displayCard} width={cardW} height={cardH} hideFlippedCorners={!isMe} />
                   </div>
                 );
               })}
