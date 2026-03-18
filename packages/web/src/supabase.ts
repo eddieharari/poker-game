@@ -15,4 +15,7 @@ export type Profile = {
   losses: number;
   draws: number;
   created_at: string;
+  role: 'admin' | 'agent' | 'user';
+  agent_id: string | null;
+  agent_chip_pool: number;
 };

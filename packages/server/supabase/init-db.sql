@@ -15,7 +15,10 @@ create table if not exists profiles (
   wins             int         not null default 0,
   losses           int         not null default 0,
   draws            int         not null default 0,
-  created_at       timestamptz not null default now()
+  created_at       timestamptz not null default now(),
+  role             text        not null default 'user' check (role in ('admin', 'agent', 'user')),
+  agent_id         uuid        references profiles(id),
+  agent_chip_pool  int         not null default 0 check (agent_chip_pool >= 0)
 );
 
 alter table profiles
@@ -53,6 +56,9 @@ create table if not exists games (
   started_at       timestamptz not null default now(),
   ended_at         timestamptz
 );
+
+create index if not exists profiles_role_idx     on profiles (role);
+create index if not exists profiles_agent_id_idx on profiles (agent_id);
 
 create index if not exists games_player0_id_idx on games (player0_id);
 create index if not exists games_player1_id_idx on games (player1_id);
@@ -237,6 +243,32 @@ security definer
 as $$
 begin
   update profiles set chips = chips + p_amount where id = p_player_id;
+end;
+$$;
+
+-- ─── Stored Procedures: Agent chip transfers ──────────────────────────────────
+
+create or replace function agent_credit_player(
+  p_agent_id  uuid,
+  p_player_id uuid,
+  p_amount    int
+) returns void
+language plpgsql security definer as $$
+begin
+  update profiles set agent_chip_pool = agent_chip_pool - p_amount where id = p_agent_id;
+  update profiles set chips = chips + p_amount where id = p_player_id;
+end;
+$$;
+
+create or replace function agent_debit_player(
+  p_agent_id  uuid,
+  p_player_id uuid,
+  p_amount    int
+) returns void
+language plpgsql security definer as $$
+begin
+  update profiles set chips = chips - p_amount where id = p_player_id;
+  update profiles set agent_chip_pool = agent_chip_pool + p_amount where id = p_agent_id;
 end;
 $$;
 

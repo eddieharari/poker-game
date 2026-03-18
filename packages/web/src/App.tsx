@@ -11,6 +11,7 @@ import { GamePage } from './pages/GamePage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
 import { CashierPage } from './pages/CashierPage.js';
+import { AgentPage } from './pages/AgentPage.js';
 
 export function App() {
   const { session, profile, loading, setSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
@@ -102,6 +103,13 @@ export function App() {
 
         {/* Admin — no auth protection */}
         <Route path="/admin" element={<AdminPage />} />
+
+        {/* Agent — requires auth */}
+        <Route path="/agent" element={
+          !session ? <Navigate to="/auth" replace />
+          : !profile ? <Navigate to="/onboarding" replace />
+          : <AgentPage />
+        } />
 
         {/* Root redirect */}
         <Route path="/" element={

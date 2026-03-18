@@ -95,6 +95,18 @@ export function LobbyPage() {
           >
             {myStatus === 'busy' ? '🔴 Busy' : '🟢 Ready'}
           </button>
+          {(profile?.role === 'admin' || profile?.role === 'agent') && (
+            <button
+              onClick={() => navigate(profile.role === 'admin' ? '/admin' : '/agent')}
+              className="text-white/50 hover:text-gold transition-colors p-1.5 rounded-lg hover:bg-white/10"
+              aria-label={profile.role === 'admin' ? 'Admin Panel' : 'Agent Panel'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => navigate('/cashier')}
             className="text-white/50 hover:text-gold transition-colors p-1.5 rounded-lg hover:bg-white/10"

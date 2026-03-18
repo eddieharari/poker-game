@@ -245,3 +245,46 @@ $$;
 --   with check (bucket_id = 'avatars' and name = 'uploads/' || auth.uid() || '.webp');
 -- create policy "avatars_uploads_update" on storage.objects for update
 --   using (bucket_id = 'avatars' and name = 'uploads/' || auth.uid() || '.webp');
+
+-- ─── Role System (migration) ──────────────────────────────────────────────────
+-- Run these ALTER statements if upgrading an existing database.
+
+alter table profiles
+  add column if not exists role text not null default 'user'
+  check (role in ('admin', 'agent', 'user'));
+
+alter table profiles
+  add column if not exists agent_id uuid references profiles(id);
+
+alter table profiles
+  add column if not exists agent_chip_pool int not null default 0
+  check (agent_chip_pool >= 0);
+
+create index if not exists profiles_agent_id_idx on profiles (agent_id);
+create index if not exists profiles_role_idx on profiles (role);
+
+-- ─── Stored Procedures: Agent chip transfers ──────────────────────────────────
+
+create or replace function agent_credit_player(
+  p_agent_id  uuid,
+  p_player_id uuid,
+  p_amount    int
+) returns void
+language plpgsql security definer as $$
+begin
+  update profiles set agent_chip_pool = agent_chip_pool - p_amount where id = p_agent_id;
+  update profiles set chips = chips + p_amount where id = p_player_id;
+end;
+$$;
+
+create or replace function agent_debit_player(
+  p_agent_id  uuid,
+  p_player_id uuid,
+  p_amount    int
+) returns void
+language plpgsql security definer as $$
+begin
+  update profiles set chips = chips - p_amount where id = p_player_id;
+  update profiles set agent_chip_pool = agent_chip_pool + p_amount where id = p_agent_id;
+end;
+$$;

@@ -38,7 +38,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true });
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, nickname, avatar_url, avatar_is_preset, chips, wins, losses, draws, created_at')
+      .select('id, nickname, avatar_url, avatar_is_preset, chips, wins, losses, draws, created_at, role, agent_id, agent_chip_pool')
       .eq('id', session.user.id)
       .maybeSingle();
     if (error) {

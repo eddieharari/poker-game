@@ -11,6 +11,7 @@ import { lobbyRouter } from './routes/lobby.js';
 import { profileRouter } from './routes/profile.js';
 import { adminRouter } from './routes/admin.js';
 import { cashierRouter } from './routes/cashier.js';
+import { agentRouter } from './routes/agent.js';
 
 async function main(): Promise<void> {
   await redis.connect();
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   app.use('/api/profile', profileRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/cashier', cashierRouter);
+  app.use('/api/agent', agentRouter);
 
   // Serve React frontend in production
   const webDist = path.resolve(__dirname, '../../web/dist');

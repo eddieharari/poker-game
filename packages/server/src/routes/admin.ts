@@ -27,7 +27,7 @@ adminRouter.get('/players', async (req, res) => {
   if (!checkAuth(req, res)) return;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, chips, wins, losses, draws, avatar_url')
+    .select('id, nickname, chips, wins, losses, draws, avatar_url, role, agent_id')
     .order('chips', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -120,4 +120,79 @@ adminRouter.post('/requests/:id/decline', async (req, res) => {
   const { id } = req.params;
   await supabase.from('chip_requests').update({ status: 'declined', resolved_at: new Date().toISOString() }).eq('id', id);
   res.json({ ok: true });
+});
+
+// GET /api/admin/agents
+adminRouter.get('/agents', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url, chips, agent_chip_pool, wins, losses, draws')
+    .eq('role', 'agent')
+    .order('nickname');
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Count players per agent
+  const agentsWithCounts = await Promise.all((data ?? []).map(async agent => {
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('agent_id', agent.id);
+    return { ...agent, player_count: count ?? 0 };
+  }));
+  res.json(agentsWithCounts);
+});
+
+// POST /api/admin/agent-pool — adjust agent chip pool (not game chips)
+adminRouter.post('/agent-pool', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { agentId, amount } = req.body;
+  if (!agentId || typeof amount !== 'number') {
+    return res.status(400).json({ error: 'Invalid params' });
+  }
+  const { data: agent } = await supabase
+    .from('profiles').select('agent_chip_pool, role').eq('id', agentId).single();
+  if (!agent || agent.role !== 'agent') return res.status(404).json({ error: 'Agent not found' });
+  const newPool = agent.agent_chip_pool + amount;
+  if (newPool < 0) return res.status(400).json({ error: 'Pool cannot go negative' });
+  const { error } = await supabase
+    .from('profiles').update({ agent_chip_pool: newPool }).eq('id', agentId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, pool: newPool });
+});
+
+// POST /api/admin/set-role — change a player's role
+adminRouter.post('/set-role', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { playerId, role } = req.body;
+  if (!playerId || !['admin', 'agent', 'user'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid params' });
+  }
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', playerId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// POST /api/admin/assign-agent — assign player to agent (agentId: null = unassign)
+adminRouter.post('/assign-agent', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { playerId, agentId } = req.body;
+  if (!playerId) return res.status(400).json({ error: 'playerId required' });
+  const { error } = await supabase
+    .from('profiles').update({ agent_id: agentId ?? null }).eq('id', playerId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// GET /api/admin/agents/:agentId/players — list players assigned to an agent
+adminRouter.get('/agents/:agentId/players', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { agentId } = req.params;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url, chips, wins, losses, draws')
+    .eq('agent_id', agentId)
+    .order('nickname');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data ?? []);
 });
