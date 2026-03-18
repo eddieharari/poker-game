@@ -11,18 +11,49 @@ async function getPlayerId(req: any): Promise<string | null> {
   return data.user.id;
 }
 
-// GET /api/cashier/history
+// GET /api/cashier/history?from=YYYY-MM-DD&to=YYYY-MM-DD
 cashierRouter.get('/history', async (req: any, res) => {
   const playerId = await getPlayerId(req);
   if (!playerId) return res.status(401).json({ error: 'Unauthorized' });
-  const { data, error } = await supabase
-    .from('game_results')
-    .select('*')
+
+  let query = supabase
+    .from('games')
+    .select(`
+      id, room_id, stake, winner_id, is_draw,
+      player0_id, player1_id,
+      player0_columns, player1_columns,
+      ended_at,
+      player0:profiles!player0_id(nickname),
+      player1:profiles!player1_id(nickname)
+    `)
     .or(`player0_id.eq.${playerId},player1_id.eq.${playerId}`)
-    .order('created_at', { ascending: false })
-    .limit(100);
+    .not('ended_at', 'is', null)
+    .order('ended_at', { ascending: false })
+    .limit(200);
+
+  const { from, to } = req.query;
+  if (from) query = query.gte('ended_at', `${from}T00:00:00Z`);
+  if (to)   query = query.lte('ended_at', `${to}T23:59:59Z`);
+
+  const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data ?? []);
+
+  const result = (data ?? []).map((g: any) => ({
+    id:               g.id,
+    room_id:          g.room_id,
+    stake:            g.stake,
+    winner_id:        g.winner_id,
+    is_draw:          g.is_draw,
+    player0_id:       g.player0_id,
+    player1_id:       g.player1_id,
+    player0_name:     g.player0?.nickname ?? 'Unknown',
+    player1_name:     g.player1?.nickname ?? 'Unknown',
+    player0_columns:  g.player0_columns,
+    player1_columns:  g.player1_columns,
+    ended_at:         g.ended_at,
+  }));
+
+  res.json(result);
 });
 
 // GET /api/cashier/requests

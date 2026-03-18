@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Cropper, { type Area } from 'react-easy-crop';
 import toast from 'react-hot-toast';
 import { supabase } from '../supabase.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -21,63 +20,20 @@ export function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('avatar');
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
 
   const previewUrl = selectedPreset
     ? PRESET_AVATARS.find(p => p.id === selectedPreset)?.url ?? ''
-    : uploadedUrl ?? profile?.avatar_url ?? '';
+    : profile?.avatar_url ?? '';
 
-  const avatarChanged = !!selectedPreset || !!uploadedUrl;
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setCropSrc(reader.result as string);
-    reader.readAsDataURL(file);
-    setSelectedPreset(null);
-  }
-
-  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
-    setCroppedAreaPixels(croppedPixels);
-  }, []);
-
-  async function applyCrop() {
-    if (!cropSrc || !croppedAreaPixels || !user) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-    const img = new Image();
-    img.src = cropSrc;
-    await new Promise(r => { img.onload = r; });
-    ctx.drawImage(
-      img,
-      croppedAreaPixels.x, croppedAreaPixels.y,
-      croppedAreaPixels.width, croppedAreaPixels.height,
-      0, 0, 256, 256,
-    );
-    const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/webp', 0.85));
-    const path = `uploads/${user.id}.webp`;
-    const { error } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/webp' });
-    if (error) { toast.error('Upload failed'); return; }
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    setUploadedUrl(data.publicUrl);
-    setCropSrc(null);
-  }
+  const avatarChanged = !!selectedPreset;
 
   async function handleSave() {
     if (!user) return;
     setSaving(true);
     try {
       if (avatarChanged) {
-        const avatarUrl = selectedPreset
-          ? PRESET_AVATARS.find(p => p.id === selectedPreset)?.url ?? ''
-          : uploadedUrl ?? '';
+        const avatarUrl = PRESET_AVATARS.find(p => p.id === selectedPreset)?.url ?? '';
         const { data, error } = await supabase
           .from('profiles')
           .update({ avatar_url: avatarUrl, avatar_is_preset: !!selectedPreset })
@@ -162,7 +118,7 @@ export function SettingsPage() {
                 {PRESET_AVATARS.map(preset => (
                   <button
                     key={preset.id}
-                    onClick={() => { setSelectedPreset(preset.id); setUploadedUrl(null); }}
+                    onClick={() => setSelectedPreset(preset.id)}
                     className={`aspect-square rounded-xl overflow-hidden border-2 transition-all
                       ${selectedPreset === preset.id
                         ? 'border-gold scale-105 ring-2 ring-gold/50 shadow-lg shadow-gold/20'
@@ -172,13 +128,6 @@ export function SettingsPage() {
                   </button>
                 ))}
               </div>
-
-              {/* Upload */}
-              <label className="btn-ghost w-full flex items-center justify-center gap-2 cursor-pointer">
-                <span>📷</span>
-                <span>{uploadedUrl ? 'Change photo' : 'Upload your own'}</span>
-                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-              </label>
 
               <button
                 onClick={handleSave}
@@ -285,30 +234,20 @@ export function SettingsPage() {
           )}
 
         </div>
+
+        {/* Back to Lobby */}
+        <button
+          onClick={() => navigate('/lobby')}
+          className="btn-ghost w-full py-3 flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Lobby
+        </button>
+
       </div>
 
-      {/* Crop modal */}
-      {cropSrc && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center gap-4 p-4">
-          <div className="relative w-72 h-72 rounded-xl overflow-hidden">
-            <Cropper
-              image={cropSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-            />
-          </div>
-          <input type="range" min={1} max={3} step={0.1} value={zoom}
-            onChange={e => setZoom(Number(e.target.value))} className="w-64" />
-          <div className="flex gap-3">
-            <button onClick={() => setCropSrc(null)} className="btn-ghost">Cancel</button>
-            <button onClick={applyCrop} className="btn-primary">Use this photo</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

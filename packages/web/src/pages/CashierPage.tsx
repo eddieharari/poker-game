@@ -12,10 +12,9 @@ interface GameResult {
   stake: number;
   winner_id: string | null;
   is_draw: boolean;
-  p0_columns: number;
-  p1_columns: number;
-  house_fee: number;
-  created_at: string;
+  player0_columns: number;
+  player1_columns: number;
+  ended_at: string;
 }
 
 interface ChipRequest {
@@ -35,10 +34,10 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function groupByDate<T extends { created_at: string }>(items: T[]): Map<string, T[]> {
-  const map = new Map<string, T[]>();
+function groupByDate(items: GameResult[]): Map<string, GameResult[]> {
+  const map = new Map<string, GameResult[]>();
   for (const item of items) {
-    const key = formatDate(item.created_at);
+    const key = formatDate(item.ended_at);
     const existing = map.get(key) ?? [];
     existing.push(item);
     map.set(key, existing);
@@ -60,6 +59,8 @@ export function CashierPage() {
   const [requests, setRequests] = useState<ChipRequest[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
   const [requestNote, setRequestNote] = useState('');
   const [requestError, setRequestError] = useState('');
@@ -67,11 +68,15 @@ export function CashierPage() {
 
   const myId = session?.user?.id;
 
-  async function fetchHistory() {
+  async function fetchHistory(from = dateFrom, to = dateTo) {
     if (!session) return;
     setLoadingHistory(true);
     try {
-      const res = await fetch('/api/cashier/history', {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to)   params.set('to', to);
+      const url = `/api/cashier/history${params.size ? `?${params}` : ''}`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) setHistory(await res.json());
@@ -188,6 +193,42 @@ export function CashierPage() {
         {/* Game History Tab */}
         {activeTab === 'history' && (
           <div className="space-y-4">
+            {/* Date range filter */}
+            <div className="bg-black/60 border border-white/10 rounded-2xl p-4 flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-32">
+                <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-gold/50 text-sm"
+                />
+              </div>
+              <div className="flex-1 min-w-32">
+                <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-gold/50 text-sm"
+                />
+              </div>
+              <button
+                onClick={() => fetchHistory(dateFrom, dateTo)}
+                className="px-4 py-2 rounded-xl bg-gold text-black text-sm font-semibold hover:bg-yellow-400 transition-colors"
+              >
+                Filter
+              </button>
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); fetchHistory('', ''); }}
+                  className="px-4 py-2 rounded-xl border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
             {/* Summary */}
             <div className="grid grid-cols-4 gap-3">
               <div className="bg-black/60 border border-white/10 rounded-xl p-3 text-center">
@@ -256,11 +297,11 @@ export function CashierPage() {
                               <td className="px-4 py-3">
                                 <p className="font-medium">vs {opponentName}</p>
                                 <p className="text-xs text-white/30">
-                                  {new Date(game.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(game.ended_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <span className="text-xs text-white/40">{game.p0_columns}-{game.p1_columns}</span>
+                                <span className="text-xs text-white/40">{game.player0_columns}-{game.player1_columns}</span>
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`text-sm font-semibold ${resultColor}`}>{resultLabel}</span>
@@ -269,11 +310,6 @@ export function CashierPage() {
                                 <span className={`font-semibold ${amountColor}`}>{amountStr}</span>
                                 <span className="text-white/30 text-xs ml-1">chips</span>
                               </td>
-                              {game.house_fee > 0 && (
-                                <td className="px-4 py-3 text-right text-xs text-white/30">
-                                  fee: {game.house_fee}
-                                </td>
-                              )}
                             </tr>
                           );
                         })}
