@@ -12,11 +12,14 @@ const PRESET_AVATARS = Array.from({ length: 32 }, (_, i) => ({
   url: `/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`,
 }));
 
+type Tab = 'avatar' | 'deck' | 'gameplay';
+
 export function SettingsPage() {
   const { user, profile, setProfile } = useAuthStore();
   const { fourColorDeck, setFourColorDeck, twoCornerDeck, setTwoCornerDeck, autoDrawCard, setAutoDrawCard } = usePreferencesStore();
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<Tab>('avatar');
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -92,9 +95,15 @@ export function SettingsPage() {
     }
   }
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'avatar',   label: 'Avatar' },
+    { id: 'deck',     label: 'Deck Style' },
+    { id: 'gameplay', label: 'Gameplay' },
+  ];
+
   return (
     <div
-      className="min-h-screen p-4"
+      className="min-h-screen"
       style={{
         backgroundImage: 'url(/bg-poker.png)',
         backgroundSize: 'cover',
@@ -103,7 +112,7 @@ export function SettingsPage() {
       }}
     >
       {/* Header */}
-      <header className="bg-black/60 backdrop-blur-sm border-b border-white/10 px-6 py-4 flex items-center gap-4 -mx-4 -mt-4 mb-6">
+      <header className="bg-black/60 backdrop-blur-sm border-b border-white/10 px-6 py-4 flex items-center gap-4">
         <button
           onClick={() => navigate('/lobby')}
           className="text-white/60 hover:text-white transition-colors"
@@ -116,164 +125,190 @@ export function SettingsPage() {
         <h1 className="font-display text-xl text-gold">Settings</h1>
       </header>
 
-      <div className="max-w-lg mx-auto space-y-6 bg-black/60 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-2xl">
+      <div className="max-w-lg mx-auto p-4 flex flex-col gap-4">
 
-        {/* ── Avatar section ─────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-white/80 font-semibold text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-            Avatar
-          </h2>
+        {/* Tab bar */}
+        <div className="flex bg-black/60 backdrop-blur-sm rounded-2xl p-1 border border-white/10">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === tab.id
+                  ? 'bg-gold text-black shadow'
+                  : 'text-white/50 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Current / preview */}
-          <div className="flex justify-center">
-            <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-gold ring-4 ring-gold/30 shadow-lg shadow-gold/20">
-              <img src={previewUrl} alt="avatar" className="w-full h-full object-cover" />
-            </div>
-          </div>
+        {/* Tab content */}
+        <div className="bg-black/60 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-2xl">
 
-          {/* Crop modal */}
-          {cropSrc && (
-            <div className="fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center gap-4 p-4">
-              <div className="relative w-72 h-72 rounded-xl overflow-hidden">
-                <Cropper
-                  image={cropSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
+          {/* ── Avatar tab ───────────────────────────────────────── */}
+          {activeTab === 'avatar' && (
+            <div className="space-y-4">
+              {/* Preview */}
+              <div className="flex justify-center">
+                <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-gold ring-4 ring-gold/30 shadow-lg shadow-gold/20">
+                  <img src={previewUrl} alt="avatar" className="w-full h-full object-cover" />
+                </div>
               </div>
-              <input type="range" min={1} max={3} step={0.1} value={zoom}
-                onChange={e => setZoom(Number(e.target.value))} className="w-64" />
-              <div className="flex gap-3">
-                <button onClick={() => setCropSrc(null)} className="btn-ghost">Cancel</button>
-                <button onClick={applyCrop} className="btn-primary">Use this photo</button>
+
+              {/* Preset grid */}
+              <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
+                {PRESET_AVATARS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => { setSelectedPreset(preset.id); setUploadedUrl(null); }}
+                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all
+                      ${selectedPreset === preset.id
+                        ? 'border-gold scale-105 ring-2 ring-gold/50 shadow-lg shadow-gold/20'
+                        : 'border-transparent hover:border-white/40'}`}
+                  >
+                    <img src={preset.url} alt={`Avatar ${preset.id}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+
+              {/* Upload */}
+              <label className="btn-ghost w-full flex items-center justify-center gap-2 cursor-pointer">
+                <span>📷</span>
+                <span>{uploadedUrl ? 'Change photo' : 'Upload your own'}</span>
+                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+              </label>
+
+              <button
+                onClick={handleSave}
+                disabled={saving || !avatarChanged}
+                className="btn-primary w-full py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving…' : 'Save Avatar'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Deck Style tab ────────────────────────────────────── */}
+          {activeTab === 'deck' && (
+            <div className="space-y-4">
+              <p className="text-white/50 text-sm text-center">Choose how cards look during the game</p>
+              <div className="grid grid-cols-3 gap-3">
+                {/* Classic */}
+                <button
+                  onClick={() => { setFourColorDeck(false); setTwoCornerDeck(false); }}
+                  className={`rounded-xl p-4 border-2 transition-all space-y-3 ${
+                    !fourColorDeck && !twoCornerDeck
+                      ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
+                      : 'border-white/10 bg-white/5 hover:border-white/30'
+                  }`}
+                >
+                  <div className="flex justify-center gap-1">
+                    {(['♠','♣','♥','♦'] as const).map((s, i) => (
+                      <span key={i} style={{ color: i < 2 ? '#111827' : '#dc2626' }}
+                        className="text-base font-black bg-white rounded px-0.5">{s}</span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-white/70 font-semibold">Classic</p>
+                  <p className="text-xs text-white/40">Black & Red, 4 corners</p>
+                </button>
+
+                {/* 4-color */}
+                <button
+                  onClick={() => { setFourColorDeck(true); setTwoCornerDeck(false); }}
+                  className={`rounded-xl p-4 border-2 transition-all space-y-3 ${
+                    fourColorDeck && !twoCornerDeck
+                      ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
+                      : 'border-white/10 bg-white/5 hover:border-white/30'
+                  }`}
+                >
+                  <div className="flex justify-center gap-1">
+                    <span style={{ color: '#111827' }} className="text-base font-black bg-white rounded px-0.5">♠</span>
+                    <span style={{ color: '#16a34a' }} className="text-base font-black bg-white rounded px-0.5">♣</span>
+                    <span style={{ color: '#dc2626' }} className="text-base font-black bg-white rounded px-0.5">♥</span>
+                    <span style={{ color: '#2563eb' }} className="text-base font-black bg-white rounded px-0.5">♦</span>
+                  </div>
+                  <p className="text-sm text-white/70 font-semibold">4-Color</p>
+                  <p className="text-xs text-white/40">4 suits, 4 corners</p>
+                </button>
+
+                {/* 2-corner */}
+                <button
+                  onClick={() => setTwoCornerDeck(true)}
+                  className={`rounded-xl p-4 border-2 transition-all space-y-3 ${
+                    twoCornerDeck
+                      ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
+                      : 'border-white/10 bg-white/5 hover:border-white/30'
+                  }`}
+                >
+                  <div className="flex justify-center gap-2">
+                    {(['♠','♥'] as const).map((s, i) => (
+                      <span key={i} style={{ color: i === 0 ? '#111827' : '#dc2626' }}
+                        className="text-base font-black bg-white rounded px-0.5">{s}</span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-white/70 font-semibold">2-Corner</p>
+                  <p className="text-xs text-white/40">Diagonal only</p>
+                </button>
+              </div>
+
+              {/* Active selection indicator */}
+              <div className="text-center text-xs text-white/30 pt-2">
+                Selected: <span className="text-gold font-medium">
+                  {twoCornerDeck ? '2-Corner' : fourColorDeck ? '4-Color' : 'Classic'}
+                </span> — changes apply instantly
               </div>
             </div>
           )}
 
-          {/* Preset grid */}
-          <div className="grid grid-cols-4 gap-3 max-h-80 overflow-y-auto pr-1">
-            {PRESET_AVATARS.map(preset => (
-              <button
-                key={preset.id}
-                onClick={() => { setSelectedPreset(preset.id); setUploadedUrl(null); }}
-                className={`aspect-square rounded-xl overflow-hidden border-2 transition-all
-                  ${selectedPreset === preset.id
-                    ? 'border-gold scale-105 ring-2 ring-gold/50 shadow-lg shadow-gold/20'
-                    : 'border-transparent hover:border-white/40'}`}
-              >
-                <img src={preset.url} alt={`Avatar ${preset.id}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-
-          {/* Upload */}
-          <label className="btn-ghost w-full flex items-center justify-center gap-2 cursor-pointer">
-            <span>📷</span>
-            <span>{uploadedUrl ? 'Change photo' : 'Upload your own'}</span>
-            <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-          </label>
-        </section>
-
-        {/* ── Deck style ─────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-white/80 font-semibold text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-            Deck Style
-          </h2>
-          <div className="grid grid-cols-3 gap-3">
-            {/* Classic deck */}
-            <button
-              onClick={() => { setFourColorDeck(false); setTwoCornerDeck(false); }}
-              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
-                !fourColorDeck && !twoCornerDeck
-                  ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
-                  : 'border-white/10 bg-white/5 hover:border-white/30'
-              }`}
-            >
-              <div className="flex justify-center gap-1">
-                {(['♠','♣','♥','♦'] as const).map((s, i) => (
-                  <span key={i} style={{ color: i < 2 ? '#111827' : '#dc2626' }}
-                    className="text-base font-black bg-white rounded px-0.5">{s}</span>
-                ))}
-              </div>
-              <p className="text-xs text-white/70 font-medium">Classic</p>
-              <p className="text-xs text-white/40">4 corners</p>
-            </button>
-
-            {/* 4-color deck */}
-            <button
-              onClick={() => { setFourColorDeck(true); setTwoCornerDeck(false); }}
-              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
-                fourColorDeck && !twoCornerDeck
-                  ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
-                  : 'border-white/10 bg-white/5 hover:border-white/30'
-              }`}
-            >
-              <div className="flex justify-center gap-1">
-                <span style={{ color: '#111827' }} className="text-base font-black bg-white rounded px-0.5">♠</span>
-                <span style={{ color: '#16a34a' }} className="text-base font-black bg-white rounded px-0.5">♣</span>
-                <span style={{ color: '#dc2626' }} className="text-base font-black bg-white rounded px-0.5">♥</span>
-                <span style={{ color: '#2563eb' }} className="text-base font-black bg-white rounded px-0.5">♦</span>
-              </div>
-              <p className="text-xs text-white/70 font-medium">4-Color</p>
-              <p className="text-xs text-white/40">4 corners</p>
-            </button>
-
-            {/* 2-corner deck */}
-            <button
-              onClick={() => setTwoCornerDeck(true)}
-              className={`rounded-xl p-3 border-2 transition-all space-y-2 ${
-                twoCornerDeck
-                  ? 'border-gold bg-gold/10 shadow-lg shadow-gold/10'
-                  : 'border-white/10 bg-white/5 hover:border-white/30'
-              }`}
-            >
-              <div className="flex justify-center gap-1">
-                {(['♠','♥'] as const).map((s, i) => (
-                  <span key={i} style={{ color: i === 0 ? '#111827' : '#dc2626' }}
-                    className="text-base font-black bg-white rounded px-0.5">{s}</span>
-                ))}
-              </div>
-              <p className="text-xs text-white/70 font-medium">2-Corner</p>
-              <p className="text-xs text-white/40">Diagonal only</p>
-            </button>
-          </div>
-        </section>
-
-        {/* ── Gameplay ───────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-white/80 font-semibold text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-            Gameplay
-          </h2>
-          <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-            ${autoDrawCard ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-            <input
-              type="checkbox"
-              checked={autoDrawCard}
-              onChange={e => setAutoDrawCard(e.target.checked)}
-              className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-            />
-            <div>
-              <p className="text-sm font-semibold text-white/90">Auto-Draw Card</p>
-              <p className="text-xs text-white/50 mt-0.5">
-                Card is drawn automatically on your turn — just click a column to place it.
-              </p>
+          {/* ── Gameplay tab ──────────────────────────────────────── */}
+          {activeTab === 'gameplay' && (
+            <div className="space-y-3">
+              <p className="text-white/50 text-sm text-center mb-4">Customize how the game plays</p>
+              <label className={`flex items-start gap-3 rounded-xl p-4 border cursor-pointer transition-all select-none
+                ${autoDrawCard ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+                <input
+                  type="checkbox"
+                  checked={autoDrawCard}
+                  onChange={e => setAutoDrawCard(e.target.checked)}
+                  className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-white/90">Auto-Draw Card</p>
+                  <p className="text-xs text-white/50 mt-1">
+                    Card is drawn automatically at the start of your turn — just click a column to place it.
+                  </p>
+                </div>
+              </label>
             </div>
-          </label>
-        </section>
+          )}
 
-        {/* ── Save ───────────────────────────────────────────────── */}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary w-full py-3 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
+        </div>
       </div>
+
+      {/* Crop modal */}
+      {cropSrc && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center gap-4 p-4">
+          <div className="relative w-72 h-72 rounded-xl overflow-hidden">
+            <Cropper
+              image={cropSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+            />
+          </div>
+          <input type="range" min={1} max={3} step={0.1} value={zoom}
+            onChange={e => setZoom(Number(e.target.value))} className="w-64" />
+          <div className="flex gap-3">
+            <button onClick={() => setCropSrc(null)} className="btn-ghost">Cancel</button>
+            <button onClick={applyCrop} className="btn-primary">Use this photo</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
