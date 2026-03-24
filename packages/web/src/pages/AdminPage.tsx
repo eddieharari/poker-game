@@ -87,6 +87,9 @@ export function AdminPage() {
       const data = await res.json();
       setPlayers(data);
       setAuthedPassword(password);
+      // pre-load agents so assign dropdown is ready on players tab
+      const agentRes = await fetch('/api/admin/agents', { headers: { 'x-admin-password': password } });
+      if (agentRes.ok) setAgents(await agentRes.json());
     } catch {
       setLoginError('Connection error');
     }
@@ -153,7 +156,7 @@ export function AdminPage() {
   async function handleTabChange(tab: 'players' | 'agents' | 'requests' | 'settings' | 'logs') {
     setActiveTab(tab);
     if (tab === 'logs') fetchLogs();
-    if (tab === 'players') fetchPlayers();
+    if (tab === 'players') { fetchPlayers(); fetchAgents(); } // agents needed for assign dropdown
     if (tab === 'requests') fetchRequests();
     if (tab === 'settings') fetchSettings();
     if (tab === 'agents') fetchAgents();
@@ -218,6 +221,21 @@ export function AdminPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-password': authedPassword },
       body: JSON.stringify({ playerId, role }),
+    });
+    if (res.ok) {
+      fetchPlayers();
+    } else {
+      const d = await res.json();
+      alert(`Error: ${d.error}`);
+    }
+  }
+
+  async function handleAssignAgent(playerId: string, agentId: string | null) {
+    if (!authedPassword) return;
+    const res = await fetch('/api/admin/assign-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': authedPassword },
+      body: JSON.stringify({ playerId, agentId }),
     });
     if (res.ok) {
       fetchPlayers();
@@ -372,12 +390,14 @@ export function AdminPage() {
                   <th className="px-4 py-3 text-right">L</th>
                   <th className="px-4 py-3 text-right">D</th>
                   <th className="px-4 py-3 text-center">Role</th>
+                  <th className="px-4 py-3 text-center">Agent</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {players.map((player, i) => {
                   const badge = ROLE_BADGE[player.role] ?? ROLE_BADGE.user;
+                  const assignableAgents = agents.filter(a => a.id !== player.id);
                   return (
                     <tr
                       key={player.id}
@@ -409,6 +429,18 @@ export function AdminPage() {
                           </select>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        <select
+                          value={player.agent_id ?? ''}
+                          onChange={e => handleAssignAgent(player.id, e.target.value || null)}
+                          className="text-xs bg-black/40 border border-white/20 rounded px-1.5 py-0.5 text-white/70 focus:outline-none focus:border-blue-400/50 max-w-[110px]"
+                        >
+                          <option value="">— None —</option>
+                          {assignableAgents.map(a => (
+                            <option key={a.id} value={a.id}>{a.nickname}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => { setAddChipsPlayerId(player.id); setChipsMessage(''); setChipAmount(''); }}
@@ -422,7 +454,7 @@ export function AdminPage() {
                 })}
                 {players.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-white/30">No players found</td>
+                    <td colSpan={8} className="px-4 py-8 text-center text-white/30">No players found</td>
                   </tr>
                 )}
               </tbody>
