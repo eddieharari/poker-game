@@ -21,17 +21,21 @@ agentRouter.get('/dashboard', async (req: any, res) => {
   if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { data: agentProfile } = await supabase
-    .from('profiles').select('agent_chip_pool').eq('id', agentId).single();
+    .from('profiles').select('agent_chip_pool, chips').eq('id', agentId).single();
 
   const { data: players, error } = await supabase
     .from('profiles')
-    .select('id, nickname, avatar_url, chips, wins, losses, draws')
+    .select('id, nickname, avatar_url, chips, wins, losses, draws, total_rake')
     .eq('agent_id', agentId)
     .order('nickname');
 
   if (error) return res.status(500).json({ error: error.message });
 
-  res.json({ pool: agentProfile?.agent_chip_pool ?? 0, players: players ?? [] });
+  res.json({
+    pool: agentProfile?.agent_chip_pool ?? 0,
+    agentChips: agentProfile?.chips ?? 0,
+    players: players ?? [],
+  });
 });
 
 // POST /api/agent/credit — pool → player chips

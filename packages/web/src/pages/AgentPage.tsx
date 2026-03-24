@@ -11,10 +11,12 @@ interface AgentPlayer {
   wins: number;
   losses: number;
   draws: number;
+  total_rake: number;
 }
 
 interface Dashboard {
   pool: number;
+  agentChips: number;
   players: AgentPlayer[];
 }
 
@@ -28,6 +30,7 @@ export function AgentPage() {
   const [action, setAction] = useState<ActionMode>(null);
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
 
   const token = session?.access_token;
 
@@ -81,15 +84,16 @@ export function AgentPage() {
   // Build full player list: assigned players + agent themselves
   const allPlayers: (AgentPlayer & { isSelf?: boolean })[] = [];
   if (profile && dashboard) {
-    // Add self at top
+    // Add self at top — use agentChips from dashboard so it's fresh after credit/debit
     allPlayers.push({
       id: profile.id,
       nickname: profile.nickname,
       avatar_url: profile.avatar_url,
-      chips: profile.chips,
+      chips: dashboard.agentChips,
       wins: profile.wins ?? 0,
       losses: profile.losses ?? 0,
       draws: profile.draws ?? 0,
+      total_rake: 0,
       isSelf: true,
     });
     // Add assigned players (excluding self if they appear)
@@ -97,6 +101,10 @@ export function AgentPage() {
       if (p.id !== profile.id) allPlayers.push(p);
     }
   }
+
+  const filteredPlayers = allPlayers.filter(p =>
+    p.nickname.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div
@@ -135,11 +143,20 @@ export function AgentPage() {
           </div>
         )}
 
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search players…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50 text-sm"
+        />
+
         {/* Players table */}
         <div className="bg-black/60 border border-white/10 rounded-2xl overflow-hidden">
           <div className="px-5 py-3 border-b border-white/10">
             <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">
-              {loading ? 'Loading…' : `${allPlayers.length} player${allPlayers.length === 1 ? '' : 's'}`}
+              {loading ? 'Loading…' : `${filteredPlayers.length} player${filteredPlayers.length === 1 ? '' : 's'}`}
             </h2>
           </div>
           {loading ? (
@@ -156,11 +173,12 @@ export function AgentPage() {
                   <th className="px-5 py-3 text-left">Player</th>
                   <th className="px-5 py-3 text-right">Chips</th>
                   <th className="px-5 py-3 text-right hidden sm:table-cell">W/L/D</th>
+                  <th className="px-5 py-3 text-right hidden sm:table-cell">Rake</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {allPlayers.map((player, i) => (
+                {filteredPlayers.map((player, i) => (
                   <tr key={player.id} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/[0.03]' : ''}`}>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
@@ -180,6 +198,9 @@ export function AgentPage() {
                       <span className="text-green-400">{player.wins}</span>/
                       <span className="text-red-400">{player.losses}</span>/
                       <span>{player.draws}</span>
+                    </td>
+                    <td className="px-5 py-3 text-right text-xs text-purple-400 hidden sm:table-cell">
+                      {player.isSelf ? '—' : (player.total_rake ?? 0).toLocaleString()}
                     </td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex gap-2 justify-end">

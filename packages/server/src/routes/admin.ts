@@ -27,7 +27,7 @@ adminRouter.get('/players', async (req, res) => {
   if (!checkAuth(req, res)) return;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, chips, wins, losses, draws, avatar_url, role, agent_id')
+    .select('id, nickname, chips, wins, losses, draws, avatar_url, role, agent_id, total_rake')
     .order('chips', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -127,20 +127,38 @@ adminRouter.get('/agents', async (req, res) => {
   if (!checkAuth(req, res)) return;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, avatar_url, chips, agent_chip_pool, wins, losses, draws')
+    .select('id, nickname, avatar_url, chips, agent_chip_pool, wins, losses, draws, rakeback_percent')
     .eq('role', 'agent')
     .order('nickname');
   if (error) return res.status(500).json({ error: error.message });
 
-  // Count players per agent
-  const agentsWithCounts = await Promise.all((data ?? []).map(async agent => {
+  // Count players and sum rake per agent
+  const agentsWithStats = await Promise.all((data ?? []).map(async agent => {
     const { count } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('agent_id', agent.id);
-    return { ...agent, player_count: count ?? 0 };
+    const { data: playerRakes } = await supabase
+      .from('profiles')
+      .select('total_rake')
+      .eq('agent_id', agent.id);
+    const total_rake = (playerRakes ?? []).reduce((sum, p) => sum + (p.total_rake ?? 0), 0);
+    return { ...agent, player_count: count ?? 0, total_rake };
   }));
-  res.json(agentsWithCounts);
+  res.json(agentsWithStats);
+});
+
+// POST /api/admin/set-rakeback — set agent's rakeback percent
+adminRouter.post('/set-rakeback', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const { agentId, rakebackPercent } = req.body;
+  if (!agentId || typeof rakebackPercent !== 'number' || rakebackPercent < 0 || rakebackPercent > 100) {
+    return res.status(400).json({ error: 'Invalid params' });
+  }
+  const { error } = await supabase
+    .from('profiles').update({ rakeback_percent: rakebackPercent }).eq('id', agentId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
 // POST /api/admin/agent-pool — adjust agent chip pool (not game chips)

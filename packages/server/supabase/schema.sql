@@ -263,7 +263,36 @@ alter table profiles
 create index if not exists profiles_agent_id_idx on profiles (agent_id);
 create index if not exists profiles_role_idx on profiles (role);
 
+-- Rakeback percentage for agents (0–100); rake tracking for all players
+alter table profiles
+  add column if not exists rakeback_percent int not null default 0
+  check (rakeback_percent >= 0 and rakeback_percent <= 100);
+
+alter table profiles
+  add column if not exists total_rake int not null default 0
+  check (total_rake >= 0);
+
+-- Rake amount recorded per game
+alter table games
+  add column if not exists rake_amount int not null default 0;
+
 -- ─── Stored Procedures: Agent chip transfers ──────────────────────────────────
+
+-- Increment a player's total_rake counter
+create or replace function add_player_rake(p_player_id uuid, p_rake int)
+returns void language plpgsql security definer as $$
+begin
+  update profiles set total_rake = total_rake + p_rake where id = p_player_id;
+end;
+$$;
+
+-- Increment an agent's chip pool (used for rakeback payouts)
+create or replace function add_agent_pool(p_agent_id uuid, p_amount int)
+returns void language plpgsql security definer as $$
+begin
+  update profiles set agent_chip_pool = agent_chip_pool + p_amount where id = p_agent_id;
+end;
+$$;
 
 create or replace function agent_credit_player(
   p_agent_id  uuid,

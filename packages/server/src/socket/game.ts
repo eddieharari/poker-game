@@ -50,7 +50,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       ? null
       : newState.players[score.winner].id;
 
-    await supabase.rpc('settle_game', {
+    const { data: gameId } = await supabase.rpc('settle_game', {
       p_room_id:        room.roomId,
       p_player0_id:     room.player0.playerId,
       p_player1_id:     room.player1.playerId,
@@ -69,6 +69,40 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
     if (fee > 0 && settings.housePlayerId && winnerId) {
       await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
       await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+
+      // Record rake in game row
+      if (gameId) {
+        await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
+      }
+
+      // Each player contributed half the rake
+      const p0Id = room.player0.playerId;
+      const p1Id = room.player1.playerId;
+      const p0Rake = Math.floor(fee / 2);
+      const p1Rake = fee - p0Rake;
+      await Promise.all([
+        supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
+        supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
+      ]);
+
+      // Agent rakeback: look up each player's agent and distribute their cut from the house
+      const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
+        supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
+        supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
+      ]);
+      for (const [playerRake, prof] of [[p0Rake, p0prof], [p1Rake, p1prof]] as [number, { agent_id: string | null } | null][]) {
+        if (prof?.agent_id) {
+          const { data: agent } = await supabase
+            .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
+          if (agent && agent.rakeback_percent > 0) {
+            const cut = Math.floor(playerRake * agent.rakeback_percent / 100);
+            if (cut > 0) {
+              await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: -cut });
+              await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
+            }
+          }
+        }
+      }
     }
 
     await lobbyService.setStatus(room.player0.playerId, 'idle');

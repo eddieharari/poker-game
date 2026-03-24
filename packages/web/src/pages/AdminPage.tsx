@@ -10,6 +10,7 @@ interface PlayerRow {
   avatar_url: string;
   role: 'admin' | 'agent' | 'user';
   agent_id: string | null;
+  total_rake: number;
 }
 
 interface AgentRow {
@@ -19,6 +20,8 @@ interface AgentRow {
   chips: number;
   agent_chip_pool: number;
   player_count: number;
+  rakeback_percent: number;
+  total_rake: number;
 }
 
 interface LogEntry {
@@ -68,6 +71,9 @@ export function AdminPage() {
   const [agentPoolAmount, setAgentPoolAmount] = useState('');
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [agentPlayers, setAgentPlayers] = useState<Record<string, any[]>>({});
+  const [playerSearch, setPlayerSearch] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
+  const [rakebackEdits, setRakebackEdits] = useState<Record<string, string>>({});
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -245,6 +251,22 @@ export function AdminPage() {
     }
   }
 
+  async function handleSetRakeback(agentId: string, percent: number) {
+    if (!authedPassword) return;
+    const res = await fetch('/api/admin/set-rakeback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': authedPassword },
+      body: JSON.stringify({ agentId, rakebackPercent: percent }),
+    });
+    if (res.ok) {
+      setRakebackEdits(prev => { const n = { ...prev }; delete n[agentId]; return n; });
+      fetchAgents();
+    } else {
+      const d = await res.json();
+      alert(`Error: ${d.error}`);
+    }
+  }
+
   async function handleApproveRequest(id: string) {
     if (!authedPassword) return;
     const res = await fetch(`/api/admin/requests/${id}/approve`, {
@@ -380,6 +402,14 @@ export function AdminPage() {
 
         {/* Players Tab */}
         {activeTab === 'players' && (
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Search players…"
+              value={playerSearch}
+              onChange={e => setPlayerSearch(e.target.value)}
+              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50 text-sm"
+            />
           <div className="bg-black/60 border border-white/10 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -389,13 +419,14 @@ export function AdminPage() {
                   <th className="px-4 py-3 text-right">W</th>
                   <th className="px-4 py-3 text-right">L</th>
                   <th className="px-4 py-3 text-right">D</th>
+                  <th className="px-4 py-3 text-right">Rake</th>
                   <th className="px-4 py-3 text-center">Role</th>
                   <th className="px-4 py-3 text-center">Agent</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {players.map((player, i) => {
+                {players.filter(p => p.nickname.toLowerCase().includes(playerSearch.toLowerCase())).map((player, i) => {
                   const badge = ROLE_BADGE[player.role] ?? ROLE_BADGE.user;
                   const assignableAgents = agents.filter(a => a.id !== player.id);
                   return (
@@ -413,6 +444,7 @@ export function AdminPage() {
                       <td className="px-4 py-3 text-right text-green-400">{player.wins}</td>
                       <td className="px-4 py-3 text-right text-red-400">{player.losses}</td>
                       <td className="px-4 py-3 text-right text-white/40">{player.draws}</td>
+                      <td className="px-4 py-3 text-right text-purple-400">{(player.total_rake ?? 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded border ${badge.className}`}>
@@ -452,19 +484,27 @@ export function AdminPage() {
                     </tr>
                   );
                 })}
-                {players.length === 0 && (
+                {players.filter(p => p.nickname.toLowerCase().includes(playerSearch.toLowerCase())).length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-white/30">No players found</td>
+                    <td colSpan={9} className="px-4 py-8 text-center text-white/30">No players found</td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         )}
 
         {/* Agents Tab */}
         {activeTab === 'agents' && (
           <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Search agents…"
+              value={agentSearch}
+              onChange={e => setAgentSearch(e.target.value)}
+              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50 text-sm"
+            />
             <div className="bg-black/60 border border-white/10 rounded-2xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -473,11 +513,13 @@ export function AdminPage() {
                     <th className="px-4 py-3 text-right">Game Chips</th>
                     <th className="px-4 py-3 text-right">Pool Balance</th>
                     <th className="px-4 py-3 text-right">Players</th>
+                    <th className="px-4 py-3 text-right">Player Rake</th>
+                    <th className="px-4 py-3 text-center">Rakeback %</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {agents.map((agent, i) => (
+                  {agents.filter(a => a.nickname.toLowerCase().includes(agentSearch.toLowerCase())).map((agent, i) => (
                     <>
                       <tr key={agent.id} className={`border-b border-white/5 ${i % 2 === 0 ? 'bg-white/5' : ''}`}>
                         <td className="px-4 py-3">
@@ -489,6 +531,28 @@ export function AdminPage() {
                         <td className="px-4 py-3 text-right text-white/70">{agent.chips.toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-gold font-semibold">{agent.agent_chip_pool.toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-white/50">{agent.player_count}</td>
+                        <td className="px-4 py-3 text-right text-purple-400">{(agent.total_rake ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={rakebackEdits[agent.id] ?? agent.rakeback_percent}
+                              onChange={e => setRakebackEdits(prev => ({ ...prev, [agent.id]: e.target.value }))}
+                              className="w-14 bg-black/40 border border-white/20 rounded px-1.5 py-0.5 text-white text-xs text-center focus:outline-none focus:border-gold/50"
+                            />
+                            <span className="text-white/40 text-xs">%</span>
+                            {rakebackEdits[agent.id] !== undefined && rakebackEdits[agent.id] !== String(agent.rakeback_percent) && (
+                              <button
+                                onClick={() => handleSetRakeback(agent.id, parseInt(rakebackEdits[agent.id], 10))}
+                                className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                              >
+                                Save
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex gap-2 justify-end">
                             <button
@@ -515,7 +579,7 @@ export function AdminPage() {
                       </tr>
                       {expandedAgent === agent.id && (
                         <tr key={`${agent.id}-players`}>
-                          <td colSpan={5} className="px-4 pb-3 pt-1 bg-black/20">
+                          <td colSpan={7} className="px-4 pb-3 pt-1 bg-black/20">
                             {!agentPlayers[agent.id] ? (
                               <p className="text-white/30 text-xs py-2">Loading…</p>
                             ) : agentPlayers[agent.id].length === 0 ? (
@@ -536,8 +600,8 @@ export function AdminPage() {
                       )}
                     </>
                   ))}
-                  {agents.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-white/30">No agents found</td></tr>
+                  {agents.filter(a => a.nickname.toLowerCase().includes(agentSearch.toLowerCase())).length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-white/30">No agents found</td></tr>
                   )}
                 </tbody>
               </table>
