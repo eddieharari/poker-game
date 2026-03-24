@@ -11,7 +11,7 @@ import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus }
 export function LobbyPage() {
   const { profile, signOut } = useAuthStore();
   const navigate = useNavigate();
-  const { players, incomingChallenge, setIncomingChallenge } = useLobbyStore();
+  const { players, incomingChallenge, setIncomingChallenge, setPlayers } = useLobbyStore();
   const [challengeTarget, setChallengeTarget] = useState<OnlinePlayer | null>(null);
   const [selectedStake, setSelectedStake] = useState<StakeAmount>(STAKE_OPTIONS[0]);
   const [completeWinBonus, setCompleteWinBonus] = useState(false);
@@ -27,6 +27,7 @@ export function LobbyPage() {
   useSocketEvents();
 
   useEffect(() => {
+    setPlayers([]); // clear stale player list from previous session
     const sock = getSocket();
     const enter = () => sock.emit('lobby:enter');
     sock.on('connect', enter);
@@ -35,7 +36,7 @@ export function LobbyPage() {
       sock.off('connect', enter);
       if (sock.connected) sock.emit('lobby:leave');
     };
-  }, []);
+  }, [setPlayers]);
 
   function sendChallenge() {
     if (!challengeTarget) return;

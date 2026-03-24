@@ -19,6 +19,7 @@ export const lobbyService = {
 
   async getAllPlayers(): Promise<OnlinePlayer[]> {
     const all = await redis.hgetall(LOBBY_KEY);
+    if (!all) return [];
     return Object.values(all).map(v => JSON.parse(v) as OnlinePlayer);
   },
 
