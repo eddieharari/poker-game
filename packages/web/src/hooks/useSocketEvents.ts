@@ -32,6 +32,7 @@ export function useSocketEvents() {
   const setRoom             = useGameStore(s => s.setRoom);
   const setOpponentDisconnected = useGameStore(s => s.setOpponentDisconnected);
   const setOpponentLeft = useGameStore(s => s.setOpponentLeft);
+  const setStartingPlayer   = useGameStore(s => s.setStartingPlayer);
   const fetchProfile        = useAuthStore(s => s.fetchProfile);
 
   useEffect(() => {
@@ -73,6 +74,11 @@ export function useSocketEvents() {
       }
       prevCardCount.current = count;
     });
+    socket.on('game:starting', ({ firstPlayerIndex, firstPlayerName }: { firstPlayerIndex: 0 | 1; firstPlayerName: string }) => {
+      setStartingPlayer({ index: firstPlayerIndex, name: firstPlayerName });
+      setTimeout(() => setStartingPlayer(null), 2000);
+    });
+
     socket.on('game:over', (score) => {
       prevCardCount.current = 0;
       shufflePlayed.current = false;
@@ -130,6 +136,7 @@ export function useSocketEvents() {
       socket.off('lobby:challenge:expired');
       socket.off('room:joined');
       socket.off('game:state');
+      socket.off('game:starting');
       socket.off('game:over');
       socket.off('player:disconnected');
       socket.off('player:reconnected');
@@ -139,5 +146,5 @@ export function useSocketEvents() {
       socket.off('profile:chips_updated');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
-      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, fetchProfile]);
+      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, setStartingPlayer, fetchProfile]);
 }

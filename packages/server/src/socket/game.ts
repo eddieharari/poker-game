@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { roomService } from '../services/roomService.js';
 import { lobbyService } from '../services/lobbyService.js';
 import { supabase } from '../supabase.js';
+import { redis } from '../redis.js';
 import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
 import type { GameState, Player } from '@poker5o/shared';
 import type { Room } from '../types.js';
@@ -69,20 +70,6 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
       await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
     }
-    // Write game result for cashier history
-    await supabase.from('game_results').insert({
-      room_id: room.roomId,
-      player0_id: room.player0.playerId,
-      player1_id: room.player1.playerId,
-      player0_name: room.player0.playerName,
-      player1_name: room.player1.playerName,
-      stake: effectiveStake,
-      winner_id: winnerId ?? null,
-      is_draw: score.winner === 'draw',
-      p0_columns: score.player0Wins,
-      p1_columns: score.player1Wins,
-      house_fee: fee,
-    });
 
     await lobbyService.setStatus(room.player0.playerId, 'idle');
     await lobbyService.setStatus(room.player1.playerId, 'idle');
@@ -194,8 +181,7 @@ async function emitStateToRoom(io: Server, room: Room, state: GameState): Promis
 
 async function runSetupPhase(io: Server, roomId: string): Promise<void> {
   for (let i = 0; i < 10; i++) {
-    // Delay between each card so players can see them appear one by one
-    await new Promise<void>(r => setTimeout(r, 700));
+    await new Promise<void>(r => setTimeout(r, 200));
 
     const room = await roomService.get(roomId);
     if (!room?.gameState || room.gameState.phase !== 'SETUP_PHASE') return;
@@ -208,8 +194,8 @@ async function runSetupPhase(io: Server, roomId: string): Promise<void> {
     await roomService.updateGameState(roomId, state);
     await emitStateToRoom(io, room, state);
 
-    // Brief pause so drawn card is visible
-    await new Promise<void>(r => setTimeout(r, 350));
+    // Brief pause so drawn card is visible before it lands
+    await new Promise<void>(r => setTimeout(r, 100));
 
     // Place in first empty column
     const colIdx = state.players[state.currentPlayerIndex].columns.findIndex(
@@ -222,9 +208,13 @@ async function runSetupPhase(io: Server, roomId: string): Promise<void> {
     await emitStateToRoom(io, room, state);
   }
 
-  // After setup phase completes, start timer for main phase
+  // After setup, show "who goes first" banner for 2 seconds then start timer
   const roomAfterSetup = await roomService.get(roomId);
   if (roomAfterSetup?.gameState && roomAfterSetup.gameState.phase === 'MAIN_PHASE') {
+    const firstIdx = roomAfterSetup.gameState.currentPlayerIndex;
+    const firstName = roomAfterSetup.gameState.players[firstIdx].name;
+    io.to(roomId).emit('game:starting', { firstPlayerIndex: firstIdx, firstPlayerName: firstName });
+    await new Promise<void>(r => setTimeout(r, 2000));
     await startTurnTimer(io, roomId, roomAfterSetup.gameState, roomAfterSetup);
   }
 }
@@ -266,15 +256,19 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     if (socketsInRoom.length === 2 && room.gameState) {
       io.to(roomId).emit('room:ready', { gameState: room.gameState });
 
-      // Auto-deal setup phase if not yet started
+      // Auto-deal setup phase if not yet started (Redis lock prevents double-start)
       if (room.gameState.phase === 'SETUP_PHASE' && room.gameState.setupDrawCount === 0) {
-        log('GAME_START', {
-          roomId,
-          player0: room.player0.playerName,
-          player1: room.player1?.playerName,
-          stake: room.stake ?? undefined,
-        });
-        runSetupPhase(io, roomId);
+        const lockKey = `setup:lock:${roomId}`;
+        const locked = await redis.set(lockKey, '1', 'EX', 120, 'NX');
+        if (locked === 'OK') {
+          log('GAME_START', {
+            roomId,
+            player0: room.player0.playerName,
+            player1: room.player1?.playerName,
+            stake: room.stake ?? undefined,
+          });
+          runSetupPhase(io, roomId);
+        }
       }
     }
   });
@@ -311,6 +305,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    if (room.gameState.phase === 'SETUP_PHASE') return; // Setup is server-controlled
+
     if (!canDrawCard(room.gameState, playerId)) {
       socket.emit('room:error', { message: 'Cannot draw card right now' });
       return;
@@ -334,6 +330,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         socket.emit('room:error', { message: 'Game not found' });
         return;
       }
+
+      if (room.gameState.phase === 'SETUP_PHASE') return; // Setup is server-controlled
 
       if (!canPlaceCard(room.gameState, playerId, columnIndex)) {
         socket.emit('room:error', { message: 'Cannot place card there' });

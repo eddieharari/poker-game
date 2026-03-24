@@ -15,7 +15,7 @@ export function GamePage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuthStore();
-  const { gameState, score, playerIndex, stake, completeWinBonus, opponentLeft, setOpponentLeft } = useGameStore();
+  const { gameState, score, playerIndex, stake, completeWinBonus, opponentLeft, setOpponentLeft, startingPlayer } = useGameStore();
   const autoDrawCard = usePreferencesStore(s => s.autoDrawCard);
 
   useSocketEvents();
@@ -31,10 +31,11 @@ export function GamePage() {
     return () => { /* socket stays open across nav */ };
   }, [roomId]);
 
-  // Auto-draw: when it's my turn and no card drawn yet, draw automatically
+  // Auto-draw: when it's my turn and no card drawn yet, draw automatically.
+  // Only in MAIN_PHASE — setup phase is fully automated server-side.
   useEffect(() => {
     if (!autoDrawCard || !roomId || !profile || playerIndex === null || !gameState) return;
-    if (gameState.phase === 'GAME_OVER') return;
+    if (gameState.phase !== 'MAIN_PHASE') return;
     if (gameState.currentPlayerIndex !== playerIndex) return;
     if (gameState.drawnCard !== null) return;
     if (!canDrawCard(gameState, profile.id)) return;
@@ -243,6 +244,24 @@ export function GamePage() {
           cardH={cardH}
         />
       </div>
+
+      {/* "Who goes first" banner */}
+      {startingPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-3 animate-fade-in">
+            <span className="text-6xl">🃏</span>
+            <div className="text-center bg-black/80 backdrop-blur-sm rounded-2xl px-10 py-6 border border-gold/40 shadow-2xl shadow-gold/10">
+              <p className="text-white/60 text-sm font-medium uppercase tracking-widest mb-1">First to play</p>
+              <p className={`font-display text-4xl font-bold ${startingPlayer.index === playerIndex ? 'text-gold' : 'text-white'}`}>
+                {startingPlayer.index === playerIndex ? 'You' : startingPlayer.name}
+              </p>
+              {startingPlayer.index === playerIndex && (
+                <p className="text-gold/60 text-sm mt-2">Get ready…</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Opponent disconnected modal */}
       {opponentLeft && (

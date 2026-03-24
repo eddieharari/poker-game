@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setDuplicateSession: (val) => set({ duplicateSession: val }),
 
   setSession: (session) =>
-    set({ session, user: session?.user ?? null }),
+    set({ session, user: session?.user ?? null, ...(session ? { loading: true } : {}) }),
 
   setProfile: (profile) => set({ profile }),
 
@@ -38,7 +38,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true });
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, nickname, avatar_url, avatar_is_preset, chips, wins, losses, draws, created_at, role, agent_id, agent_chip_pool')
+      .select('*')
       .eq('id', session.user.id)
       .maybeSingle();
     if (error) {
