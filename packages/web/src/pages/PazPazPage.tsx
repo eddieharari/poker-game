@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
+import { usePreferencesStore } from '../store/preferencesStore.js';
 import { getSocket } from '../socket.js';
 import type {
   PazPazGameState,
@@ -18,43 +19,73 @@ const SUIT_SYMBOL: Record<string, string> = {
   clubs: '♣',
 };
 
-function isRed(suit: string): boolean {
-  return suit === 'hearts' || suit === 'diamonds';
+function getSuitColor(suit: string, fourColor: boolean): string {
+  if (suit === 'hearts') return '#ef4444';
+  if (suit === 'diamonds') return fourColor ? '#3b82f6' : '#ef4444';
+  if (suit === 'clubs') return fourColor ? '#22c55e' : '#111827';
+  return '#111827'; // spades
 }
 
 function CardView({
   card,
   selected,
   onClick,
-  small = false,
+  size = 'normal',
   flopAssigned,
+  fourColor = false,
+  twoCorner = false,
 }: {
   card: Card;
   selected?: boolean;
   onClick?: () => void;
-  small?: boolean;
-  flopAssigned?: number; // 0,1,2 if assigned to a flop
+  size?: 'small' | 'normal' | 'large';
+  flopAssigned?: number;
+  fourColor?: boolean;
+  twoCorner?: boolean;
 }) {
-  const red = isRed(card.suit);
-  const sizeClass = small ? 'w-10 h-14 text-xs' : 'w-12 h-16 text-sm';
+  const suitColor = getSuitColor(card.suit, fourColor);
+  const sizeClass =
+    size === 'small'  ? 'w-10 h-14 text-xs' :
+    size === 'large'  ? 'w-20 h-28 text-base' :
+    'w-14 h-20 text-sm';
+
+  const rankClass =
+    size === 'large' ? 'text-xl font-black' : 'font-bold';
+  const suitIconClass =
+    size === 'large' ? 'text-2xl' : 'text-lg';
 
   return (
     <div
       onClick={onClick}
       className={`
-        ${sizeClass} rounded-lg border flex flex-col items-center justify-center
+        ${sizeClass} rounded-lg border flex flex-col
         font-bold cursor-pointer select-none transition-all relative
-        ${selected ? 'border-gold bg-gold/20 shadow-lg shadow-gold/30 scale-105' : 'border-white/20 bg-black/60 hover:border-white/40'}
-        ${flopAssigned !== undefined ? 'border-opacity-50' : ''}
+        bg-white shadow-sm
+        ${selected ? 'border-gold shadow-lg shadow-gold/30 scale-105 ring-2 ring-gold/50' : 'border-gray-300 hover:border-white/60'}
         ${onClick ? 'hover:scale-105 active:scale-95' : ''}
       `}
     >
-      <span className={red ? 'text-red-400' : 'text-white'}>{card.rank}</span>
-      <span className={`text-lg leading-none ${red ? 'text-red-400' : 'text-white'}`}>
-        {SUIT_SYMBOL[card.suit]}
-      </span>
+      {/* Top-left corner */}
+      <div className="flex flex-col items-center leading-none pt-0.5 pl-0.5" style={{ color: suitColor }}>
+        <span className={rankClass}>{card.rank}</span>
+        {!twoCorner && <span className="text-xs leading-none">{SUIT_SYMBOL[card.suit]}</span>}
+      </div>
+
+      {/* Center suit */}
+      <div className="flex-1 flex items-center justify-center" style={{ color: suitColor }}>
+        <span className={suitIconClass}>{SUIT_SYMBOL[card.suit]}</span>
+      </div>
+
+      {/* Bottom-right corner (rotated) */}
+      {!twoCorner && (
+        <div className="flex flex-col items-center leading-none pb-0.5 pr-0.5 self-end rotate-180" style={{ color: suitColor }}>
+          <span className={rankClass}>{card.rank}</span>
+          <span className="text-xs leading-none">{SUIT_SYMBOL[card.suit]}</span>
+        </div>
+      )}
+
       {flopAssigned !== undefined && (
-        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gold text-black text-[9px] font-bold flex items-center justify-center">
+        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gold text-black text-[10px] font-bold flex items-center justify-center shadow">
           {flopAssigned + 1}
         </span>
       )}
@@ -62,8 +93,29 @@ function CardView({
   );
 }
 
-function EmptyCardSlot({ small = false }: { small?: boolean }) {
-  const sizeClass = small ? 'w-10 h-14' : 'w-12 h-16';
+function FaceDownCard({ size = 'normal' }: { size?: 'small' | 'normal' | 'large' }) {
+  const sizeClass =
+    size === 'small'  ? 'w-10 h-14' :
+    size === 'large'  ? 'w-20 h-28' :
+    'w-14 h-20';
+
+  return (
+    <div
+      className={`${sizeClass} rounded-lg border border-blue-800 shadow-sm`}
+      style={{
+        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), linear-gradient(135deg, #1e3a8a, #1e40af)',
+        backgroundSize: '10px 10px, 10px 10px, 100% 100%',
+      }}
+    />
+  );
+}
+
+function EmptyCardSlot({ size = 'normal' }: { size?: 'small' | 'normal' | 'large' }) {
+  const sizeClass =
+    size === 'small'  ? 'w-10 h-14' :
+    size === 'large'  ? 'w-20 h-28' :
+    'w-14 h-20';
+
   return (
     <div className={`${sizeClass} rounded-lg border border-dashed border-white/20 bg-white/5`} />
   );
@@ -91,9 +143,12 @@ export function PazPazPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuthStore();
+  const { fourColorDeck, twoCornerDeck } = usePreferencesStore();
 
   const [gameState, setGameState] = useState<PazPazGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retryRef = useRef(0);
 
   // Assignment state: assignment[i] = flop index (0,1,2) or null
   const [assignment, setAssignment] = useState<(0 | 1 | 2 | null)[]>([]);
@@ -127,10 +182,19 @@ export function PazPazPage() {
 
     socket.on('pazpaz:state', (state) => {
       setGameState(state);
+      setError(null);
     });
 
     socket.on('pazpaz:error', ({ message }) => {
       setError(message);
+      // Retry joining up to 5 times with 1s delay (handles race condition where room not yet created)
+      if (message === 'Room not found' && retryRef.current < 5) {
+        retryRef.current += 1;
+        setRetryCount(retryRef.current);
+        setTimeout(() => {
+          socket.emit('pazpaz:join', { roomId });
+        }, 1000);
+      }
     });
 
     socket.emit('pazpaz:join', { roomId });
@@ -153,13 +217,14 @@ export function PazPazPage() {
           <div className="text-5xl animate-bounce">🃏</div>
           <p className="text-white/50">Connecting to game…</p>
           {error && <p className="text-red-400 text-sm">{error}</p>}
+          {retryCount > 0 && <p className="text-white/30 text-xs">Retrying… ({retryCount}/5)</p>}
         </div>
       </div>
     );
   }
 
   if (gameState.phase === 'SCORING') {
-    return <ScoringView gameState={gameState} playerIndex={playerIndex ?? 0} onBack={() => navigate('/lobby')} />;
+    return <ScoringView gameState={gameState} playerIndex={playerIndex ?? 0} onBack={() => navigate('/lobby')} fourColor={fourColorDeck} twoCorner={twoCornerDeck} />;
   }
 
   // ASSIGNING phase
@@ -172,13 +237,21 @@ export function PazPazPage() {
     }
   }
 
+  // Track original indices for each flop's cards (for removal)
+  const flopCardIndices: number[][] = [[], [], []];
+  for (let i = 0; i < dealtCards.length; i++) {
+    const flopIdx = assignment[i];
+    if (flopIdx !== null && flopIdx !== undefined) {
+      flopCardIndices[flopIdx].push(i);
+    }
+  }
+
   const allAssigned = assignment.length === 12 && assignment.every(a => a !== null);
 
   function handleCardClick(cardIdx: number) {
     if (submitted) return;
     const currentFlopAssign = assignment[cardIdx];
     if (currentFlopAssign !== null && currentFlopAssign !== undefined) {
-      // Remove from flop
       setAssignment(prev => {
         const next = [...prev];
         next[cardIdx] = null;
@@ -220,76 +293,114 @@ export function PazPazPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="h-screen flex flex-col overflow-hidden"
       style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
       {/* Header */}
-      <header className="bg-black/60 backdrop-blur-sm border-b border-white/10 px-4 py-3 flex items-center justify-between">
+      <header className="flex-shrink-0 bg-black/70 backdrop-blur-sm border-b border-white/10 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="font-display text-xl text-gold">PAZPAZ</h1>
+          <h1 className="font-display text-lg text-gold">PAZPAZ</h1>
           <span className="text-xs text-white/50 bg-black/30 px-2 py-1 rounded-full">Assigning</span>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Players */}
-          <div className="flex items-center gap-2">
-            <img src={myPlayer?.avatarUrl} alt="" className="w-7 h-7 rounded-full border border-gold/50" />
-            <span className="text-sm font-semibold">{myPlayer?.name}</span>
-            {iHaveSubmitted && <span className="text-xs text-green-400">Submitted</span>}
+
+        {/* Players status */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <img src={myPlayer?.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-gold/50" />
+            <span className="font-semibold text-white/80">{myPlayer?.name}</span>
+            {iHaveSubmitted
+              ? <span className="text-green-400 font-semibold">✓</span>
+              : <span className="text-white/40">…</span>
+            }
           </div>
           <span className="text-white/30">vs</span>
-          <div className="flex items-center gap-2">
-            <img src={opponentPlayer?.avatarUrl} alt="" className="w-7 h-7 rounded-full border border-white/20" />
-            <span className="text-sm text-white/70">{opponentPlayer?.name}</span>
+          <div className="flex items-center gap-1.5">
+            <img src={opponentPlayer?.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-white/20" />
+            <span className="text-white/60">{opponentPlayer?.name}</span>
             {opponentHasSubmitted
-              ? <span className="text-xs text-green-400">Submitted</span>
-              : <span className="text-xs text-white/40">Waiting…</span>
+              ? <span className="text-green-400 font-semibold">✓</span>
+              : <span className="text-white/40">…</span>
             }
           </div>
         </div>
+
         {/* Timer */}
         {timerSeconds !== null && (
-          <div className={`text-sm font-bold tabular-nums ${timerSeconds <= 20 ? 'text-red-400 animate-pulse' : 'text-white/60'}`}>
+          <div className={`text-sm font-bold tabular-nums px-3 py-1 rounded-full border ${
+            timerSeconds <= 30
+              ? 'text-red-400 border-red-500/40 bg-red-500/10 animate-pulse'
+              : 'text-white/60 border-white/10'
+          }`}>
             {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
           </div>
         )}
       </header>
 
-      <div className="flex-1 p-4 space-y-4 overflow-auto">
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-2 text-red-300 text-sm">
-            {error}
-          </div>
-        )}
+      {/* Error banner */}
+      {error && error !== 'Room not found' && (
+        <div className="flex-shrink-0 bg-red-500/20 border-b border-red-500/30 px-4 py-2 text-red-300 text-sm text-center">
+          {error}
+        </div>
+      )}
 
-        {/* Instructions */}
-        {!iHaveSubmitted && (
-          <p className="text-white/50 text-sm text-center">
+      {/* Instructions bar */}
+      {!iHaveSubmitted && (
+        <div className="flex-shrink-0 bg-black/50 border-b border-white/5 px-4 py-1.5 text-center">
+          <p className="text-white/50 text-xs">
             {selectedCardIdx !== null
-              ? 'Click a flop to assign the selected card'
-              : 'Click a card to select it, then click a flop to assign it. Click an assigned card to remove it.'
+              ? '👆 Click a flop column to assign the selected card'
+              : 'Click a card to select it, then click a flop column to assign it. Click an assigned card to remove it.'
             }
           </p>
-        )}
+        </div>
+      )}
 
-        {/* 3 Flop columns */}
-        <div className="grid grid-cols-3 gap-3">
+      <div className="flex-1 flex flex-col overflow-hidden p-3 gap-3">
+
+        {/* ── Opponent's 12 face-down cards ─────────────────────────────────── */}
+        <div className="flex-shrink-0 bg-black/40 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/10">
+          <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider mb-2 text-center">
+            {opponentPlayer?.name ?? 'Opponent'}'s cards (face down)
+          </p>
+          <div className="flex flex-wrap gap-1 justify-center">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <FaceDownCard key={i} size="small" />
+            ))}
+          </div>
+        </div>
+
+        {/* ── 3 Flop columns ────────────────────────────────────────────────── */}
+        <div className="flex-1 grid grid-cols-3 gap-2 min-h-0">
           {([0, 1, 2] as const).map(flopIdx => (
             <FlopColumn
               key={flopIdx}
               flopIdx={flopIdx}
               communityCards={gameState.flops[flopIdx]}
-              assignedCards={assignmentByFlop[flopIdx]}
+              myAssignedCards={assignmentByFlop[flopIdx]}
+              myCardIndices={flopCardIndices[flopIdx]}
+              opponentAssignedCards={
+                gameState.phase === 'SCORING' && gameState.assignments[playerIndex === 0 ? 1 : 0]
+                  ? (gameState.assignments[playerIndex === 0 ? 1 : 0]?.hands[flopIdx] ?? [])
+                  : []
+              }
               isActive={selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4}
               onClick={() => handleFlopClick(flopIdx)}
               disabled={iHaveSubmitted}
+              fourColor={fourColorDeck}
+              twoCorner={twoCornerDeck}
             />
           ))}
         </div>
 
-        {/* My Hand */}
-        <div className="bg-black/40 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-          <p className="text-white/60 text-xs font-semibold uppercase tracking-wider mb-3">Your 12 Cards</p>
-          <div className="flex flex-wrap gap-2 justify-center">
+        {/* ── My 12 dealt cards ─────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 bg-black/50 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/10">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-wider">Your 12 Cards</p>
+            <span className="text-xs text-white/40">
+              {assignment.filter(a => a !== null).length}/12 assigned
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 justify-center">
             {dealtCards.map((card, idx) => {
               const flopAssigned = assignment[idx] !== null && assignment[idx] !== undefined ? (assignment[idx] as 0 | 1 | 2) : undefined;
               return (
@@ -297,20 +408,23 @@ export function PazPazPage() {
                   key={idx}
                   card={card}
                   selected={selectedCardIdx === idx}
-                  onClick={() => handleCardClick(idx)}
+                  onClick={iHaveSubmitted ? undefined : () => handleCardClick(idx)}
+                  size="large"
                   flopAssigned={flopAssigned}
+                  fourColor={fourColorDeck}
+                  twoCorner={twoCornerDeck}
                 />
               );
             })}
           </div>
         </div>
 
-        {/* Submit */}
-        <div className="flex justify-center">
+        {/* ── Submit / status ───────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 flex justify-center">
           {iHaveSubmitted ? (
-            <div className="text-center space-y-2">
-              <p className="text-green-400 font-semibold">Assignment submitted!</p>
-              <p className="text-white/50 text-sm">
+            <div className="text-center space-y-1">
+              <p className="text-green-400 font-semibold text-sm">Assignment submitted!</p>
+              <p className="text-white/40 text-xs">
                 {opponentHasSubmitted
                   ? 'Both submitted — revealing results…'
                   : 'Waiting for opponent…'
@@ -321,12 +435,13 @@ export function PazPazPage() {
             <button
               onClick={handleSubmit}
               disabled={!allAssigned}
-              className="btn-primary px-8 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-primary px-8 py-2.5 text-base disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Submit Assignment
             </button>
           )}
         </div>
+
       </div>
     </div>
   );
@@ -337,47 +452,72 @@ export function PazPazPage() {
 function FlopColumn({
   flopIdx,
   communityCards,
-  assignedCards,
+  myAssignedCards,
+  myCardIndices: _myCardIndices,
+  opponentAssignedCards,
   isActive,
   onClick,
   disabled,
+  fourColor,
+  twoCorner,
 }: {
   flopIdx: 0 | 1 | 2;
   communityCards: Card[];
-  assignedCards: Card[];
+  myAssignedCards: Card[];
+  myCardIndices: number[];
+  opponentAssignedCards: Card[];
   isActive: boolean;
   onClick: () => void;
   disabled: boolean;
+  fourColor: boolean;
+  twoCorner: boolean;
 }) {
   return (
     <div
       onClick={disabled ? undefined : onClick}
       className={`
-        bg-black/40 backdrop-blur-sm rounded-2xl p-3 border transition-all
+        bg-black/40 backdrop-blur-sm rounded-xl p-2 border transition-all flex flex-col gap-2
         ${isActive && !disabled ? 'border-gold/60 bg-gold/5 cursor-pointer hover:border-gold shadow-lg shadow-gold/10' : 'border-white/10'}
       `}
     >
-      <p className="text-center text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
+      <p className="text-center text-white/60 text-xs font-semibold uppercase tracking-wider">
         Flop {flopIdx + 1}
       </p>
 
-      {/* Community cards */}
-      <div className="flex gap-1 justify-center mb-3">
-        {communityCards.map((card, i) => (
-          <CardView key={i} card={card} small />
-        ))}
-      </div>
-
-      {/* Hole card slots */}
-      <div className="border-t border-white/10 pt-2">
-        <p className="text-center text-white/40 text-[10px] mb-1">Your hand</p>
-        <div className="flex gap-1 justify-center flex-wrap">
+      {/* Opponent card placeholders */}
+      <div className="border border-white/10 rounded-lg p-1.5 bg-black/20">
+        <p className="text-center text-white/30 text-[9px] mb-1">Opp</p>
+        <div className="flex gap-0.5 justify-center flex-wrap">
           {[0, 1, 2, 3].map(slotIdx => {
-            const card = assignedCards[slotIdx];
-            return card ? <CardView key={slotIdx} card={card} small /> : <EmptyCardSlot key={slotIdx} small />;
+            const card = opponentAssignedCards[slotIdx];
+            return card
+              ? <CardView key={slotIdx} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />
+              : <FaceDownCard key={slotIdx} size="small" />;
           })}
         </div>
-        <p className="text-center text-white/30 text-[10px] mt-1">{assignedCards.length}/4</p>
+      </div>
+
+      {/* Community cards */}
+      <div>
+        <p className="text-center text-white/40 text-[9px] mb-1">Community</p>
+        <div className="flex gap-0.5 justify-center flex-wrap">
+          {communityCards.map((card, i) => (
+            <CardView key={i} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />
+          ))}
+        </div>
+      </div>
+
+      {/* My hand */}
+      <div className="border border-white/10 rounded-lg p-1.5 bg-black/20">
+        <p className="text-center text-white/30 text-[9px] mb-1">You {myAssignedCards.length}/4</p>
+        <div className="flex gap-0.5 justify-center flex-wrap">
+          {[0, 1, 2, 3].map(slotIdx => {
+            const card = myAssignedCards[slotIdx];
+            return card
+              ? <CardView key={slotIdx} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />
+              : <EmptyCardSlot key={slotIdx} size="small" />;
+          })}
+        </div>
       </div>
     </div>
   );
@@ -389,10 +529,14 @@ function ScoringView({
   gameState,
   playerIndex,
   onBack,
+  fourColor,
+  twoCorner,
 }: {
   gameState: PazPazGameState;
   playerIndex: 0 | 1;
   onBack: () => void;
+  fourColor: boolean;
+  twoCorner: boolean;
 }) {
   const { flopResults, winner, players } = gameState;
   const me = players[playerIndex];
@@ -416,22 +560,19 @@ function ScoringView({
       className="min-h-screen flex flex-col"
       style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
-      {/* Header */}
       <header className="bg-black/60 backdrop-blur-sm border-b border-white/10 px-4 py-3 flex items-center justify-between">
         <h1 className="font-display text-xl text-gold">PAZPAZ — Results</h1>
         <button onClick={onBack} className="btn-ghost text-sm px-3 py-1">Back to Lobby</button>
       </header>
 
       <div className="flex-1 p-4 space-y-4 overflow-auto">
-        {/* Winner banner */}
-        <div className={`text-center bg-black/60 backdrop-blur-sm rounded-2xl p-6 border border-white/10`}>
+        <div className="text-center bg-black/60 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
           <p className={`font-display text-4xl font-bold ${winnerColor}`}>{winnerLabel}</p>
           <p className="text-white/50 text-sm mt-2">
             {players[0].name} vs {players[1].name}
           </p>
         </div>
 
-        {/* Flop results */}
         {flopResults && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {flopResults.map(result => (
@@ -441,6 +582,8 @@ function ScoringView({
                 playerIndex={playerIndex}
                 me={me}
                 them={them}
+                fourColor={fourColor}
+                twoCorner={twoCorner}
               />
             ))}
           </div>
@@ -459,11 +602,15 @@ function FlopResult({
   playerIndex,
   me,
   them,
+  fourColor,
+  twoCorner,
 }: {
   result: PazPazFlopResult;
   playerIndex: 0 | 1;
   me: { name: string };
   them: { name: string };
+  fourColor: boolean;
+  twoCorner: boolean;
 }) {
   const myHole = playerIndex === 0 ? result.player0Hole : result.player1Hole;
   const themHole = playerIndex === 0 ? result.player1Hole : result.player0Hole;
@@ -482,30 +629,27 @@ function FlopResult({
         <p className={`text-xs font-bold ${winnerColor}`}>{winnerLabel}</p>
       </div>
 
-      {/* Community cards */}
       <div>
         <p className="text-white/40 text-[10px] mb-1">Community (5)</p>
         <div className="flex gap-1 flex-wrap">
           {result.communityCards.map((card, i) => (
-            <CardView key={i} card={card} small />
+            <CardView key={i} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />
           ))}
         </div>
       </div>
 
-      {/* My hand */}
       <div className={`rounded-xl p-2 ${winnerIsMe ? 'bg-green-500/10 border border-green-500/30' : 'bg-white/5'}`}>
         <p className="text-white/60 text-[10px] mb-1">{me.name} (You)</p>
         <div className="flex gap-1 flex-wrap">
-          {myHole.map((card, i) => <CardView key={i} card={card} small />)}
+          {myHole.map((card, i) => <CardView key={i} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />)}
         </div>
         <p className="text-gold text-xs mt-1">{myBest.label}</p>
       </div>
 
-      {/* Opponent hand */}
       <div className={`rounded-xl p-2 ${winnerIsThem ? 'bg-green-500/10 border border-green-500/30' : 'bg-white/5'}`}>
         <p className="text-white/60 text-[10px] mb-1">{them.name}</p>
         <div className="flex gap-1 flex-wrap">
-          {themHole.map((card, i) => <CardView key={i} card={card} small />)}
+          {themHole.map((card, i) => <CardView key={i} card={card} size="small" fourColor={fourColor} twoCorner={twoCorner} />)}
         </div>
         <p className="text-gold text-xs mt-1">{themBest.label}</p>
       </div>

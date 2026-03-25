@@ -44,8 +44,8 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, useTimer, gameType }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, useTimer: useTimer ?? false, gameType });
+    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration }) => {
+      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration });
     });
 
     socket.on('lobby:challenge:accepted', ({ roomId, gameType }) => {

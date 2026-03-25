@@ -31,7 +31,7 @@ export interface Room {
   status: RoomStatus;
   stake: StakeAmount | null;
   completeWinBonus: boolean;
-  useTimer: boolean;
+  timerDuration: 30 | 45 | 60 | null;
   createdAt: number;
 }
 
@@ -46,7 +46,8 @@ export interface Challenge {
   roomId: string;
   stake: StakeAmount;
   completeWinBonus: boolean;
-  useTimer: boolean;
+  timerDuration: 30 | 45 | 60 | null;
+  assignmentDuration: 60 | 180 | 300;
   gameType: GameType;
   createdAt: number;
 }

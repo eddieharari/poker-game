@@ -6,8 +6,9 @@ interface IncomingChallenge {
   from: OnlinePlayer;
   stake: StakeAmount;
   completeWinBonus: boolean;
-  useTimer: boolean;
+  timerDuration: 30 | 45 | 60 | null;
   gameType?: GameType;
+  assignmentDuration?: 60 | 180 | 300;
 }
 
 interface LobbyState {

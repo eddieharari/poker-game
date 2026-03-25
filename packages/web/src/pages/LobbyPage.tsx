@@ -15,7 +15,8 @@ export function LobbyPage() {
   const [challengeTarget, setChallengeTarget] = useState<OnlinePlayer | null>(null);
   const [selectedStake, setSelectedStake] = useState<StakeAmount>(STAKE_OPTIONS[0]);
   const [completeWinBonus, setCompleteWinBonus] = useState(false);
-  const [useTimer, setUseTimer] = useState(false);
+  const [timerDuration, setTimerDuration] = useState<30 | 45 | 60 | null>(null);
+  const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
@@ -41,14 +42,14 @@ export function LobbyPage() {
 
   function sendChallenge() {
     if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, useTimer, gameType: selectedGameType });
+    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, timerDuration, gameType: selectedGameType, assignmentDuration });
     const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : '';
     const bonusNote = completeWinBonus && selectedGameType !== 'pazpaz' ? ' (5-0 bonus active)' : '';
-    const timerNote = useTimer && selectedGameType !== 'pazpaz' ? ' (45s timer)' : '';
+    const timerNote = timerDuration && selectedGameType !== 'pazpaz' ? ` (${timerDuration}s timer)` : '';
     toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${gameTypeNote}${bonusNote}${timerNote}!`, { icon: '🃏' });
     setChallengeTarget(null);
     setCompleteWinBonus(false);
-    setUseTimer(false);
+    setTimerDuration(null);
     setSelectedGameType('poker5o');
   }
 
@@ -186,7 +187,7 @@ export function LobbyPage() {
                   Poker5O
                 </button>
                 <button
-                  onClick={() => { setSelectedGameType('pazpaz'); setCompleteWinBonus(false); setUseTimer(false); }}
+                  onClick={() => { setSelectedGameType('pazpaz'); setCompleteWinBonus(false); setTimerDuration(null); }}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all border
                     ${selectedGameType === 'pazpaz' ? 'bg-gold text-black border-gold' : 'bg-black/30 border-white/20 hover:border-gold/50'}`}
                 >
@@ -194,9 +195,28 @@ export function LobbyPage() {
                 </button>
               </div>
               {selectedGameType === 'pazpaz' && (
-                <p className="text-xs text-white/40 text-center mt-1">
-                  3-flop Omaha — assign your 12 cards to 3 flops simultaneously
-                </p>
+                <>
+                  <p className="text-xs text-white/40 text-center mt-1">
+                    3-flop Omaha — assign your 12 cards to 3 flops simultaneously
+                  </p>
+                  <div className="space-y-2 mt-3">
+                    <p className="text-sm text-white/60 text-center">⏱ Assignment Time</p>
+                    <div className="flex gap-2">
+                      {([60, 180, 300] as const).map(val => (
+                        <button
+                          key={val}
+                          onClick={() => setAssignmentDuration(val)}
+                          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border
+                            ${assignmentDuration === val
+                              ? 'bg-yellow-500 text-black border-yellow-500'
+                              : 'bg-black/30 border-white/20 hover:border-yellow-500/50 text-white/70'}`}
+                        >
+                          {val === 60 ? '1 min' : val === 180 ? '3 min' : '5 min'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -244,26 +264,33 @@ export function LobbyPage() {
                 </label>
 
                 {/* Move timer option */}
-                <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-                  ${useTimer ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-                  <input
-                    type="checkbox"
-                    checked={useTimer}
-                    onChange={e => setUseTimer(e.target.checked)}
-                    className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-white/90">⏱ 45-second move timer</p>
-                    <p className="text-xs text-white/50 mt-0.5">
-                      Each player must act within 45 seconds or a card is auto-placed.
-                    </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-white/60">⏱ Move Timer</p>
+                  <div className="flex gap-2">
+                    {([null, 30, 45, 60] as const).map(val => (
+                      <button
+                        key={String(val)}
+                        onClick={() => setTimerDuration(val)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border
+                          ${timerDuration === val
+                            ? 'bg-yellow-500 text-black border-yellow-500'
+                            : 'bg-black/30 border-white/20 hover:border-yellow-500/50 text-white/70'}`}
+                      >
+                        {val === null ? 'Off' : `${val}s`}
+                      </button>
+                    ))}
                   </div>
-                </label>
+                  {timerDuration && (
+                    <p className="text-xs text-white/40">
+                      Each player must act within {timerDuration}s or a card is auto-placed.
+                    </p>
+                  )}
+                </div>
               </>
             )}
 
             <div className="flex gap-3">
-              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setUseTimer(false); setSelectedGameType('poker5o'); }} className="btn-ghost flex-1">Cancel</button>
+              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setTimerDuration(null); setSelectedGameType('poker5o'); }} className="btn-ghost flex-1">Cancel</button>
               <button
                 onClick={sendChallenge}
                 disabled={selectedGameType === 'poker5o' && completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2}
@@ -308,12 +335,23 @@ export function LobbyPage() {
                 </div>
               </div>
             )}
-            {incomingChallenge.useTimer && (
+            {incomingChallenge.timerDuration && (
               <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-2">
                 <span className="text-lg">⏱</span>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-yellow-400">45-Second Move Timer</p>
+                  <p className="text-sm font-semibold text-yellow-400">{incomingChallenge.timerDuration}-Second Move Timer</p>
                   <p className="text-xs text-white/50">Auto-plays if you don't act in time</p>
+                </div>
+              </div>
+            )}
+            {incomingChallenge.gameType === 'pazpaz' && incomingChallenge.assignmentDuration && (
+              <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-2">
+                <span className="text-lg">⏱</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-yellow-400">
+                    {incomingChallenge.assignmentDuration === 60 ? '1 min' : incomingChallenge.assignmentDuration === 180 ? '3 min' : '5 min'} to assign
+                  </p>
+                  <p className="text-xs text-white/50">Assignment timer</p>
                 </div>
               </div>
             )}

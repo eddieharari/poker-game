@@ -66,8 +66,9 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, useTimer, gameType: rawGameType }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean; gameType?: GameType }) => {
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, timerDuration, assignmentDuration: rawAssignDur, gameType: rawGameType }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration?: 60 | 180 | 300; gameType?: GameType }) => {
     const gameType: GameType = rawGameType === 'pazpaz' ? 'pazpaz' : 'poker5o';
+    const assignmentDuration: 60 | 180 | 300 = ([60, 180, 300] as const).includes(rawAssignDur as 60 | 180 | 300) ? (rawAssignDur as 60 | 180 | 300) : 180;
     if (toPlayerId === playerId) {
       socket.emit('room:error', { message: 'Cannot challenge yourself' });
       return;
@@ -136,7 +137,8 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       roomId,
       stake,
       completeWinBonus,
-      useTimer: useTimer ?? false,
+      timerDuration: gameType === 'pazpaz' ? null : timerDuration,
+      assignmentDuration,
       gameType,
       createdAt: Date.now(),
     };
@@ -165,8 +167,9 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
       stake,
       completeWinBonus,
-      useTimer: useTimer ?? false,
+      timerDuration: gameType === 'pazpaz' ? null : timerDuration,
       gameType,
+      assignmentDuration,
     });
 
     // Auto-expire after 25s
@@ -239,6 +242,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         gameState,
         status: 'active',
         stake: challenge.stake,
+        assignmentDuration: challenge.assignmentDuration,
         createdAt: Date.now(),
       });
 
@@ -268,7 +272,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         playerName: nickname,
         avatarUrl,
         connected: true,
-      }, challenge.stake, challenge.completeWinBonus, challenge.useTimer);
+      }, challenge.stake, challenge.completeWinBonus, challenge.timerDuration);
 
       if (!room) {
         socket.emit('room:error', { message: 'Room no longer available' });

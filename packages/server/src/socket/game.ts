@@ -115,9 +115,10 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
 async function startTurnTimer(io: Server, roomId: string, state: GameState, room: Room): Promise<void> {
   clearTurnTimer(roomId);
 
-  if (!room.useTimer || state.phase === 'GAME_OVER') return;
+  if (!room.timerDuration || state.phase === 'GAME_OVER') return;
 
-  const deadline = Date.now() + 45000;
+  const durationMs = room.timerDuration * 1000;
+  const deadline = Date.now() + durationMs;
   const stateWithDeadline: GameState = { ...state, turnDeadline: deadline };
   await roomService.updateGameState(roomId, stateWithDeadline);
   await emitStateToRoom(io, room, stateWithDeadline);
@@ -165,7 +166,7 @@ async function startTurnTimer(io: Server, roomId: string, state: GameState, room
     } else {
       await startTurnTimer(io, roomId, autoState, currentRoom);
     }
-  }, 45000);
+  }, durationMs);
 
   turnTimers.set(roomId, timer);
 }

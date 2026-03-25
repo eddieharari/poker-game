@@ -11,11 +11,11 @@ const PRESET_AVATARS = Array.from({ length: 32 }, (_, i) => ({
   url: `/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`,
 }));
 
-type Tab = 'avatar' | 'deck' | 'gameplay';
+type Tab = 'avatar' | 'deck';
 
 export function SettingsPage() {
   const { user, profile, setProfile } = useAuthStore();
-  const { fourColorDeck, setFourColorDeck, twoCornerDeck, setTwoCornerDeck, autoDrawCard, setAutoDrawCard } = usePreferencesStore();
+  const { fourColorDeck, setFourColorDeck, twoCornerDeck, setTwoCornerDeck } = usePreferencesStore();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<Tab>('avatar');
@@ -52,9 +52,8 @@ export function SettingsPage() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'avatar',   label: 'Avatar' },
-    { id: 'deck',     label: 'Deck Style' },
-    { id: 'gameplay', label: 'Gameplay' },
+    { id: 'avatar', label: 'Avatar' },
+    { id: 'deck',   label: 'Deck Style' },
   ];
 
   return (
@@ -211,27 +210,6 @@ export function SettingsPage() {
             </div>
           )}
 
-          {/* ── Gameplay tab ──────────────────────────────────────── */}
-          {activeTab === 'gameplay' && (
-            <div className="space-y-3">
-              <p className="text-white/50 text-sm text-center mb-4">Customize how the game plays</p>
-              <label className={`flex items-start gap-3 rounded-xl p-4 border cursor-pointer transition-all select-none
-                ${autoDrawCard ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-                <input
-                  type="checkbox"
-                  checked={autoDrawCard}
-                  onChange={e => setAutoDrawCard(e.target.checked)}
-                  className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-white/90">Auto-Draw Card</p>
-                  <p className="text-xs text-white/50 mt-1">
-                    Card is drawn automatically at the start of your turn — just click a column to place it.
-                  </p>
-                </div>
-              </label>
-            </div>
-          )}
 
         </div>
 

@@ -6,8 +6,6 @@ interface PreferencesState {
   setFourColorDeck: (val: boolean) => void;
   twoCornerDeck: boolean;
   setTwoCornerDeck: (val: boolean) => void;
-  autoDrawCard: boolean;
-  setAutoDrawCard: (val: boolean) => void;
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -17,8 +15,6 @@ export const usePreferencesStore = create<PreferencesState>()(
       setFourColorDeck: (val) => set({ fourColorDeck: val }),
       twoCornerDeck: false,
       setTwoCornerDeck: (val) => set({ twoCornerDeck: val }),
-      autoDrawCard: false,
-      setAutoDrawCard: (val) => set({ autoDrawCard: val }),
     }),
     { name: 'poker5o-preferences' },
   ),

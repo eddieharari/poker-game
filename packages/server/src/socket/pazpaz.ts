@@ -74,7 +74,8 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     if (socketsInRoom.length >= 2 && !timerStarted.has(roomId)) {
       timerStarted.add(roomId);
 
-      const deadline = Date.now() + 120_000;
+      const durationMs = (room.assignmentDuration ?? 180) * 1000;
+      const deadline = Date.now() + durationMs;
 
       // Update deadline in game state
       const updatedRoom = await pazpazRoomService.get(roomId);
@@ -95,7 +96,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
         }
       }
 
-      // Auto-submit after 120s for any player who hasn't submitted
+      // Auto-submit after deadline for any player who hasn't submitted
       const timer = setTimeout(async () => {
         assignmentTimers.delete(roomId);
         const currentRoom = await pazpazRoomService.get(roomId);
@@ -136,7 +137,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
         await pazpazRoomService.save(updated);
 
         io.to(`pazpaz:${roomId}`).emit('pazpaz:state', scored);
-      }, 120_000);
+      }, durationMs);
 
       assignmentTimers.set(roomId, timer);
     }

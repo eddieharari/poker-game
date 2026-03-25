@@ -9,6 +9,7 @@ export interface PazPazRoom {
   gameState: PazPazGameState;
   status: 'active' | 'finished';
   stake: number | null;
+  assignmentDuration: 60 | 180 | 300;
   createdAt: number;
 }
 
