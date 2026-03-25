@@ -21,7 +21,7 @@ interface GameStore {
   reset: () => void;
 }
 
-export const useGameStore = create<GameStore>((set) => ({
+export const useGameStore = create<GameStore>((set, get) => ({
   gameState: null,
   score: null,
   playerIndex: null,
@@ -34,7 +34,11 @@ export const useGameStore = create<GameStore>((set) => ({
 
   setGameState: (gameState) => set({ gameState }),
   setScore: (score) => set({ score }),
-  setRoom: (roomId, playerIndex, stake, completeWinBonus) => set({ roomId, playerIndex, stake, completeWinBonus, score: null, gameState: null }),
+  setRoom: (roomId, playerIndex, stake, completeWinBonus) => set({
+    roomId, playerIndex, stake, completeWinBonus,
+    // Only clear game data when entering a brand-new room, not on rejoin
+    ...(get().roomId !== roomId ? { score: null, gameState: null } : {}),
+  }),
   setOpponentDisconnected: (v) => set({ opponentDisconnected: v }),
   setOpponentLeft: (v: boolean) => set({ opponentLeft: v }),
   setStartingPlayer: (v) => set({ startingPlayer: v }),

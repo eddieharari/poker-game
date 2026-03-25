@@ -40,8 +40,6 @@ export function GamePage() {
   const [confirmForfeit, setConfirmForfeit] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const gameOverRedirectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Reveal animation: -1 = not started, 0-4 = column index revealed so far
   const [revealedCols, setRevealedCols] = useState(-1);
 
@@ -63,34 +61,15 @@ export function GamePage() {
       if (socket.connected) socket.emit('game:ping', { roomId });
     }, 15_000);
 
-    return () => clearInterval(pingInterval);
-  }, [roomId]);
+    // Re-join the socket.io room on reconnect (room membership is lost on disconnect)
+    const handleReconnect = () => socket.emit('room:join', { roomId });
+    socket.on('connect', handleReconnect);
 
-  // Redirect to lobby if game ended without a score
-  // Use a 3s delay so that 'game:over' (score) has time to arrive before we redirect
-  useEffect(() => {
-    // Cancel pending redirect if score just arrived
-    if (score) {
-      if (gameOverRedirectRef.current) {
-        clearTimeout(gameOverRedirectRef.current);
-        gameOverRedirectRef.current = null;
-      }
-      return;
-    }
-    if (gameState?.phase === 'GAME_OVER') {
-      // Wait 3 seconds for score to arrive; if it doesn't, redirect
-      gameOverRedirectRef.current = setTimeout(() => {
-        reset();
-        navigate('/lobby', { replace: true });
-      }, 3000);
-    }
     return () => {
-      if (gameOverRedirectRef.current) {
-        clearTimeout(gameOverRedirectRef.current);
-        gameOverRedirectRef.current = null;
-      }
+      clearInterval(pingInterval);
+      socket.off('connect', handleReconnect);
     };
-  }, [gameState?.phase, score]);
+  }, [roomId]);
 
   useEffect(() => {
     if (timerIntervalRef.current) {

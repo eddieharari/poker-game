@@ -29,7 +29,9 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
     const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
     const effectiveStake = (room.completeWinBonus && isCompleteWin) ? room.stake * 2 : room.stake;
-    io.to(room.roomId).emit('game:over', score);
+    // Emit via player rooms (reliable — player always has this room even after reconnect)
+    // Also emit to the game room as a fallback for connected sockets still in it
+    io.to(`player:${room.player0.playerId}`).to(`player:${room.player1.playerId}`).emit('game:over', score);
     await roomService.save({ ...room, gameState: newState, status: 'finished' });
 
     const winnerName =
@@ -50,7 +52,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       ? null
       : newState.players[score.winner].id;
 
-    const { data: gameId } = await supabase.rpc('settle_game', {
+    const { data: gameId, error: settleError } = await supabase.rpc('settle_game', {
       p_room_id:        room.roomId,
       p_player0_id:     room.player0.playerId,
       p_player1_id:     room.player1.playerId,
@@ -62,13 +64,26 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       p_column_results: JSON.stringify(score.columnResults),
       p_final_state:    JSON.stringify(newState),
     });
+    if (settleError) {
+      console.error('[handleGameOver] settle_game error:', settleError.message, settleError);
+      // Fallback: do direct chip transfer if RPC failed
+      if (winnerId) {
+        const loserId = newState.players[score.winner === 0 ? 1 : 0].id;
+        const { error: e1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: effectiveStake });
+        const { error: e2 } = await supabase.rpc('add_chips', { p_player_id: loserId, p_amount: -effectiveStake });
+        if (e1) console.error('[handleGameOver] fallback winner add_chips error:', e1.message);
+        if (e2) console.error('[handleGameOver] fallback loser add_chips error:', e2.message);
+      }
+    }
 
     // House fee
     const settings = await settingsService.get();
     const fee = calculateHouseFee(effectiveStake * 2, settings);
     if (fee > 0 && settings.housePlayerId && winnerId) {
-      await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
-      await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+      const { error: feeE1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
+      const { error: feeE2 } = await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+      if (feeE1) console.error('[handleGameOver] rake deduct error:', feeE1.message);
+      if (feeE2) console.error('[handleGameOver] rake house error:', feeE2.message);
 
       // Record rake in game row
       if (gameId) {
@@ -85,7 +100,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
         supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
       ]);
 
-      // Agent rakeback: look up each player's agent and distribute their cut from the house
+      // Agent rakeback
       const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
         supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
         supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
@@ -104,6 +119,14 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
         }
       }
     }
+
+    // Notify both players of their updated chip balances
+    const [{ data: p0chips }, { data: p1chips }] = await Promise.all([
+      supabase.from('profiles').select('chips').eq('id', room.player0.playerId).single(),
+      supabase.from('profiles').select('chips').eq('id', room.player1.playerId).single(),
+    ]);
+    if (p0chips) io.to(`player:${room.player0.playerId}`).emit('profile:chips_updated', { chips: p0chips.chips });
+    if (p1chips) io.to(`player:${room.player1.playerId}`).emit('profile:chips_updated', { chips: p1chips.chips });
 
     await lobbyService.setStatus(room.player0.playerId, 'idle');
     await lobbyService.setStatus(room.player1.playerId, 'idle');
@@ -292,6 +315,17 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     // If game state is ready, send personalized state
     if (room.gameState) {
       socket.emit('game:state', filterStateForPlayer(room.gameState, playerIndex));
+
+      // If the game is already over (player reconnected after it ended), send the score too
+      // so they can see results without needing to have been in the room when game:over was emitted
+      if (room.gameState.phase === 'GAME_OVER' && room.status === 'finished') {
+        const rawScore = getGameScore(room.gameState);
+        if (rawScore && room.player1) {
+          const isCompleteWin = rawScore.winner !== 'draw' &&
+            (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
+          socket.emit('game:over', { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin });
+        }
+      }
     }
 
     // If both players are now in the socket room, notify them the game is ready
