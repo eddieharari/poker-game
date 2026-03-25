@@ -77,7 +77,13 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
 
               {/* Stacked cards */}
               {col.map((card, rowIdx) => {
-                const displayCard = (!revealAll && !isMe && rowIdx === 4) ? { ...card, faceDown: true } : { ...card, faceDown: false };
+                // In revealAll mode respect the card's own faceDown flag (used for progressive reveal).
+                // Otherwise always hide opponent row-4 until the game ends.
+                const displayCard = revealAll
+                  ? { ...card, faceDown: card.faceDown ?? false }
+                  : (!isMe && rowIdx === 4)
+                    ? { ...card, faceDown: true }
+                    : { ...card, faceDown: false };
                 return (
                   <div
                     key={rowIdx}
