@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { OnlinePlayer, StakeAmount } from '@poker5o/shared';
+import type { OnlinePlayer, StakeAmount, GameType } from '@poker5o/shared';
 
 interface IncomingChallenge {
   challengeId: string;
@@ -7,6 +7,7 @@ interface IncomingChallenge {
   stake: StakeAmount;
   completeWinBonus: boolean;
   useTimer: boolean;
+  gameType?: GameType;
 }
 
 interface LobbyState {

@@ -1,5 +1,5 @@
-import type { GameState, OnlinePlayer, PlayerStatus, StakeAmount } from '@poker5o/shared';
-export type { StakeAmount };
+import type { GameState, OnlinePlayer, PlayerStatus, StakeAmount, GameType } from '@poker5o/shared';
+export type { StakeAmount, GameType };
 
 export type { OnlinePlayer, PlayerStatus };
 
@@ -47,6 +47,7 @@ export interface Challenge {
   stake: StakeAmount;
   completeWinBonus: boolean;
   useTimer: boolean;
+  gameType: GameType;
   createdAt: number;
 }
 

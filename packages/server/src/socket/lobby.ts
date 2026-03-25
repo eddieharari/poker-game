@@ -3,9 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { lobbyService } from '../services/lobbyService.js';
 import { challengeService } from '../services/challengeService.js';
 import { roomService } from '../services/roomService.js';
+import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { supabase } from '../supabase.js';
-import { STAKE_OPTIONS } from '@poker5o/shared';
-import type { StakeAmount } from '@poker5o/shared';
+import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
+import type { StakeAmount, GameType } from '@poker5o/shared';
 import type { Challenge } from '../types.js';
 import { log } from '../logger.js';
 
@@ -65,7 +66,8 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, useTimer }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean }) => {
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, useTimer, gameType: rawGameType }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean; gameType?: GameType }) => {
+    const gameType: GameType = rawGameType === 'pazpaz' ? 'pazpaz' : 'poker5o';
     if (toPlayerId === playerId) {
       socket.emit('room:error', { message: 'Cannot challenge yourself' });
       return;
@@ -112,15 +114,17 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    // Pre-create the room so roomId is ready on accept
+    // Pre-create the room so roomId is ready on accept (only for poker5o)
     const roomId = uuidv4().slice(0, 6).toUpperCase();
-    await roomService.create(roomId, {
-      socketId: socket.id,
-      playerId,
-      playerName: nickname,
-      avatarUrl,
-      connected: true,
-    });
+    if (gameType !== 'pazpaz') {
+      await roomService.create(roomId, {
+        socketId: socket.id,
+        playerId,
+        playerName: nickname,
+        avatarUrl,
+        connected: true,
+      });
+    }
 
     const challengeId = uuidv4();
     const challenge: Challenge = {
@@ -133,6 +137,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       stake,
       completeWinBonus,
       useTimer: useTimer ?? false,
+      gameType,
       createdAt: Date.now(),
     };
 
@@ -161,6 +166,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       stake,
       completeWinBonus,
       useTimer: useTimer ?? false,
+      gameType,
     });
 
     // Auto-expire after 25s
@@ -168,7 +174,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       const still = await challengeService.exists(challengeId);
       if (still) {
         await challengeService.delete(challengeId);
-        await roomService.delete(roomId);
+        if (gameType !== 'pazpaz') await roomService.delete(roomId);
         await lobbyService.setStatus(playerId, 'idle');
         await lobbyService.setStatus(toPlayerId, 'idle');
         socket.emit('lobby:challenge:expired', { challengeId });
@@ -201,7 +207,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     if (!challenger || challenger.chips < requiredChips) {
       socket.emit('room:error', { message: 'Challenger no longer has enough chips' });
       await challengeService.delete(challengeId);
-      await roomService.delete(challenge.roomId);
+      if (challenge.gameType !== 'pazpaz') await roomService.delete(challenge.roomId);
       return;
     }
     if (!acceptor || acceptor.chips < requiredChips) {
@@ -211,36 +217,83 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
     await challengeService.delete(challengeId);
 
-    const room = await roomService.joinAsPlayer1(challenge.roomId, {
-      socketId: socket.id,
-      playerId,
-      playerName: nickname,
-      avatarUrl,
-      connected: true,
-    }, challenge.stake, challenge.completeWinBonus, challenge.useTimer);
+    const roomId = challenge.roomId;
 
-    if (!room) {
-      socket.emit('room:error', { message: 'Room no longer available' });
-      return;
+    if (challenge.gameType === 'pazpaz') {
+      // Find the challenger's socket auth info from lobbyService
+      const fromPlayer = await lobbyService.getPlayer(challenge.fromId);
+
+      const gameState = dealPazPaz(
+        challenge.fromId,
+        challenge.fromNickname,
+        challenge.fromAvatarUrl,
+        playerId,
+        nickname,
+        avatarUrl,
+      );
+
+      await pazpazRoomService.create({
+        roomId,
+        player0: { playerId: challenge.fromId, playerName: challenge.fromNickname, avatarUrl: challenge.fromAvatarUrl, connected: true },
+        player1: { playerId, playerName: nickname, avatarUrl, connected: true },
+        gameState,
+        status: 'active',
+        stake: challenge.stake,
+        createdAt: Date.now(),
+      });
+
+      await lobbyService.setStatus(playerId, 'in-game');
+      await lobbyService.setStatus(challenge.fromId, 'in-game');
+      io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
+      io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
+
+      log('INVITE_ACCEPTED', {
+        challengeId,
+        roomId,
+        fromId: challenge.fromId,
+        fromNick: challenge.fromNickname,
+        toId: playerId,
+        toNick: nickname,
+        stake: challenge.stake,
+        gameType: 'pazpaz',
+      });
+
+      socket.emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const });
+      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const });
+    } else {
+      // poker5o (existing flow)
+      const room = await roomService.joinAsPlayer1(challenge.roomId, {
+        socketId: socket.id,
+        playerId,
+        playerName: nickname,
+        avatarUrl,
+        connected: true,
+      }, challenge.stake, challenge.completeWinBonus, challenge.useTimer);
+
+      if (!room) {
+        socket.emit('room:error', { message: 'Room no longer available' });
+        return;
+      }
+
+      await lobbyService.setStatus(playerId, 'in-game');
+      await lobbyService.setStatus(challenge.fromId, 'in-game');
+      io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
+      io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
+
+      log('INVITE_ACCEPTED', {
+        challengeId,
+        roomId: room.roomId,
+        fromId: challenge.fromId,
+        fromNick: challenge.fromNickname,
+        toId: playerId,
+        toNick: nickname,
+        stake: challenge.stake,
+        gameType: 'poker5o',
+      });
+
+      socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const });
+      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const });
     }
-
-    await lobbyService.setStatus(playerId, 'in-game');
-    await lobbyService.setStatus(challenge.fromId, 'in-game');
-    io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
-    io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
-
-    log('INVITE_ACCEPTED', {
-      challengeId,
-      roomId: room.roomId,
-      fromId: challenge.fromId,
-      fromNick: challenge.fromNickname,
-      toId: playerId,
-      toNick: nickname,
-      stake: challenge.stake,
-    });
-
-    socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
-    io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId });
   });
 
   // ─── Decline Challenge ───────────────────────────────────────────────────────
@@ -250,7 +303,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     if (!challenge || challenge.toId !== playerId) return;
 
     await challengeService.delete(challengeId);
-    await roomService.delete(challenge.roomId);
+    if (challenge.gameType !== 'pazpaz') await roomService.delete(challenge.roomId);
     await lobbyService.setStatus(playerId, 'idle');
     await lobbyService.setStatus(challenge.fromId, 'idle');
 

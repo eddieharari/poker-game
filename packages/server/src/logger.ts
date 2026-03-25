@@ -11,7 +11,10 @@ type LogEvent =
   | 'INVITE_DECLINED'
   | 'INVITE_EXPIRED'
   | 'GAME_START'
-  | 'GAME_END';
+  | 'GAME_END'
+  | 'PAZPAZ_JOIN'
+  | 'PAZPAZ_SUBMIT'
+  | 'PAZPAZ_AUTO_SUBMIT';
 
 interface LogPayload {
   playerId?:   string;

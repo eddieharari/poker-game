@@ -8,6 +8,7 @@ import { AuthPage } from './pages/AuthPage.js';
 import { OnboardingPage } from './pages/OnboardingPage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
+import { PazPazPage } from './pages/PazPazPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
 import { CashierPage } from './pages/CashierPage.js';
@@ -92,6 +93,11 @@ export function App() {
           !session ? <Navigate to="/auth" replace />
           : !profile ? <Navigate to="/onboarding" replace />
           : <GamePage />
+        } />
+        <Route path="/pazpaz/:roomId" element={
+          !session ? <Navigate to="/auth" replace />
+          : !profile ? <Navigate to="/onboarding" replace />
+          : <PazPazPage />
         } />
 
         {/* Cashier — requires auth */}

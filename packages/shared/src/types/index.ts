@@ -112,6 +112,8 @@ export interface GameScore {
 
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────
 
+export type GameType = 'poker5o' | 'pazpaz';
+
 export type PlayerStatus = 'idle' | 'busy' | 'in-game' | 'invited';
 
 export interface OnlinePlayer {
@@ -141,10 +143,13 @@ export interface ServerToClientEvents {
   'lobby:player:joined':        (player: OnlinePlayer) => void;
   'lobby:player:left':          (payload: { playerId: string }) => void;
   'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean }) => void;
-  'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean; gameType: GameType }) => void;
+  'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string; gameType?: GameType }) => void;
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
   'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
+  // PazPaz
+  'pazpaz:state':         (state: import('./pazpaz.js').PazPazGameState) => void;
+  'pazpaz:error':         (payload: { message: string }) => void;
   // Session
   'session:duplicate':          () => void;
   'session:kicked':             () => void;
@@ -162,10 +167,13 @@ export interface ClientToServerEvents {
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;
-  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean }) => void;
+  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; useTimer: boolean; gameType?: GameType }) => void;
   'lobby:challenge:accept': (payload: { challengeId: string }) => void;
   'lobby:challenge:decline':(payload: { challengeId: string }) => void;
   'lobby:set_status':         (payload: { status: 'idle' | 'busy' }) => void;
+  // PazPaz
+  'pazpaz:join':   (payload: { roomId: string }) => void;
+  'pazpaz:submit': (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   // Session
   'session:confirm_takeover': () => void;
 }

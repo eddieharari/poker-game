@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useLobbyStore } from '../store/lobbyStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
 import { getSocket } from '../socket.js';
-import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus } from '@poker5o/shared';
+import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus, type GameType } from '@poker5o/shared';
 
 
 export function LobbyPage() {
@@ -16,6 +16,7 @@ export function LobbyPage() {
   const [selectedStake, setSelectedStake] = useState<StakeAmount>(STAKE_OPTIONS[0]);
   const [completeWinBonus, setCompleteWinBonus] = useState(false);
   const [useTimer, setUseTimer] = useState(false);
+  const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
   function toggleStatus() {
@@ -40,13 +41,15 @@ export function LobbyPage() {
 
   function sendChallenge() {
     if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, useTimer });
-    const bonusNote = completeWinBonus ? ' (5-0 bonus active)' : '';
-    const timerNote = useTimer ? ' (45s timer)' : '';
-    toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${bonusNote}${timerNote}!`, { icon: '🃏' });
+    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, useTimer, gameType: selectedGameType });
+    const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : '';
+    const bonusNote = completeWinBonus && selectedGameType !== 'pazpaz' ? ' (5-0 bonus active)' : '';
+    const timerNote = useTimer && selectedGameType !== 'pazpaz' ? ' (45s timer)' : '';
+    toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${gameTypeNote}${bonusNote}${timerNote}!`, { icon: '🃏' });
     setChallengeTarget(null);
     setCompleteWinBonus(false);
     setUseTimer(false);
+    setSelectedGameType('poker5o');
   }
 
   function acceptChallenge() {
@@ -170,6 +173,33 @@ export function LobbyPage() {
             <div className="flex justify-center">
               <img src={challengeTarget.avatarUrl} alt="" className="w-16 h-16 rounded-full border-2 border-gold/40" />
             </div>
+
+            {/* Game type toggle */}
+            <div>
+              <p className="text-sm text-white/60 mb-2 text-center">Game Type</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedGameType('poker5o')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all border
+                    ${selectedGameType === 'poker5o' ? 'bg-gold text-black border-gold' : 'bg-black/30 border-white/20 hover:border-gold/50'}`}
+                >
+                  Poker5O
+                </button>
+                <button
+                  onClick={() => { setSelectedGameType('pazpaz'); setCompleteWinBonus(false); setUseTimer(false); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all border
+                    ${selectedGameType === 'pazpaz' ? 'bg-gold text-black border-gold' : 'bg-black/30 border-white/20 hover:border-gold/50'}`}
+                >
+                  PAZPAZ
+                </button>
+              </div>
+              {selectedGameType === 'pazpaz' && (
+                <p className="text-xs text-white/40 text-center mt-1">
+                  3-flop Omaha — assign your 12 cards to 3 flops simultaneously
+                </p>
+              )}
+            </div>
+
             <div>
               <p className="text-sm text-white/60 mb-2 text-center">Select stake</p>
               <div className="grid grid-cols-5 gap-2">
@@ -189,49 +219,54 @@ export function LobbyPage() {
                 ))}
               </div>
             </div>
-            {/* Complete win bonus */}
-            <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-              ${completeWinBonus ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-              <input
-                type="checkbox"
-                checked={completeWinBonus}
-                onChange={e => setCompleteWinBonus(e.target.checked)}
-                className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-white/90">Complete Win Bonus (5-0)</p>
-                <p className="text-xs text-white/50 mt-0.5">
-                  A 5-0 sweep doubles the payout.
-                  Both players need <span className="text-gold font-medium">{(selectedStake * 2).toLocaleString()} chips</span>.
-                </p>
-                {completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2 && (
-                  <p className="text-xs text-red-400 mt-1">You don't have enough chips for this option.</p>
-                )}
-              </div>
-            </label>
 
-            {/* Move timer option */}
-            <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-              ${useTimer ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-              <input
-                type="checkbox"
-                checked={useTimer}
-                onChange={e => setUseTimer(e.target.checked)}
-                className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-white/90">⏱ 45-second move timer</p>
-                <p className="text-xs text-white/50 mt-0.5">
-                  Each player must act within 45 seconds or a card is auto-placed.
-                </p>
-              </div>
-            </label>
+            {selectedGameType === 'poker5o' && (
+              <>
+                {/* Complete win bonus */}
+                <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
+                  ${completeWinBonus ? 'border-gold/50 bg-gold/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+                  <input
+                    type="checkbox"
+                    checked={completeWinBonus}
+                    onChange={e => setCompleteWinBonus(e.target.checked)}
+                    className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-white/90">Complete Win Bonus (5-0)</p>
+                    <p className="text-xs text-white/50 mt-0.5">
+                      A 5-0 sweep doubles the payout.
+                      Both players need <span className="text-gold font-medium">{(selectedStake * 2).toLocaleString()} chips</span>.
+                    </p>
+                    {completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2 && (
+                      <p className="text-xs text-red-400 mt-1">You don't have enough chips for this option.</p>
+                    )}
+                  </div>
+                </label>
+
+                {/* Move timer option */}
+                <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
+                  ${useTimer ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
+                  <input
+                    type="checkbox"
+                    checked={useTimer}
+                    onChange={e => setUseTimer(e.target.checked)}
+                    className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-white/90">⏱ 45-second move timer</p>
+                    <p className="text-xs text-white/50 mt-0.5">
+                      Each player must act within 45 seconds or a card is auto-placed.
+                    </p>
+                  </div>
+                </label>
+              </>
+            )}
 
             <div className="flex gap-3">
-              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setUseTimer(false); }} className="btn-ghost flex-1">Cancel</button>
+              <button onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setUseTimer(false); setSelectedGameType('poker5o'); }} className="btn-ghost flex-1">Cancel</button>
               <button
                 onClick={sendChallenge}
-                disabled={completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2}
+                disabled={selectedGameType === 'poker5o' && completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2}
                 className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Send Challenge
@@ -250,6 +285,15 @@ export function LobbyPage() {
               <img src={incomingChallenge.from.avatarUrl} alt="" className="w-16 h-16 rounded-full border-2 border-gold/40" />
             </div>
             <h3 className="font-display text-2xl text-gold">{incomingChallenge.from.nickname}</h3>
+            {incomingChallenge.gameType === 'pazpaz' && (
+              <div className="flex items-center justify-center gap-2 bg-gold/10 border border-gold/30 rounded-xl px-4 py-2">
+                <span className="text-lg">🃏</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gold">PAZPAZ</p>
+                  <p className="text-xs text-white/50">3-flop Omaha game</p>
+                </div>
+              </div>
+            )}
             <div className="bg-black/30 rounded-xl py-4">
               <p className="text-white/50 text-sm">Stake</p>
               <p className="text-3xl font-bold text-gold">{incomingChallenge.stake.toLocaleString()}</p>

@@ -44,13 +44,17 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, useTimer }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, useTimer: useTimer ?? false });
+    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, useTimer, gameType }) => {
+      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, useTimer: useTimer ?? false, gameType });
     });
 
-    socket.on('lobby:challenge:accepted', ({ roomId }) => {
+    socket.on('lobby:challenge:accepted', ({ roomId, gameType }) => {
       setIncomingChallenge(null);
-      navigate(`/game/${roomId}`);
+      if (gameType === 'pazpaz') {
+        navigate(`/pazpaz/${roomId}`);
+      } else {
+        navigate(`/game/${roomId}`);
+      }
     });
 
     socket.on('lobby:challenge:declined', () => toast.error('Challenge declined'));
