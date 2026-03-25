@@ -12,15 +12,17 @@ import { DrawnCard } from '../components/game/DrawnCard.js';
 
 // ─── Progressive reveal helper ────────────────────────────────────────────────
 
-function prepareReveal(state: GameState, revealedCols: number): GameState {
+function prepareReveal(state: GameState, revealedCols: number, myPlayerIndex: 0 | 1): GameState {
+  const opponentIndex: 0 | 1 = myPlayerIndex === 0 ? 1 : 0;
   return {
     ...state,
-    players: state.players.map(p => ({
+    players: state.players.map((p, pIdx) => ({
       ...p,
       columns: p.columns.map((col, colIdx) =>
         col.map((card, rowIdx) => ({
           ...card,
-          faceDown: rowIdx === 4 && colIdx > revealedCols,
+          // Only hide the opponent's row-4 card until that column is revealed
+          faceDown: pIdx === opponentIndex && rowIdx === 4 && colIdx > revealedCols,
         }))
       ),
     })) as [Player, Player],
@@ -116,7 +118,7 @@ export function GamePage() {
   const allRevealed  = isRevealMode && revealedCols >= 4;
 
   // In reveal mode use the progressively-revealed state; otherwise live state
-  const displayState = isRevealMode ? prepareReveal(gameState, revealedCols) : gameState;
+  const displayState = isRevealMode ? prepareReveal(gameState, revealedCols, playerIndex) : gameState;
   const myPlayer     = displayState.players[playerIndex];
   const themPlayer   = displayState.players[opponentIndex];
 

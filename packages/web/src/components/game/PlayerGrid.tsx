@@ -2,6 +2,32 @@ import type { Player, Card } from '@poker5o/shared';
 import { evaluateHand } from '@poker5o/shared';
 import { PlayingCard } from './PlayingCard.js';
 
+// ─── Partial hand label (1–5 face-up cards) ───────────────────────────────────
+
+function getHandLabel(cards: Card[]): string | null {
+  if (cards.length === 0) return null;
+  if (cards.length === 5) return evaluateHand(cards).label;
+
+  // Count rank occurrences
+  const rankCounts = new Map<string, number>();
+  const suitCounts = new Map<string, number>();
+  for (const c of cards) {
+    rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
+    suitCounts.set(c.suit, (suitCounts.get(c.suit) ?? 0) + 1);
+  }
+  const maxRank = Math.max(...rankCounts.values());
+  const maxSuit = Math.max(...suitCounts.values());
+  const pairs = [...rankCounts.values()].filter(v => v === 2).length;
+
+  if (maxRank === 4) return 'Four of a Kind';
+  if (maxRank === 3 && pairs === 1) return 'Full House Draw';
+  if (maxRank === 3) return 'Three of a Kind';
+  if (pairs === 2) return 'Two Pair';
+  if (maxRank === 2) return 'Pair';
+  if (maxSuit === cards.length && cards.length >= 3) return 'Flush Draw';
+  return null;
+}
+
 interface Props {
   player: Player;
   isMe: boolean;
@@ -31,7 +57,9 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
     const col = player.columns[colIdx] ?? [];
     const isDropTarget = canPlace && col.length === currentRow;
     const faceUp = col.filter(c => !c.faceDown);
-    const handLabel = faceUp.length === 5 ? evaluateHand(faceUp).label : null;
+    // For me: show partial hand label as soon as there are cards
+    // For opponent: only show label when all 5 cards are face-up (after reveal)
+    const handLabel = isMe ? getHandLabel(faceUp) : (faceUp.length === 5 ? evaluateHand(faceUp).label : null);
     return { colIdx, col, isDropTarget, handLabel };
   });
 

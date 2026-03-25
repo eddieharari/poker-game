@@ -65,6 +65,9 @@ export function useSocketEvents() {
     socket.on('game:state',  (state) => {
       setGameState(state);
 
+      // Skip sounds entirely for GAME_OVER state — prevents sound loops on socket reconnect
+      if (state.phase === 'GAME_OVER') return;
+
       // Shuffle once when setup phase begins
       if (state.phase === 'SETUP_PHASE' && !shufflePlayed.current) {
         shufflePlayed.current = true;
@@ -109,6 +112,12 @@ export function useSocketEvents() {
       }
     });
 
+    socket.on('pazpaz:rejoin_required', ({ roomId }) => {
+      if (!window.location.pathname.startsWith('/pazpaz/')) {
+        navigate(`/pazpaz/${roomId}`);
+      }
+    });
+
     socket.on('game:forfeited', ({ forfeiterIndex }) => {
       const { playerIndex } = useGameStore.getState();
       const forfeiterIsMe = forfeiterIndex === playerIndex;
@@ -146,6 +155,7 @@ export function useSocketEvents() {
       socket.off('player:reconnected');
       socket.off('game:forfeited');
       socket.off('game:rejoin_required');
+      socket.off('pazpaz:rejoin_required');
       socket.off('room:error');
       socket.off('profile:chips_updated');
     };
