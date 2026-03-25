@@ -34,7 +34,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   setGameState: (gameState) => set({ gameState }),
   setScore: (score) => set({ score }),
-  setRoom: (roomId, playerIndex, stake, completeWinBonus) => set({ roomId, playerIndex, stake, completeWinBonus }),
+  setRoom: (roomId, playerIndex, stake, completeWinBonus) => set({ roomId, playerIndex, stake, completeWinBonus, score: null, gameState: null }),
   setOpponentDisconnected: (v) => set({ opponentDisconnected: v }),
   setOpponentLeft: (v: boolean) => set({ opponentLeft: v }),
   setStartingPlayer: (v) => set({ startingPlayer: v }),

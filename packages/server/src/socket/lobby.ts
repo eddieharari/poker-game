@@ -349,7 +349,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
           await lobbyService.removePlayer(playerId);
           io.to('lobby').emit('lobby:player:left', { playerId });
         }
-      }, 30_000);
+      }, 3_000);
       disconnectTimers.set(playerId, timer);
     }
   });

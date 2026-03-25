@@ -14,7 +14,10 @@ type LogEvent =
   | 'GAME_END'
   | 'PAZPAZ_JOIN'
   | 'PAZPAZ_SUBMIT'
-  | 'PAZPAZ_AUTO_SUBMIT';
+  | 'PAZPAZ_AUTO_SUBMIT'
+  | 'PAZPAZ_PRESSURE_SUBMIT'
+  | 'PAZPAZ_GAME_END'
+  | 'PAZPAZ_DISCONNECT';
 
 interface LogPayload {
   playerId?:   string;

@@ -96,6 +96,8 @@ export function dealPazPaz(
     flopResults: null,
     winner: null,
     assignDeadline: null,
+    partialAssignments: [null, null],
+    pressureDeadline: null,
   };
 }
 

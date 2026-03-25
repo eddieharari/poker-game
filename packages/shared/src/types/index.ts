@@ -148,8 +148,9 @@ export interface ServerToClientEvents {
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
   'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
   // PazPaz
-  'pazpaz:state':         (state: import('./pazpaz.js').PazPazGameState) => void;
-  'pazpaz:error':         (payload: { message: string }) => void;
+  'pazpaz:state':              (state: import('./pazpaz.js').PazPazGameState) => void;
+  'pazpaz:error':              (payload: { message: string }) => void;
+  'pazpaz:rejoin_required':    (payload: { roomId: string }) => void;
   // Keepalive
   'game:pong':                  (payload: { roomId: string }) => void;
   // Session
@@ -177,6 +178,7 @@ export interface ClientToServerEvents {
   // PazPaz
   'pazpaz:join':   (payload: { roomId: string }) => void;
   'pazpaz:submit': (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
+  'pazpaz:partial_save': (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   // Session
   'session:confirm_takeover': () => void;
 }

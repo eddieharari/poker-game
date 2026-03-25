@@ -40,6 +40,7 @@ export function GamePage() {
   const [confirmForfeit, setConfirmForfeit] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gameOverRedirectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reveal animation: -1 = not started, 0-4 = column index revealed so far
   const [revealedCols, setRevealedCols] = useState(-1);
@@ -65,11 +66,30 @@ export function GamePage() {
     return () => clearInterval(pingInterval);
   }, [roomId]);
 
-  // Redirect to lobby if game ended without a score (navigated back to a finished game)
+  // Redirect to lobby if game ended without a score
+  // Use a 3s delay so that 'game:over' (score) has time to arrive before we redirect
   useEffect(() => {
-    if (gameState?.phase === 'GAME_OVER' && !score) {
-      navigate('/lobby', { replace: true });
+    // Cancel pending redirect if score just arrived
+    if (score) {
+      if (gameOverRedirectRef.current) {
+        clearTimeout(gameOverRedirectRef.current);
+        gameOverRedirectRef.current = null;
+      }
+      return;
     }
+    if (gameState?.phase === 'GAME_OVER') {
+      // Wait 3 seconds for score to arrive; if it doesn't, redirect
+      gameOverRedirectRef.current = setTimeout(() => {
+        reset();
+        navigate('/lobby', { replace: true });
+      }, 3000);
+    }
+    return () => {
+      if (gameOverRedirectRef.current) {
+        clearTimeout(gameOverRedirectRef.current);
+        gameOverRedirectRef.current = null;
+      }
+    };
   }, [gameState?.phase, score]);
 
   useEffect(() => {

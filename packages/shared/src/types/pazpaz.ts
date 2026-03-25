@@ -35,4 +35,6 @@ export interface PazPazGameState {
   flopResults: PazPazFlopResult[] | null;
   winner: 0 | 1 | 'draw' | null;
   assignDeadline: number | null;
+  partialAssignments: [PazPazAssignment | null, PazPazAssignment | null];
+  pressureDeadline: number | null;
 }
