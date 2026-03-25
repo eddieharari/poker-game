@@ -113,11 +113,15 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
 }
 
 async function startTurnTimer(io: Server, roomId: string, state: GameState, room: Room): Promise<void> {
+  if (!room.timerDuration) return;
+  await startTurnTimerWithMs(io, roomId, state, room, room.timerDuration * 1000);
+}
+
+async function startTurnTimerWithMs(io: Server, roomId: string, state: GameState, room: Room, durationMs: number): Promise<void> {
   clearTurnTimer(roomId);
 
   if (!room.timerDuration || state.phase === 'GAME_OVER') return;
 
-  const durationMs = room.timerDuration * 1000;
   const deadline = Date.now() + durationMs;
   const stateWithDeadline: GameState = { ...state, turnDeadline: deadline };
   await roomService.updateGameState(roomId, stateWithDeadline);
@@ -128,6 +132,10 @@ async function startTurnTimer(io: Server, roomId: string, state: GameState, room
 
     const currentRoom = await roomService.get(roomId);
     if (!currentRoom?.gameState || currentRoom.status !== 'active') return;
+
+    // Do not auto-play if a player is disconnected — timer should have been cleared on disconnect
+    const bothConnected = currentRoom.player0.connected && (currentRoom.player1?.connected ?? false);
+    if (!bothConnected) return;
 
     let autoState = currentRoom.gameState;
     const currentPlayerId = autoState.players[autoState.currentPlayerIndex].id;
@@ -327,6 +335,18 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     }
 
     socket.to(roomId).emit('player:reconnected', { playerIndex });
+
+    // Resume the paused timer if both players are now connected and a pause was saved
+    const bothConnected = room.player0.connected && (room.player1?.connected ?? false);
+    if (bothConnected && room.timerDuration && room.pausedTimerRemainingMs != null && room.gameState?.phase !== 'GAME_OVER') {
+      const remainingMs = room.pausedTimerRemainingMs;
+      // Clear the saved pause and restart with remaining time
+      await roomService.save({ ...room, pausedTimerRemainingMs: null });
+      const freshRoom = (await roomService.get(roomId)) ?? room;
+      if (freshRoom.gameState) {
+        await startTurnTimerWithMs(io, roomId, freshRoom.gameState, freshRoom, remainingMs);
+      }
+    }
   });
 
   // ─── Draw Card ───────────────────────────────────────────────────────────────
@@ -432,6 +452,12 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     });
   });
 
+  // ─── Ping (keepalive) ────────────────────────────────────────────────────────
+
+  socket.on('game:ping', ({ roomId }: { roomId: string }) => {
+    socket.emit('game:pong', { roomId });
+  });
+
   // ─── Disconnect ──────────────────────────────────────────────────────────────
 
   socket.on('disconnect', async () => {
@@ -439,8 +465,32 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const room = await roomService.findByPlayerId(playerId);
     if (!room || room.status !== 'active') return;
 
-    const updated = await roomService.setPlayerConnected(room.roomId, playerId, false);
-    if (!updated) return;
+    // ── Pause the turn timer ──────────────────────────────────────────────────
+    let pausedMs: number | null = null;
+    if (room.timerDuration && room.gameState?.turnDeadline) {
+      pausedMs = Math.max(0, room.gameState.turnDeadline - Date.now());
+      clearTurnTimer(room.roomId);
+      // Null out the deadline so clients hide the timer while paused
+      const pausedState = { ...room.gameState, turnDeadline: null };
+      await roomService.save({ ...room, gameState: pausedState, pausedTimerRemainingMs: pausedMs });
+      await emitStateToRoom(io, room, pausedState);
+    } else {
+      clearTurnTimer(room.roomId);
+      const updated = await roomService.setPlayerConnected(room.roomId, playerId, false);
+      if (!updated) return;
+    }
+
+    // Mark player disconnected (if we saved above, re-mark connected=false)
+    const roomAfterPause = await roomService.get(room.roomId);
+    if (roomAfterPause) {
+      const p0 = roomAfterPause.player0.playerId === playerId
+        ? { ...roomAfterPause.player0, connected: false }
+        : roomAfterPause.player0;
+      const p1 = roomAfterPause.player1?.playerId === playerId
+        ? { ...roomAfterPause.player1, connected: false }
+        : roomAfterPause.player1;
+      await roomService.save({ ...roomAfterPause, player0: p0, player1: p1 ?? roomAfterPause.player1! });
+    }
 
     const playerIndex: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
     socket.to(room.roomId).emit('player:disconnected', { playerIndex });
@@ -453,7 +503,6 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       if (p && !p.connected && current.status === 'active') {
         await roomService.save({ ...current, status: 'finished' });
         io.to(room.roomId).emit('room:error', { message: 'Opponent abandoned the game' });
-        // Reset both players back to idle in lobby
         await lobbyService.setStatus(current.player0.playerId, 'idle');
         if (current.player1) await lobbyService.setStatus(current.player1.playerId, 'idle');
         io.to('lobby').emit('lobby:player:status', { playerId: current.player0.playerId, status: 'idle' });

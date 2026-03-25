@@ -26,7 +26,13 @@ export function GamePage() {
     if (!roomId) return;
     const socket = getSocket();
     socket.emit('room:join', { roomId });
-    return () => { /* socket stays open across nav */ };
+
+    // Keepalive ping every 15s so the connection stays alive and server knows we're here
+    const pingInterval = setInterval(() => {
+      if (socket.connected) socket.emit('game:ping', { roomId });
+    }, 15_000);
+
+    return () => clearInterval(pingInterval);
   }, [roomId]);
 
   // If game is over and we have no score to show (e.g. user navigated back), go to lobby

@@ -150,6 +150,8 @@ export interface ServerToClientEvents {
   // PazPaz
   'pazpaz:state':         (state: import('./pazpaz.js').PazPazGameState) => void;
   'pazpaz:error':         (payload: { message: string }) => void;
+  // Keepalive
+  'game:pong':                  (payload: { roomId: string }) => void;
   // Session
   'session:duplicate':          () => void;
   'session:kicked':             () => void;
@@ -164,6 +166,7 @@ export interface ClientToServerEvents {
   'action:draw':  (payload: { roomId: string }) => void;
   'action:place':  (payload: { roomId: string; columnIndex: number }) => void;
   'game:forfeit':  (payload: { roomId: string }) => void;
+  'game:ping':     (payload: { roomId: string }) => void;
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;

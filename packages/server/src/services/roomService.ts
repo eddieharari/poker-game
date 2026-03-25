@@ -19,6 +19,7 @@ export const roomService = {
       stake: null,
       completeWinBonus: false,
       timerDuration: null,
+      pausedTimerRemainingMs: null,
       createdAt: Date.now(),
     };
     await redis.set(key(roomId), JSON.stringify(room), 'EX', config.roomTtl);
@@ -48,7 +49,7 @@ export const roomService = {
       { id: player1.playerId, name: player1.playerName, avatarUrl: player1.avatarUrl },
     );
 
-    const updated: Room = { ...room, player1, gameState, status: 'active', stake, completeWinBonus, timerDuration };
+    const updated: Room = { ...room, player1, gameState, status: 'active', stake, completeWinBonus, timerDuration, pausedTimerRemainingMs: null };
     await this.save(updated);
     return updated;
   },

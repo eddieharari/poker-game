@@ -32,6 +32,8 @@ export interface Room {
   stake: StakeAmount | null;
   completeWinBonus: boolean;
   timerDuration: 30 | 45 | 60 | null;
+  /** Remaining ms saved when timer was paused due to a disconnect; cleared on resume */
+  pausedTimerRemainingMs: number | null;
   createdAt: number;
 }
 
