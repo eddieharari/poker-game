@@ -234,6 +234,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         nickname,
         avatarUrl,
       );
+      gameState.stake = challenge.stake;
 
       await pazpazRoomService.create({
         roomId,

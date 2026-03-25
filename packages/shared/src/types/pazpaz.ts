@@ -37,4 +37,5 @@ export interface PazPazGameState {
   assignDeadline: number | null;
   partialAssignments: [PazPazAssignment | null, PazPazAssignment | null];
   pressureDeadline: number | null;
+  stake: number | null;
 }

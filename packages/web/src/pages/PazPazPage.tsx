@@ -34,8 +34,9 @@ function useCountdown(deadline: number | null): number | null {
 }
 
 // Card sizes
-const SM = { w: 36, h: 50 };   // community + flop hand slots
-const LG = { w: 56, h: 78 };   // my dealt cards (fan)
+const SM = { w: 36, h: 50 };    // community + flop hand slots (ASSIGNING)
+const SCORE = { w: 90, h: 125 }; // flop cards during SCORING (2.5× SM)
+const LG = { w: 56, h: 78 };    // my dealt cards (fan)
 
 // ─── Empty slot placeholder ───────────────────────────────────────────────────
 
@@ -298,7 +299,7 @@ export function PazPazPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden"
+      className="h-screen flex flex-col overflow-hidden relative"
       style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -380,7 +381,8 @@ export function PazPazPage() {
         </div>
 
         {/* 3 Flop columns */}
-        <div className="flex-1 grid grid-cols-3 gap-2 min-h-0 overflow-hidden">
+        <div className={`flex-1 min-h-0 ${isScoringPhase ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}`}>
+          <div className={`h-full ${isScoringPhase ? 'flex gap-3 px-1' : 'grid grid-cols-3 gap-2'}`}>
           {([0, 1, 2] as const).map(flopIdx => {
             const result = allFlopResults[flopIdx];
             const isRevealed = flopIdx < revealedFlops;
@@ -391,6 +393,19 @@ export function PazPazPage() {
             const { cards: communityCards, hasAll } = getCommunityCards(flopIdx);
 
             const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
+            const cardW = isScoringPhase ? SCORE.w : SM.w;
+            const cardH = isScoringPhase ? SCORE.h : SM.h;
+
+            // Per-flop winner from this player's perspective
+            const flopWinnerLabel = isRevealed && result
+              ? result.winner === playerIndex ? 'WIN'
+                : result.winner === 'draw' ? 'DRAW'
+                : 'LOSE'
+              : null;
+            const flopWinnerColor = flopWinnerLabel === 'WIN' ? 'text-green-400'
+              : flopWinnerLabel === 'DRAW' ? 'text-yellow-400'
+              : flopWinnerLabel === 'LOSE' ? 'text-red-500'
+              : '';
 
             return (
               <div
@@ -402,32 +417,30 @@ export function PazPazPage() {
                   const idxStr = e.dataTransfer.getData('cardIndex');
                   if (idxStr !== '') handleFlopDrop(flopIdx, parseInt(idxStr));
                 } : undefined}
+                style={isScoringPhase ? { minWidth: cardW * 4 + 40, flexShrink: 0 } : undefined}
                 className={`bg-black/40 rounded-xl p-1.5 border transition-all flex flex-col gap-1 overflow-hidden
                   ${isActive ? 'border-gold/60 bg-gold/5 cursor-pointer hover:border-gold shadow-lg shadow-gold/10' : 'border-white/10'}
                   ${isScoringPhase && isRevealed && result ? (result.winner === playerIndex ? 'border-green-500/40 bg-green-500/5' : result.winner === 'draw' ? 'border-yellow-500/30' : 'border-red-500/30 bg-red-500/5') : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">F{flopIdx + 1}</p>
-                  {isScoringPhase && isRevealed && result && (
-                    <span className={`text-base font-black ${result.winner === playerIndex ? 'text-green-400' : result.winner === 'draw' ? 'text-yellow-400' : 'text-red-500'}`}>
-                      {result.winner === playerIndex ? '✓' : result.winner === 'draw' ? '—' : '✗'}
-                    </span>
-                  )}
                 </div>
 
                 {/* Opponent hand */}
                 <div className="bg-black/30 rounded-lg p-1 flex-shrink-0">
-                  <p className="text-[9px] text-white/30 mb-0.5">Opp</p>
-                  <div className="flex gap-0.5 flex-wrap">
+                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/30 mb-0.5`}>
+                    {oppPlayer?.name ?? 'Opp'}
+                  </p>
+                  <div className="flex gap-1 flex-wrap">
                     {[0, 1, 2, 3].map(s => {
                       const card = oppCards[s];
                       return card
-                        ? <PlayingCard key={s} card={card} width={SM.w} height={SM.h} />
-                        : <PlayingCard key={s} card={FACE_DOWN_CARD} width={SM.w} height={SM.h} />;
+                        ? <PlayingCard key={s} card={card} width={cardW} height={cardH} />
+                        : <PlayingCard key={s} card={FACE_DOWN_CARD} width={cardW} height={cardH} />;
                     })}
                   </div>
                   {isScoringPhase && isRevealed && result && (
-                    <p className="text-[9px] text-white/50 mt-0.5 text-center">
+                    <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/50 mt-1 text-center`}>
                       {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
                     </p>
                   )}
@@ -435,40 +448,48 @@ export function PazPazPage() {
 
                 {/* Community cards */}
                 <div className="flex-shrink-0">
-                  <p className="text-[9px] text-white/40 mb-0.5">Board</p>
-                  <div className="flex gap-0.5 flex-wrap">
+                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/40 mb-0.5`}>Board</p>
+                  <div className="flex gap-1 flex-wrap">
                     {communityCards.map((card, i) => (
-                      <PlayingCard key={i} card={card} width={SM.w} height={SM.h} />
+                      <PlayingCard key={i} card={card} width={cardW} height={cardH} />
                     ))}
                     {/* Show empty slots for turn+river during ASSIGNING */}
                     {!hasAll && [0, 1].map(i => (
-                      <EmptySlot key={`tr-${i}`} width={SM.w} height={SM.h} />
+                      <EmptySlot key={`tr-${i}`} width={cardW} height={cardH} />
                     ))}
                   </div>
                 </div>
 
                 {/* My hand */}
                 <div className="bg-black/30 rounded-lg p-1 flex-shrink-0">
-                  <p className="text-[9px] text-white/30 mb-0.5">
+                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/30 mb-0.5`}>
                     You {!isScoringPhase ? `${assignmentByFlop[flopIdx].length}/4` : ''}
                   </p>
-                  <div className="flex gap-0.5 flex-wrap">
+                  <div className="flex gap-1 flex-wrap">
                     {[0, 1, 2, 3].map(s => {
                       const card = myFlopCards[s];
                       return card
-                        ? <PlayingCard key={s} card={card} width={SM.w} height={SM.h} />
-                        : <EmptySlot key={s} width={SM.w} height={SM.h} />;
+                        ? <PlayingCard key={s} card={card} width={cardW} height={cardH} />
+                        : <EmptySlot key={s} width={cardW} height={cardH} />;
                     })}
                   </div>
                   {isScoringPhase && isRevealed && result && (
-                    <p className="text-[9px] text-gold mt-0.5 text-center font-semibold">
+                    <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-gold mt-1 text-center font-semibold`}>
                       {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
                     </p>
                   )}
                 </div>
+
+                {/* Big WIN / LOSE / DRAW badge */}
+                {isScoringPhase && flopWinnerLabel && (
+                  <div className={`text-center font-black text-3xl tracking-widest mt-1 ${flopWinnerColor}`}>
+                    {flopWinnerLabel}
+                  </div>
+                )}
               </div>
             );
           })}
+          </div>
         </div>
 
         {/* My 12 dealt cards - arc/fan display (only shown during ASSIGNING) */}
@@ -549,7 +570,27 @@ export function PazPazPage() {
           </div>
         )}
 
-        {/* Submit / waiting / pressure timer / back to lobby */}
+        {/* Center overlay: overall result when all flops revealed */}
+      {isScoringPhase && allRevealed && (
+        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="pointer-events-auto bg-black/85 backdrop-blur-md rounded-2xl border border-white/20 px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+            <div className="text-6xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</div>
+            <div className={`font-display text-4xl font-black tracking-wider ${isDraw ? 'text-yellow-400' : iWon ? 'text-green-400' : 'text-red-500'}`}>
+              {isDraw ? 'DRAW' : iWon ? 'YOU WIN!' : 'YOU LOSE'}
+            </div>
+            {gameState.stake != null && (
+              <div className={`font-bold text-2xl ${isDraw ? 'text-white/60' : iWon ? 'text-green-300' : 'text-red-400'}`}>
+                {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
+              </div>
+            )}
+            <button onClick={goToLobby} className="btn-primary px-8 py-2.5 text-base mt-2">
+              Back to Lobby
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Submit / waiting / pressure timer / back to lobby */}
         <div className="flex-shrink-0 flex flex-col items-center gap-2 pb-1">
           {/* Pressure timer: show when opponent submitted but I haven't */}
           {!isScoringPhase && oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
