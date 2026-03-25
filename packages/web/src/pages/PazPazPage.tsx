@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
@@ -209,14 +209,14 @@ export function PazPazPage() {
   // ── ASSIGNING phase helpers ─────────────────────────────────────────────────
   const dealtCards = myPlayer?.dealtCards ?? [];
 
-  // Sorted display indices
-  const displayOrder = useMemo(() => {
+  // Sorted display indices (plain computation — no useMemo to avoid hooks-after-return violation)
+  const displayOrder = (() => {
     const indices = Array.from({ length: dealtCards.length }, (_, i) => i);
     if (isSorted && dealtCards.length > 0) {
       indices.sort((a, b) => RANK_ORDER[dealtCards[a].rank] - RANK_ORDER[dealtCards[b].rank]);
     }
     return indices;
-  }, [dealtCards, isSorted]);
+  })();
 
   const assignmentByFlop: Card[][] = [[], [], []];
   for (let i = 0; i < dealtCards.length; i++) {
