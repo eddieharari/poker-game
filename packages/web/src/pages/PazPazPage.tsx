@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { getSocket } from '../socket.js';
 import { PlayingCard } from '../components/game/PlayingCard.js';
-import { playDealSound } from '../sounds.js';
+import { playDealSound, playWinSound, playLoseSound } from '../sounds.js';
 import type {
   PazPazGameState,
   PazPazAssignment,
@@ -179,6 +179,18 @@ export function PazPazPage() {
     return () => clearTimeout(t);
   }, [gameState?.phase, revealedFlops]);
 
+  // Play win/lose sound once when all flops are revealed
+  const resultSoundPlayed = useRef(false);
+  useEffect(() => {
+    if (revealedFlops < 3 || resultSoundPlayed.current || !gameState) return;
+    resultSoundPlayed.current = true;
+    const myIdx = gameState.players[0].id === profile?.id ? 0 : 1;
+    const w = gameState.winner;
+    if (w === 'draw' || w === null) return;
+    if (w === myIdx) playWinSound();
+    else playLoseSound();
+  }, [revealedFlops]);
+
   // Send partial save whenever assignment changes
   useEffect(() => {
     if (!roomId || submitted || !gameState || gameState.phase !== 'ASSIGNING') return;
@@ -316,29 +328,44 @@ export function PazPazPage() {
       style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 bg-black/70 backdrop-blur-sm border-b border-white/10 px-4 py-2 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <header className={`flex-shrink-0 backdrop-blur-sm border-b px-4 flex items-center justify-between gap-4 transition-colors
+        ${isScoringPhase && allRevealed
+          ? isDraw
+            ? 'bg-yellow-900/60 border-yellow-500/30 py-3'
+            : iWon
+              ? 'bg-green-900/60 border-green-500/30 py-3'
+              : 'bg-red-900/60 border-red-500/30 py-3'
+          : 'bg-black/70 border-white/10 py-2'}`}
+      >
+        <div className="flex items-center gap-2 flex-shrink-0">
           <h1 className="font-display text-lg text-gold">PAZPAZ</h1>
           {!isScoringPhase && (
             <span className="text-xs text-white/50 bg-black/30 px-2 py-1 rounded-full">Assigning</span>
           )}
         </div>
 
-        {/* Center: timer (assigning) or result banner (scoring) */}
-        <div className="flex items-center gap-3">
+        {/* Center */}
+        <div className="flex items-center gap-3 min-w-0">
           {isScoringPhase ? (
             allRevealed ? (
-              <>
-                <span className="text-2xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
-                <span className="font-display text-xl text-gold">
-                  {isDraw ? 'Draw!' : iWon ? 'You Win!' : 'You Lose!'}
-                </span>
-              </>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
+                <div>
+                  <div className={`font-display text-2xl font-black leading-none ${isDraw ? 'text-yellow-400' : iWon ? 'text-green-400' : 'text-red-400'}`}>
+                    {isDraw ? 'DRAW' : iWon ? 'YOU WIN!' : 'YOU LOSE'}
+                  </div>
+                  {gameState.stake != null && (
+                    <div className={`text-sm font-bold mt-0.5 ${isDraw ? 'text-white/50' : iWon ? 'text-green-300' : 'text-red-300'}`}>
+                      {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <span className="text-white/50 text-sm animate-pulse">Revealing results…</span>
                 <button onClick={() => setRevealedFlops(3)} className="btn-ghost text-xs px-2 py-1">Skip</button>
-              </>
+              </div>
             )
           ) : (
             timerSeconds !== null && (
@@ -351,13 +378,13 @@ export function PazPazPage() {
           )}
         </div>
 
-        {/* Players / back button */}
+        {/* Right: back button or player status */}
         {isScoringPhase ? (
-          <button onClick={goToLobby} className="btn-primary px-4 py-1.5 text-sm">
+          <button onClick={goToLobby} className="btn-primary px-4 py-1.5 text-sm flex-shrink-0">
             Back to Lobby
           </button>
         ) : (
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3 text-xs flex-shrink-0">
             <div className="flex items-center gap-1.5">
               {myPlayer?.avatarUrl && <img src={myPlayer.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-gold/50" />}
               <span className="font-semibold text-white/80">{myPlayer?.name}</span>
@@ -579,26 +606,6 @@ export function PazPazPage() {
           </div>
         )}
 
-        {/* Center overlay: overall result when all flops revealed */}
-      {isScoringPhase && allRevealed && (
-        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="pointer-events-auto bg-black/85 backdrop-blur-md rounded-2xl border border-white/20 px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="text-6xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</div>
-            <div className={`font-display text-4xl font-black tracking-wider ${isDraw ? 'text-yellow-400' : iWon ? 'text-green-400' : 'text-red-500'}`}>
-              {isDraw ? 'DRAW' : iWon ? 'YOU WIN!' : 'YOU LOSE'}
-            </div>
-            {gameState.stake != null && (
-              <div className={`font-bold text-2xl ${isDraw ? 'text-white/60' : iWon ? 'text-green-300' : 'text-red-400'}`}>
-                {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
-              </div>
-            )}
-            <button onClick={goToLobby} className="btn-primary px-8 py-2.5 text-base mt-2">
-              Back to Lobby
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Submit / waiting / pressure timer / back to lobby */}
         <div className="flex-shrink-0 flex flex-col items-center gap-2 pb-1">
           {/* Pressure timer: show when opponent submitted but I haven't */}
@@ -610,11 +617,7 @@ export function PazPazPage() {
             </div>
           )}
 
-          {isScoringPhase ? (
-            allRevealed && (
-              <button onClick={goToLobby} className="btn-primary px-8 py-2.5">Back to Lobby</button>
-            )
-          ) : iHaveSubmitted ? (
+          {isScoringPhase ? null : iHaveSubmitted ? (
             <div className="text-center space-y-1">
               <p className="text-green-400 font-semibold text-sm">Assignment submitted!</p>
               <p className="text-white/40 text-xs">
