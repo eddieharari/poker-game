@@ -33,8 +33,6 @@ export function useSocketEvents() {
   const setOpponentDisconnected = useGameStore(s => s.setOpponentDisconnected);
   const setOpponentLeft = useGameStore(s => s.setOpponentLeft);
   const setStartingPlayer   = useGameStore(s => s.setStartingPlayer);
-  const fetchProfile        = useAuthStore(s => s.fetchProfile);
-
   useEffect(() => {
     const socket = getSocket();
 
@@ -90,9 +88,9 @@ export function useSocketEvents() {
       prevCardCount.current = 0;
       shufflePlayed.current = false;
       setScore(score);
-      // Re-fetch profile so chip count updates immediately
-      const { session } = useAuthStore.getState();
-      fetchProfile(session);
+      // Note: chip balance is updated via profile:chips_updated event;
+      // calling fetchProfile here would cause loading:true → the full-screen
+      // "Poker5O" spinner would flash every time game:over fires on reconnect.
     });
 
     socket.on('player:disconnected', () => {
@@ -160,5 +158,5 @@ export function useSocketEvents() {
       socket.off('profile:chips_updated');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
-      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, setStartingPlayer, fetchProfile]);
+      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, setStartingPlayer]);
 }

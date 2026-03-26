@@ -83,18 +83,18 @@ export function PazPazPage() {
   // Scoring reveal: which flop result is revealed (0 = none, 1/2/3 = flops revealed)
   const [revealedFlops, setRevealedFlops] = useState(0);
 
-  // Responsive community card size: up to 1.5× SM, scales to fit 3 columns on screen
+  // Responsive community card size: fills available column space, min SM
   const [vw, setVw] = useState(window.innerWidth);
   useEffect(() => {
     const onResize = () => setVw(window.innerWidth);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  // Available column width ≈ 1/3 of viewport minus outer padding + gaps
-  const colAvailW = Math.floor((vw - 24) / 3) - 12;
-  // Fit 4 community cards per row with gaps; cap at 1.5× SM.w
-  const commW = Math.max(SM.w, Math.min(Math.round(SM.w * 1.5), Math.floor((colAvailW - 12) / 4)));
-  const commH = Math.round(commW * SM.h / SM.w);
+  // Each column ≈ 1/3 of viewport, minus outer padding (16px each side) and 2 column gaps (8px each)
+  const colW = Math.floor((vw - 32 - 16) / 3);
+  // Fit all 5 community cards in one row: fill colW minus inner padding and card gaps
+  const commW = Math.max(SM.w, Math.floor((colW - 16) / 5));
+  const commH = Math.round(commW * (SM.h / SM.w));
 
   const timerSeconds = useCountdown(gameState?.assignDeadline ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
