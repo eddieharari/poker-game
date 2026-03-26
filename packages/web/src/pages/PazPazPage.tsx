@@ -90,10 +90,10 @@ export function PazPazPage() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  // Each column ≈ 1/3 of viewport, minus outer padding (16px each side) and 2 column gaps (8px each)
-  const colW = Math.floor((vw - 32 - 16) / 3);
-  // Fit all 5 community cards in one row: fill colW minus inner padding and card gaps
-  const commW = Math.max(SM.w, Math.floor((colW - 16) / 5));
+  // Each column ≈ 1/3 of viewport, minus outer padding (8px each side) and 2 col gaps (8px each)
+  const colW = Math.floor((vw - 16 - 16) / 3);
+  // Fit all 5 community cards in one row inside the column (minus col padding 12px, card gaps 8px)
+  const commW = Math.max(SM.w, Math.floor((colW - 20) / 5));
   const commH = Math.round(commW * (SM.h / SM.w));
 
   const timerSeconds = useCountdown(gameState?.assignDeadline ?? null);
@@ -407,9 +407,9 @@ export function PazPazPage() {
 
             const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
 
-            // Community cards use responsive size in scoring; hole cards always SM
-            const boardW = isScoringPhase ? commW : SM.w;
-            const boardH = isScoringPhase ? commH : SM.h;
+            // Community/board cards always use the responsive larger size; hole cards always SM
+            const boardW = commW;
+            const boardH = commH;
 
             // Per-flop winner from this player's perspective
             const flopWinnerLabel = isRevealed && result
