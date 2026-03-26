@@ -45,6 +45,31 @@ export function evaluateOmahaHand(holeCards: Card[], communityCards: Card[]): Ha
   return best;
 }
 
+function evaluateOmahaHandFull(holeCards: Card[], communityCards: Card[]): { evaluation: HandEvaluation; usedHole: Card[] } {
+  if (holeCards.length !== 4) throw new Error('Omaha requires exactly 4 hole cards');
+  if (communityCards.length !== 5) throw new Error('Omaha requires exactly 5 community cards');
+
+  const holePairs = combinations(holeCards, 2);
+  const communityTriples = combinations(communityCards, 3);
+
+  let best: HandEvaluation | null = null;
+  let bestHole: Card[] = [];
+
+  for (const holePair of holePairs) {
+    for (const communityTriple of communityTriples) {
+      const fiveCards = [...holePair, ...communityTriple];
+      const eval5 = evaluateHand(fiveCards);
+      if (best === null || compareHands(eval5, best) > 0) {
+        best = eval5;
+        bestHole = holePair;
+      }
+    }
+  }
+
+  if (!best) throw new Error('No valid Omaha combination found');
+  return { evaluation: best, usedHole: bestHole };
+}
+
 // ─── Deal ─────────────────────────────────────────────────────────────────────
 
 export function dealPazPaz(
@@ -134,9 +159,9 @@ export function revealAndScore(state: PazPazGameState): PazPazGameState {
     const p0Hole = assignment0.hands[f];
     const p1Hole = assignment1.hands[f];
 
-    const p0Best = evaluateOmahaHand(p0Hole, communityCards);
-    const p1Best = evaluateOmahaHand(p1Hole, communityCards);
-    const cmp = compareHands(p0Best, p1Best);
+    const p0Full = evaluateOmahaHandFull(p0Hole, communityCards);
+    const p1Full = evaluateOmahaHandFull(p1Hole, communityCards);
+    const cmp = compareHands(p0Full.evaluation, p1Full.evaluation);
 
     const winner: 0 | 1 | 'draw' = cmp > 0 ? 0 : cmp < 0 ? 1 : 'draw';
     if (winner !== 'draw') flopWins[winner]++;
@@ -146,8 +171,10 @@ export function revealAndScore(state: PazPazGameState): PazPazGameState {
       communityCards,
       player0Hole: p0Hole,
       player1Hole: p1Hole,
-      player0Best: p0Best,
-      player1Best: p1Best,
+      player0Best: p0Full.evaluation,
+      player1Best: p1Full.evaluation,
+      player0UsedHole: p0Full.usedHole,
+      player1UsedHole: p1Full.usedHole,
       winner,
     });
   }

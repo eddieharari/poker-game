@@ -22,6 +22,8 @@ export interface PazPazFlopResult {
   player0Best: HandEvaluation;
   player1Best: HandEvaluation;
   winner: 0 | 1 | 'draw';
+  player0UsedHole: Card[];
+  player1UsedHole: Card[];
 }
 
 export interface PazPazGameState {
