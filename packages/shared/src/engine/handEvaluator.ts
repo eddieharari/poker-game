@@ -42,73 +42,54 @@ const FLUSH_RANK = new Map<number, number>();
 /** Maps product of 5 rank primes → strength for non-flush hands */
 const PROD_TO_RANK = new Map<number, number>();
 
-// All 5-card combinations from 13 ranks — for flush table
+// Strength bands (CK): 1-10 SF, 11-166 Quads, 167-322 FH, 323-1599 Flush,
+//   1600-1609 Straight, 1610-2467 Trips, 2468-3325 2P, 3326-6185 Pair, 6186-7462 HC
+// Counts: Quads=156, FH=156, Flush=1277, Straight=10, Trips=858, 2P=858, Pair=2860, HC=1277
 function buildLookupTables(): void {
-  // Ranks 0-12 (deuce through ace)
-  const straights = new Set<number>();
+  const primes = [2,3,5,7,11,13,17,19,23,29,31,37,41]; // rank 0-12 (2 through A)
 
-  // Detect straight bitmasks (including A-low: A2345)
+  // ── Straight detection ────────────────────────────────────────────────────
+  const straights = new Set<number>();
   for (let top = 4; top <= 12; top++) {
     let mask = 0;
     for (let i = 0; i < 5; i++) mask |= 1 << (top - i);
     straights.add(mask);
   }
-  // A-low straight: A2345 → bits 0,1,2,3,12
-  straights.add((1 << 12) | 0b1111);
+  const wheelMask = (1 << 12) | 0b1111; // A2345
+  straights.add(wheelMask);
 
-  // Generate all C(13,5) = 1287 rank combinations
-  // Strength bands (CK): 1-10 SF, 11-166 Quads, 167-322 FH, 323-1599 Flush,
-  //   1600-1609 Straight, 1610-2467 Trips, 2468-3325 2P, 3326-6185 Pair, 6186-7462 HC
+  // Straights ordered best→worst: A-high (top=12) … 6-high (top=4), then wheel (A2345)
+  const sortedStraightMasks: number[] = [];
+  for (let top = 12; top >= 4; top--) {
+    let mask = 0;
+    for (let i = 0; i < 5; i++) mask |= 1 << (top - i);
+    sortedStraightMasks.push(mask);
+  }
+  sortedStraightMasks.push(wheelMask);
 
-  // Enumerate all 5-card rank combos sorted descending for natural ordering
-  const combos: number[][] = [];
+  // ── FLUSH_RANK table ──────────────────────────────────────────────────────
+  // Straight flushes (strength 1-10): best→worst
+  let sfStrength = 1;
+  for (const mask of sortedStraightMasks) {
+    FLUSH_RANK.set(mask, sfStrength++);
+  }
+  // Regular flushes (strength 323-1599): highest ranks first
+  let flushStrength = 323;
   for (let a = 12; a >= 0; a--)
     for (let b = a-1; b >= 0; b--)
       for (let c = b-1; c >= 0; c--)
         for (let d = c-1; d >= 0; d--)
-          for (let e = d-1; e >= 0; e--)
-            combos.push([a, b, c, d, e]);
+          for (let e = d-1; e >= 0; e--) {
+            const mask = (1<<a)|(1<<b)|(1<<c)|(1<<d)|(1<<e);
+            if (!straights.has(mask)) FLUSH_RANK.set(mask, flushStrength++);
+          }
 
-  // Assign flush strengths: SF first, then regular flush
-  let sfStrength = 1;
-  let flushStrength = 323; // after SF(1-10), Quads(11-166), FH(167-322)
+  // ── PROD_TO_RANK table ────────────────────────────────────────────────────
+  // Each hand category is enumerated in correct poker order so that the primary
+  // rank key (quad rank, trips rank, pair rank, etc.) drives strength assignment,
+  // not the sorted card values. This fixes the bug where pair-of-2s with high
+  // kickers could outrank pair-of-5s with low kickers.
 
-  for (const ranks of combos) {
-    const mask = ranks.reduce((m, r) => m | (1 << r), 0);
-    const isStraight = straights.has(mask);
-    if (isStraight) {
-      FLUSH_RANK.set(mask, sfStrength++);
-    }
-  }
-  for (const ranks of combos) {
-    const mask = ranks.reduce((m, r) => m | (1 << r), 0);
-    const isStraight = straights.has(mask);
-    if (!isStraight) {
-      FLUSH_RANK.set(mask, flushStrength++);
-    }
-  }
-
-  // Non-flush table: enumerate all 5-card rank combos with repetition allowed for pairs etc.
-  // We use the product of primes approach.
-  // Bands: Quads 11-166, FH 167-322, Straight 1600-1609, Trips 1610-2467,
-  //   TwoPair 2468-3325, Pair 3326-6185, HighCard 6186-7462
-
-  // Classify by sorted rank array
-  function classify(sorted: number[]): string {
-    const cnt: Record<number, number> = {};
-    for (const r of sorted) cnt[r] = (cnt[r] ?? 0) + 1;
-    const freqs = Object.values(cnt).sort((a, b) => b - a);
-    if (freqs[0] === 4) return 'QUADS';
-    if (freqs[0] === 3 && freqs[1] === 2) return 'FH';
-    if (freqs[0] === 3) return 'TRIPS';
-    if (freqs[0] === 2 && freqs[1] === 2) return 'TWOPAIR';
-    if (freqs[0] === 2) return 'PAIR';
-    const mask = sorted.reduce((m, r) => m | (1 << r), 0);
-    if (straights.has(mask)) return 'STRAIGHT';
-    return 'HIGHCARD';
-  }
-
-  // Strength counters per type
   let qStrength  = 11;
   let fhStrength = 167;
   let stStrength = 1600;
@@ -117,30 +98,68 @@ function buildLookupTables(): void {
   let prStrength = 3326;
   let hcStrength = 6186;
 
-  // Enumerate all multi-sets of 5 from 13 ranks (with repetition), sorted desc
-  const primes = [2,3,5,7,11,13,17,19,23,29,31,37,41]; // rank 0-12
-
-  for (let a = 12; a >= 0; a--)
-  for (let b = a; b >= 0; b--)
-  for (let c = b; c >= 0; c--)
-  for (let d = c; d >= 0; d--)
-  for (let e = d; e >= 0; e--) {
-    const sorted = [a,b,c,d,e];
-    const prod = primes[a]*primes[b]*primes[c]*primes[d]*primes[e];
-    if (PROD_TO_RANK.has(prod)) continue;
-    const type = classify(sorted);
-    let s: number;
-    switch (type) {
-      case 'QUADS':    s = qStrength++;  break;
-      case 'FH':       s = fhStrength++; break;
-      case 'STRAIGHT': s = stStrength++; break;
-      case 'TRIPS':    s = trStrength++; break;
-      case 'TWOPAIR':  s = tpStrength++; break;
-      case 'PAIR':     s = prStrength++; break;
-      default:         s = hcStrength++; break;
+  // QUADS (156): primary = quad rank desc, secondary = kicker desc
+  for (let q = 12; q >= 0; q--)
+    for (let k = 12; k >= 0; k--) {
+      if (k === q) continue;
+      PROD_TO_RANK.set(primes[q]**4 * primes[k], qStrength++);
     }
-    PROD_TO_RANK.set(prod, s);
+
+  // FULL HOUSE (156): primary = trips rank desc, secondary = pair rank desc
+  for (let t = 12; t >= 0; t--)
+    for (let p = 12; p >= 0; p--) {
+      if (p === t) continue;
+      PROD_TO_RANK.set(primes[t]**3 * primes[p]**2, fhStrength++);
+    }
+
+  // STRAIGHTS (10): A-high … wheel
+  for (const mask of sortedStraightMasks) {
+    const ranks: number[] = [];
+    for (let r = 12; r >= 0; r--) if (mask & (1 << r)) ranks.push(r);
+    PROD_TO_RANK.set(ranks.reduce((p, r) => p * primes[r], 1), stStrength++);
   }
+
+  // TRIPS (858): primary = trips rank desc, then kicker1 desc, kicker2 desc
+  for (let t = 12; t >= 0; t--)
+    for (let k1 = 12; k1 >= 0; k1--) {
+      if (k1 === t) continue;
+      for (let k2 = k1 - 1; k2 >= 0; k2--) {
+        if (k2 === t) continue;
+        PROD_TO_RANK.set(primes[t]**3 * primes[k1] * primes[k2], trStrength++);
+      }
+    }
+
+  // TWO PAIR (858): primary = high-pair rank desc, secondary = low-pair rank desc, then kicker desc
+  for (let p1 = 12; p1 >= 0; p1--)
+    for (let p2 = p1 - 1; p2 >= 0; p2--)
+      for (let k = 12; k >= 0; k--) {
+        if (k === p1 || k === p2) continue;
+        PROD_TO_RANK.set(primes[p1]**2 * primes[p2]**2 * primes[k], tpStrength++);
+      }
+
+  // PAIR (2860): primary = pair rank desc, then kicker1 desc, kicker2 desc, kicker3 desc
+  for (let p = 12; p >= 0; p--)
+    for (let k1 = 12; k1 >= 0; k1--) {
+      if (k1 === p) continue;
+      for (let k2 = k1 - 1; k2 >= 0; k2--) {
+        if (k2 === p) continue;
+        for (let k3 = k2 - 1; k3 >= 0; k3--) {
+          if (k3 === p) continue;
+          PROD_TO_RANK.set(primes[p]**2 * primes[k1] * primes[k2] * primes[k3], prStrength++);
+        }
+      }
+    }
+
+  // HIGH CARD (1277): all 5-distinct-rank non-straight combos, highest card first
+  for (let a = 12; a >= 0; a--)
+    for (let b = a-1; b >= 0; b--)
+      for (let c = b-1; c >= 0; c--)
+        for (let d = c-1; d >= 0; d--)
+          for (let e = d-1; e >= 0; e--) {
+            const mask = (1<<a)|(1<<b)|(1<<c)|(1<<d)|(1<<e);
+            if (straights.has(mask)) continue;
+            PROD_TO_RANK.set(primes[a] * primes[b] * primes[c] * primes[d] * primes[e], hcStrength++);
+          }
 }
 
 buildLookupTables();
