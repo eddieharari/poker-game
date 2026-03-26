@@ -33,25 +33,75 @@ function useCountdown(deadline: number | null): number | null {
   return seconds;
 }
 
-// Card sizes
-const SM = { w: 36, h: 50 };  // hole cards (both phases)
-const LG = { w: 84, h: 117 }; // my dealt cards fan — 50% bigger
-// Community cards in scoring: up to 1.5× SM, calculated responsively at runtime
+// ─── Card sizes ───────────────────────────────────────────────────────────────
 
-// ─── Empty slot placeholder ───────────────────────────────────────────────────
+const LG = { w: 84, h: 117 }; // fan cards
 
-function EmptySlot({ width = 40, height = 56 }: { width?: number; height?: number }) {
-  return (
-    <div
-      style={{ width, height }}
-      className="rounded-lg border border-dashed border-white/20 bg-white/5 flex-shrink-0"
-    />
-  );
-}
+// ─── Face-down card ───────────────────────────────────────────────────────────
 
-// ─── FaceDown card using PlayingCard ─────────────────────────────────────────
+// const FACE_DOWN_CARD: Card = { rank: 'A', suit: 'spades', faceDown: true };
 
-const FACE_DOWN_CARD: Card = { rank: 'A', suit: 'spades', faceDown: true };
+// ─── Hand themes (one per flop) ───────────────────────────────────────────────
+
+const HAND_THEMES = [
+  {
+    label: 'BACK HAND',
+    glow: 'inset 0 0 24px rgba(57,255,20,0.45), 0 0 20px rgba(57,255,20,0.25)',
+    border: 'rgba(57,255,20,0.75)',
+    badgeCls: 'bg-blue-200 text-blue-800 border-blue-100',
+    commCls:  'border-blue-300 bg-blue-50/80',
+    mySlotCls:'border-blue-300 bg-blue-50/70 text-blue-400 hover:bg-blue-100',
+    oppSlotCls:'border-blue-200 bg-blue-50/40',
+  },
+  {
+    label: 'MIDDLE HAND',
+    glow: 'inset 0 0 24px rgba(255,0,255,0.45), 0 0 20px rgba(255,0,255,0.25)',
+    border: 'rgba(255,0,255,0.75)',
+    badgeCls: 'bg-purple-200 text-purple-800 border-purple-100',
+    commCls:  'border-purple-300 bg-purple-50/80',
+    mySlotCls:'border-purple-300 bg-purple-50/70 text-purple-400 hover:bg-purple-100',
+    oppSlotCls:'border-purple-200 bg-purple-50/40',
+  },
+  {
+    label: 'FRONT HAND',
+    glow: 'inset 0 0 24px rgba(0,255,255,0.45), 0 0 20px rgba(0,255,255,0.25)',
+    border: 'rgba(0,255,255,0.75)',
+    badgeCls: 'bg-green-200 text-green-800 border-green-100',
+    commCls:  'border-green-300 bg-green-50/80',
+    mySlotCls:'border-green-300 bg-green-50/70 text-green-400 hover:bg-green-100',
+    oppSlotCls:'border-green-200 bg-green-50/40',
+  },
+] as const;
+
+// ─── Arc fan offsets (pre-computed, scaled at render time) ────────────────────
+
+const FAN_OFFSETS = [
+  { x: -250, y: 28, r: -15 }, { x: -205, y: 18, r: -12 }, { x: -160, y: 10, r: -9 },
+  { x: -113, y:  5, r:  -6 }, { x:  -68, y:  1, r:  -3 }, { x:  -23, y:  0, r:   0 },
+  { x:   27, y:  0, r:   3 }, { x:   72, y:  1, r:   6 }, { x:  117, y:  5, r:   9 },
+  { x:  164, y: 10, r:  12 }, { x:  209, y: 18, r:  15 }, { x:  254, y: 28, r:  18 },
+];
+
+// ─── Inline CSS for animations + playful font ─────────────────────────────────
+
+const PZ_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
+  .pz-h { font-family: 'Fredoka One', cursive !important; }
+  @keyframes pzCloud {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 100% 100%; }
+  }
+  .pz-clouds {
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 10%),
+      radial-gradient(circle at 80% 20%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 15%),
+      radial-gradient(circle at 50% 80%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 20%);
+    background-size: 150% 150%;
+    animation: pzCloud 20s ease-in-out infinite alternate;
+  }
+  .pz-btn { transition: all 0.1s; position: relative; top: 0; }
+  .pz-btn:active { top: 4px; box-shadow: none !important; }
+`;
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -80,22 +130,24 @@ export function PazPazPage() {
   // Drag state
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
-  // Scoring reveal: which flop result is revealed (0 = none, 1/2/3 = flops revealed)
+  // Scoring reveal
   const [revealedFlops, setRevealedFlops] = useState(0);
 
-  // Card size for flop rows (full-width layout).
-  // Each flop section is full-width; we fit 5 community cards per row.
-  // Available inner width ≈ vw - outer padding (32) - section inner padding (16) - 4 card gaps (16)
+  // Responsive sizing
   const [vw, setVw] = useState(window.innerWidth);
   useEffect(() => {
     const onResize = () => setVw(window.innerWidth);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const commW = Math.max(SM.w, Math.floor((vw - 64) / 5));
-  const commH = Math.round(commW * (SM.h / SM.w));
 
-  const timerSeconds = useCountdown(gameState?.assignDeadline ?? null);
+  // Each panel gets 1/3 of width, min 240px; cards fill 5-per-row inside
+  const effectivePanelW = Math.max(240, Math.floor((vw - 32) / 3));
+  const cardW = Math.max(40, Math.floor((effectivePanelW - 32 - 4 * 4) / 5));
+  const cardH = Math.round(cardW * (50 / 36));
+  const fanScale = Math.min(1, (vw - 32) / 620);
+
+  const timerSeconds    = useCountdown(gameState?.assignDeadline  ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
 
   const playerIndex: 0 | 1 | null = gameState
@@ -104,54 +156,41 @@ export function PazPazPage() {
       : null
     : null;
 
-  const myPlayer = playerIndex !== null && gameState ? gameState.players[playerIndex] : null;
+  const myPlayer  = playerIndex !== null && gameState ? gameState.players[playerIndex] : null;
   const oppPlayer = playerIndex !== null && gameState ? gameState.players[playerIndex === 0 ? 1 : 0] : null;
 
-  // Init assignment array when cards arrive
+  // Init assignment array
   useEffect(() => {
     if (myPlayer && myPlayer.dealtCards.length === 12 && assignment.length !== 12) {
       setAssignment(new Array(12).fill(null));
     }
   }, [myPlayer?.dealtCards.length]);
 
-  // Deal animation: reveal cards one by one when they first arrive
+  // Deal animation
   useEffect(() => {
     const numCards = myPlayer?.dealtCards.length ?? 0;
     if (numCards === 0 || dealAnimStarted.current) return;
     dealAnimStarted.current = true;
-
     let count = 0;
     dealIntervalRef.current = setInterval(() => {
       count++;
       setDealtVisible(count);
       playDealSound();
       if (count >= numCards) {
-        if (dealIntervalRef.current) {
-          clearInterval(dealIntervalRef.current);
-          dealIntervalRef.current = null;
-        }
-      }
-    }, 500);
-
-    return () => {
-      if (dealIntervalRef.current) {
-        clearInterval(dealIntervalRef.current);
+        clearInterval(dealIntervalRef.current!);
         dealIntervalRef.current = null;
       }
+    }, 500);
+    return () => {
+      if (dealIntervalRef.current) { clearInterval(dealIntervalRef.current); dealIntervalRef.current = null; }
     };
   }, [myPlayer?.dealtCards.length]);
 
-  // Socket setup
+  // Socket
   useEffect(() => {
     if (!roomId) return;
     const socket = getSocket();
-
-    socket.on('pazpaz:state', (state) => {
-      setGameState(state);
-      setError(null);
-      retryRef.current = 0;
-    });
-
+    socket.on('pazpaz:state', (state) => { setGameState(state); setError(null); retryRef.current = 0; });
     socket.on('pazpaz:error', ({ message }) => {
       setError(message);
       if (message === 'Room not found' && retryRef.current < 5) {
@@ -160,16 +199,11 @@ export function PazPazPage() {
         setTimeout(() => socket.emit('pazpaz:join', { roomId }), 1000);
       }
     });
-
     socket.emit('pazpaz:join', { roomId });
-
-    return () => {
-      socket.off('pazpaz:state');
-      socket.off('pazpaz:error');
-    };
+    return () => { socket.off('pazpaz:state'); socket.off('pazpaz:error'); };
   }, [roomId]);
 
-  // Reveal animation when phase is SCORING
+  // Reveal animation
   useEffect(() => {
     if (gameState?.phase !== 'SCORING') { setRevealedFlops(0); return; }
     if (revealedFlops >= 3) return;
@@ -178,7 +212,7 @@ export function PazPazPage() {
     return () => clearTimeout(t);
   }, [gameState?.phase, revealedFlops]);
 
-  // Play win/lose sound once when all flops are revealed
+  // Win/lose sound
   const resultSoundPlayed = useRef(false);
   useEffect(() => {
     if (revealedFlops < 3 || resultSoundPlayed.current || !gameState) return;
@@ -186,18 +220,14 @@ export function PazPazPage() {
     const myIdx = gameState.players[0].id === profile?.id ? 0 : 1;
     const w = gameState.winner;
     if (w === 'draw' || w === null) return;
-    if (w === myIdx) playWinSound();
-    else playLoseSound();
+    if (w === myIdx) playWinSound(); else playLoseSound();
   }, [revealedFlops]);
 
-  // Send partial save whenever assignment changes
+  // Partial save
   useEffect(() => {
     if (!roomId || submitted || !gameState || gameState.phase !== 'ASSIGNING') return;
     const dealtCards = myPlayer?.dealtCards ?? [];
-    if (dealtCards.length === 0 || assignment.length === 0) return;
-    const someAssigned = assignment.some(a => a !== null);
-    if (!someAssigned) return;
-
+    if (dealtCards.length === 0 || assignment.length === 0 || !assignment.some(a => a !== null)) return;
     const hands: [Card[], Card[], Card[]] = [[], [], []];
     for (let i = 0; i < dealtCards.length; i++) {
       const fi = assignment[i];
@@ -208,15 +238,16 @@ export function PazPazPage() {
 
   if (!roomId || !profile) return <Navigate to="/lobby" replace />;
 
-  // Loading / error state
   if (!gameState) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="text-center space-y-3">
-          <div className="text-5xl animate-bounce">🃏</div>
-          <p className="text-white/50">Connecting to game…</p>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {retryCount > 0 && <p className="text-white/30 text-xs">Retrying… ({retryCount}/5)</p>}
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}>
+        <style>{PZ_STYLES}</style>
+        <div className="text-center space-y-3 bg-white/70 backdrop-blur-md p-10 rounded-3xl border-2 border-white shadow-xl">
+          <div className="text-6xl animate-bounce">🃏</div>
+          <p className="pz-h text-2xl text-blue-600">Connecting…</p>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {retryCount > 0 && <p className="text-gray-400 text-xs">Retrying… ({retryCount}/5)</p>}
         </div>
       </div>
     );
@@ -231,10 +262,9 @@ export function PazPazPage() {
     navigate('/lobby', { replace: true });
   }
 
-  // ── ASSIGNING phase helpers ─────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
   const dealtCards = myPlayer?.dealtCards ?? [];
 
-  // Sorted display indices (plain computation — no useMemo to avoid hooks-after-return violation)
   const displayOrder = (() => {
     const indices = Array.from({ length: dealtCards.length }, (_, i) => i);
     if (isSorted && dealtCards.length > 0) {
@@ -246,12 +276,10 @@ export function PazPazPage() {
   const assignmentByFlop: Card[][] = [[], [], []];
   for (let i = 0; i < dealtCards.length; i++) {
     const fi = assignment[i];
-    if (fi !== null && fi !== undefined) {
-      assignmentByFlop[fi].push(dealtCards[i]);
-    }
+    if (fi !== null && fi !== undefined) assignmentByFlop[fi].push(dealtCards[i]);
   }
-  const allAssigned = assignment.length === 12 && assignment.every(a => a !== null);
-  const iHaveSubmitted = submitted || (myPlayer?.hasSubmitted ?? false);
+  const allAssigned     = assignment.length === 12 && assignment.every(a => a !== null);
+  const iHaveSubmitted  = submitted || (myPlayer?.hasSubmitted ?? false);
   const oppHasSubmitted = oppPlayer?.hasSubmitted ?? false;
 
   function handleCardClick(cardIdx: number) {
@@ -267,7 +295,7 @@ export function PazPazPage() {
   function handleFlopDrop(flopIdx: 0 | 1 | 2, cardIdx: number) {
     if (iHaveSubmitted || isScoringPhase) return;
     if (assignmentByFlop[flopIdx].length >= 4) return;
-    if (assignment[cardIdx] !== null && assignment[cardIdx] !== undefined) return; // already assigned elsewhere
+    if (assignment[cardIdx] !== null && assignment[cardIdx] !== undefined) return;
     setAssignment(prev => { const n = [...prev]; n[cardIdx] = flopIdx; return n; });
     setSelectedCardIdx(null);
   }
@@ -290,12 +318,12 @@ export function PazPazPage() {
     setSubmitted(true);
   }
 
-  // ── Scoring result helpers ─────────────────────────────────────────────────
+  // Scoring helpers
   const allFlopResults = isScoringPhase ? (gameState.flopResults ?? []) : [];
-  const allRevealed = revealedFlops >= 3;
-  const winner = gameState.winner;
-  const iWon = winner === playerIndex;
-  const isDraw = winner === 'draw';
+  const allRevealed    = revealedFlops >= 3;
+  const winner         = gameState.winner;
+  const iWon           = winner === playerIndex;
+  const isDraw         = winner === 'draw';
 
   function getOppScoringCards(flopIdx: number): Card[] {
     if (!isScoringPhase || flopIdx >= revealedFlops) return [];
@@ -304,351 +332,363 @@ export function PazPazPage() {
     return playerIndex === 0 ? result.player1Hole : result.player0Hole;
   }
 
-  function getCommunityCards(flopIdx: number): { cards: Card[]; hasAll: boolean } {
-    if (isScoringPhase && allFlopResults[flopIdx]) {
-      return { cards: allFlopResults[flopIdx].communityCards, hasAll: true };
-    }
-    return { cards: gameState!.flops[flopIdx], hasAll: false };
+  function getCommunityCards(flopIdx: number): Card[] {
+    if (isScoringPhase && allFlopResults[flopIdx]) return allFlopResults[flopIdx].communityCards;
+    return gameState!.flops[flopIdx];
   }
 
-  // ─── Arc fan display ─────────────────────────────────────────────────────
-  // Cards visible so far (deal animation) but also respect display order
-  const visibleCards = displayOrder.slice(0, dealtVisible).map(idx => ({ idx, card: dealtCards[idx] }));
-  const numVisible = visibleCards.length;
-  const fanTotalAngle = 50; // degrees
-  const cardStep = 48; // horizontal pixels per card step (scaled with LG)
-  const fanContainerW = Math.max(LG.w, (numVisible - 1) * cardStep + LG.w);
-  const fanContainerH = LG.h + 36;
+  // Fan
+  const visibleCards  = displayOrder.slice(0, dealtVisible).map(idx => ({ idx, card: dealtCards[idx] }));
+  const fanW          = Math.max(LG.w, 520 * fanScale + LG.w);
+  const fanH          = LG.h + 44;
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden relative"
-      style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
+      className="w-full h-screen relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)', fontFamily: "'Nunito', sans-serif" }}
     >
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className={`flex-shrink-0 backdrop-blur-sm border-b px-4 flex items-center justify-between gap-4 transition-colors
-        ${isScoringPhase && allRevealed
-          ? isDraw
-            ? 'bg-yellow-900/60 border-yellow-500/30 py-3'
-            : iWon
-              ? 'bg-green-900/60 border-green-500/30 py-3'
-              : 'bg-red-900/60 border-red-500/30 py-3'
-          : 'bg-black/70 border-white/10 py-2'}`}
-      >
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <h1 className="font-display text-lg text-gold">PAZPAZ</h1>
-          {!isScoringPhase && (
-            <span className="text-xs text-white/50 bg-black/30 px-2 py-1 rounded-full">Assigning</span>
-          )}
-        </div>
+      <style>{PZ_STYLES}</style>
+      <div className="pz-clouds absolute inset-0 z-0 pointer-events-none" />
 
-        {/* Center */}
-        <div className="flex items-center gap-3 min-w-0">
-          {isScoringPhase ? (
-            allRevealed ? (
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
-                <div>
-                  <div className={`font-display text-2xl font-black leading-none ${isDraw ? 'text-yellow-400' : iWon ? 'text-green-400' : 'text-red-400'}`}>
-                    {isDraw ? 'DRAW' : iWon ? 'YOU WIN!' : 'YOU LOSE'}
-                  </div>
-                  {gameState.stake != null && (
-                    <div className={`text-sm font-bold mt-0.5 ${isDraw ? 'text-white/50' : iWon ? 'text-green-300' : 'text-red-300'}`}>
-                      {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-white/50 text-sm animate-pulse">Revealing results…</span>
-                <button onClick={() => setRevealedFlops(3)} className="btn-ghost text-xs px-2 py-1">Skip</button>
-              </div>
-            )
-          ) : (
-            timerSeconds !== null && (
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border font-bold tabular-nums text-sm ${
-                timerSeconds <= 30 ? 'text-red-400 border-red-500/40 bg-red-500/10 animate-pulse' : 'text-white/70 border-white/20'
-              }`}>
-                ⏱ {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-              </div>
-            )
-          )}
-        </div>
-
-        {/* Right: back button or player status */}
-        {isScoringPhase ? (
-          <button onClick={goToLobby} className="btn-primary px-4 py-1.5 text-sm flex-shrink-0">
-            Back to Lobby
+      {/* ── Floating top-left: back to lobby ──────────────────────────────── */}
+      {!isScoringPhase && (
+        <div className="absolute top-4 left-4 z-50">
+          <button
+            onClick={goToLobby}
+            className="pz-btn flex items-center gap-2 bg-white text-red-500 px-4 py-2 rounded-2xl font-bold text-sm shadow-[0_4px_0_#d1d5db] border-2 border-gray-100 hover:bg-gray-50"
+          >
+            ← Lobby
           </button>
-        ) : (
-          <div className="flex items-center gap-3 text-xs flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              {myPlayer?.avatarUrl && <img src={myPlayer.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-gold/50" />}
-              <span className="font-semibold text-white/80">{myPlayer?.name}</span>
-              {iHaveSubmitted ? <span className="text-green-400">✓</span> : <span className="text-white/30">…</span>}
-            </div>
-            <span className="text-white/20">vs</span>
-            <div className="flex items-center gap-1.5">
-              {oppPlayer?.avatarUrl && <img src={oppPlayer.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-white/20" />}
-              <span className="text-white/60">{oppPlayer?.name}</span>
-              {oppHasSubmitted ? <span className="text-green-400">✓</span> : <span className="text-white/30">…</span>}
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* Error banner */}
-      {error && error !== 'Room not found' && (
-        <div className="flex-shrink-0 bg-red-500/20 border-b border-red-500/30 px-4 py-1 text-red-300 text-xs text-center">{error}</div>
+        </div>
       )}
 
-      {/* ── Main board ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden p-2 gap-2 min-h-0">
-
-        {/* 3 Flop rows — vertical stack, scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
-          {([0, 1, 2] as const).map(flopIdx => {
-            const result = allFlopResults[flopIdx];
-            const isRevealed = flopIdx < revealedFlops;
-            const oppCards = getOppScoringCards(flopIdx);
-            const myFlopCards = isScoringPhase
-              ? (playerIndex === 0 ? result?.player0Hole : result?.player1Hole) ?? assignmentByFlop[flopIdx]
-              : assignmentByFlop[flopIdx];
-            const { cards: communityCards, hasAll } = getCommunityCards(flopIdx);
-
-            const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
-
-            const flopWinnerLabel = isRevealed && result
-              ? result.winner === playerIndex ? 'WIN'
-                : result.winner === 'draw' ? 'DRAW'
-                : 'LOSE'
-              : null;
-            const flopWinnerColor = flopWinnerLabel === 'WIN' ? 'text-green-400'
-              : flopWinnerLabel === 'DRAW' ? 'text-yellow-400'
-              : 'text-red-500';
-
-            const oppUsedHole = isScoringPhase && isRevealed && result
-              ? (playerIndex === 0 ? result.player1UsedHole : result.player0UsedHole)
-              : [];
-            const myUsedHole = isScoringPhase && isRevealed && result
-              ? (playerIndex === 0 ? result.player0UsedHole : result.player1UsedHole)
-              : [];
-
-            return (
-              <div
-                key={flopIdx}
-                onClick={isActive ? () => handleFlopClick(flopIdx) : undefined}
-                onDragOver={(!iHaveSubmitted && !isScoringPhase && assignmentByFlop[flopIdx].length < 4) ? (e) => e.preventDefault() : undefined}
-                onDrop={(!iHaveSubmitted && !isScoringPhase) ? (e) => {
-                  e.preventDefault();
-                  const idxStr = e.dataTransfer.getData('cardIndex');
-                  if (idxStr !== '') handleFlopDrop(flopIdx, parseInt(idxStr));
-                } : undefined}
-                className={`flex-shrink-0 bg-black/40 rounded-xl p-2 border transition-all
-                  ${isActive ? 'border-gold/60 bg-gold/5 cursor-pointer hover:border-gold shadow-lg shadow-gold/10' : 'border-white/10'}
-                  ${isScoringPhase && isRevealed && result
-                    ? result.winner === playerIndex ? 'border-green-500/40 bg-green-500/5'
-                      : result.winner === 'draw' ? 'border-yellow-500/30'
-                      : 'border-red-500/30 bg-red-500/5'
-                    : ''}`}
-              >
-                {/* Row header */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">Flop {flopIdx + 1}</span>
-                    {!isScoringPhase && (
-                      <span className="text-white/30 text-[10px]">{assignmentByFlop[flopIdx].length}/4 assigned</span>
-                    )}
-                  </div>
-                  {isScoringPhase && flopWinnerLabel && (
-                    <span className={`font-black text-xl tracking-widest ${flopWinnerColor}`}>{flopWinnerLabel}</span>
-                  )}
-                </div>
-
-                {/* Opponent hole cards */}
-                <div className="mb-1.5">
-                  <p className="text-[10px] text-white/30 mb-1">{oppPlayer?.name ?? 'Opponent'}</p>
-                  <div className="flex gap-1 items-center">
-                    {[0, 1, 2, 3].map(s => {
-                      const card = oppCards[s];
-                      const isUsed = card && oppUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
-                      return card ? (
-                        <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-sm' : ''}>
-                          <PlayingCard card={card} width={commW} height={commH} />
-                        </div>
-                      ) : (
-                        <PlayingCard key={s} card={FACE_DOWN_CARD} width={commW} height={commH} />
-                      );
-                    })}
-                    {isScoringPhase && isRevealed && result && (
-                      <span className="ml-2 text-xs text-white/60 font-semibold">
-                        {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Community board: flop (3) + turn/river (2) */}
-                <div className="mb-1.5">
-                  <p className="text-[9px] text-white/40 mb-1">Board</p>
-                  <div className="flex gap-1 mb-1">
-                    {communityCards.slice(0, 3).map((card, i) => (
-                      <PlayingCard key={i} card={card} width={commW} height={commH} />
-                    ))}
-                  </div>
-                  <div className="flex gap-1">
-                    {hasAll ? (
-                      <>
-                        <PlayingCard card={communityCards[3]} width={commW} height={commH} />
-                        <PlayingCard card={communityCards[4]} width={commW} height={commH} />
-                      </>
-                    ) : (
-                      <>
-                        <EmptySlot width={commW} height={commH} />
-                        <EmptySlot width={commW} height={commH} />
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* My hole cards */}
-                <div>
-                  <p className="text-[10px] text-gold/70 mb-1">
-                    You {!isScoringPhase ? `(${assignmentByFlop[flopIdx].length}/4)` : ''}
-                  </p>
-                  <div className="flex gap-1 items-center">
-                    {[0, 1, 2, 3].map(s => {
-                      const card = myFlopCards[s];
-                      const isUsed = card && myUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
-                      return card ? (
-                        <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-sm' : ''}>
-                          <PlayingCard card={card} width={commW} height={commH} />
-                        </div>
-                      ) : (
-                        <EmptySlot key={s} width={commW} height={commH} />
-                      );
-                    })}
-                    {isScoringPhase && isRevealed && result && (
-                      <span className="ml-2 text-xs text-gold font-bold">
-                        {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── Floating top-center: opponent info ────────────────────────────── */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
+        <div className="flex items-center gap-3 bg-white/85 backdrop-blur-md px-4 py-2 rounded-full border-2 border-white shadow-md">
+          {oppPlayer?.avatarUrl
+            ? <img src={oppPlayer.avatarUrl} className="w-9 h-9 rounded-full border-2 border-blue-300 object-cover" alt="" />
+            : <div className="w-9 h-9 rounded-full border-2 border-blue-300 bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-bold">{oppPlayer?.name?.[0] ?? '?'}</div>
+          }
+          <div>
+            <div className="pz-h text-blue-700 text-base leading-tight">{oppPlayer?.name ?? 'Opponent'}</div>
+            <div className="text-[11px] text-gray-500 font-semibold">
+              {oppHasSubmitted ? '✅ Ready' : '🤔 Thinking…'}
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* My 12 dealt cards - arc/fan display (only shown during ASSIGNING) */}
-        {!isScoringPhase && (
-          <div className="flex-shrink-0 bg-black/50 rounded-xl px-3 py-2 border border-white/10">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-white/60 text-xs font-semibold uppercase tracking-wider">Your Cards</p>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40">{assignment.filter(a => a !== null).length}/12</span>
-                {!iHaveSubmitted && dealtVisible >= 12 && (
-                  <button
-                    onClick={() => setIsSorted(s => !s)}
-                    className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                      isSorted ? 'border-gold/60 text-gold bg-gold/10' : 'border-white/20 text-white/50 hover:border-white/40'
-                    }`}
-                  >
-                    {isSorted ? '🂠 Sorted' : '🂠 Sort'}
-                  </button>
-                )}
+      {/* ── Floating top-right: timer / result ────────────────────────────── */}
+      <div className="absolute top-4 right-4 z-50">
+        {isScoringPhase && allRevealed ? (
+          <div className={`px-5 py-2 rounded-2xl border-4 text-white shadow-[0_4px_0_rgba(0,0,0,0.2)] text-center
+            ${isDraw ? 'bg-yellow-400 border-yellow-300' : iWon ? 'bg-green-500 border-green-400' : 'bg-red-500 border-red-400'}`}>
+            <div className="pz-h text-2xl leading-tight">
+              {isDraw ? '🤝 DRAW' : iWon ? '🏆 YOU WIN!' : '😞 YOU LOSE'}
+            </div>
+            {gameState.stake != null && (
+              <div className="text-sm font-bold opacity-90">
+                {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
               </div>
+            )}
+          </div>
+        ) : isScoringPhase ? (
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full border-2 border-white shadow-md">
+            <span className="text-gray-500 text-sm font-semibold animate-pulse">Revealing…</span>
+            <button onClick={() => setRevealedFlops(3)} className="text-xs text-blue-500 underline font-bold">Skip</button>
+          </div>
+        ) : timerSeconds !== null ? (
+          <div className={`flex items-center gap-2 bg-white px-5 py-2 rounded-full border-4 shadow-[0_4px_0_#d1d5db]
+            ${timerSeconds <= 30 ? 'border-red-400 text-red-500 animate-pulse' : 'border-gray-200 text-gray-700'}`}>
+            <span className="text-lg">⏱</span>
+            <span className="pz-h text-2xl tabular-nums">
+              {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Main: 3 connected panels ──────────────────────────────────────── */}
+      <main className="absolute inset-0 flex items-center justify-center pt-20 pb-40 px-2 overflow-hidden">
+        <div className="flex items-stretch h-full max-h-[520px] overflow-x-auto w-full max-w-[1400px]">
+          <div className="flex flex-row items-stretch mx-auto flex-shrink-0">
+            {([0, 1, 2] as const).map(flopIdx => {
+              const theme      = HAND_THEMES[flopIdx];
+              const result     = allFlopResults[flopIdx];
+              const isRevealed = flopIdx < revealedFlops;
+              const oppCards   = getOppScoringCards(flopIdx);
+              const myFlopCards = isScoringPhase
+                ? (playerIndex === 0 ? result?.player0Hole : result?.player1Hole) ?? assignmentByFlop[flopIdx]
+                : assignmentByFlop[flopIdx];
+              const communityCards = getCommunityCards(flopIdx);
+              const hasAll = isScoringPhase && !!allFlopResults[flopIdx];
+
+              const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
+
+              const flopResult = isRevealed && result
+                ? result.winner === playerIndex ? 'WIN' : result.winner === 'draw' ? 'DRAW' : 'LOSE'
+                : null;
+
+              const oppUsedHole = isScoringPhase && isRevealed && result
+                ? (playerIndex === 0 ? result.player1UsedHole : result.player0UsedHole) : [];
+              const myUsedHole = isScoringPhase && isRevealed && result
+                ? (playerIndex === 0 ? result.player0UsedHole : result.player1UsedHole) : [];
+
+              // Badge: result during scoring, hand label otherwise
+              const badge = flopResult === 'WIN'
+                ? { cls: 'bg-green-400 text-white border-green-300', text: '🏆 WIN' }
+                : flopResult === 'LOSE'
+                ? { cls: 'bg-red-400 text-white border-red-300', text: '😞 LOSE' }
+                : flopResult === 'DRAW'
+                ? { cls: 'bg-yellow-400 text-white border-yellow-300', text: '🤝 DRAW' }
+                : { cls: theme.badgeCls, text: theme.label };
+
+              const rounding = flopIdx === 0 ? 'rounded-l-[2rem]' : flopIdx === 2 ? 'rounded-r-[2rem]' : '';
+              const borderSide = flopIdx === 0 ? 'border-r-0' : flopIdx === 2 ? 'border-l-0' : '';
+
+              return (
+                <div
+                  key={flopIdx}
+                  onClick={isActive ? () => handleFlopClick(flopIdx) : undefined}
+                  onDragOver={(!iHaveSubmitted && !isScoringPhase && assignmentByFlop[flopIdx].length < 4) ? e => e.preventDefault() : undefined}
+                  onDrop={(!iHaveSubmitted && !isScoringPhase) ? e => {
+                    e.preventDefault();
+                    const s = e.dataTransfer.getData('cardIndex');
+                    if (s !== '') handleFlopDrop(flopIdx, parseInt(s));
+                  } : undefined}
+                  className={`relative flex flex-col items-center gap-3 bg-white/40 backdrop-blur-md border-4 p-4 pt-6 flex-1 transition-transform
+                    ${rounding} ${borderSide}
+                    ${isActive ? 'cursor-pointer scale-[1.02]' : 'hover:scale-[1.005]'}`}
+                  style={{
+                    boxShadow: theme.glow,
+                    borderColor: theme.border,
+                    minWidth: `${effectivePanelW}px`,
+                  }}
+                >
+                  {/* Floating badge */}
+                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pz-h text-sm border-2 shadow-sm whitespace-nowrap z-10 ${badge.cls}`}>
+                    {badge.text}
+                  </div>
+
+                  {/* Opponent row */}
+                  <div className="w-full">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mb-1 text-center">{oppPlayer?.name ?? 'Opponent'}</p>
+                    <div className="flex gap-1 justify-center">
+                      {[0, 1, 2, 3].map(s => {
+                        const card   = oppCards[s];
+                        const isUsed = card && oppUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
+                        return card ? (
+                          <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-xl' : ''}>
+                            <PlayingCard card={card} width={cardW} height={cardH} />
+                          </div>
+                        ) : (
+                          <div key={s}
+                            className={`rounded-xl border-2 border-dashed flex-shrink-0 opacity-60 ${theme.oppSlotCls}`}
+                            style={{ width: cardW, height: cardH }}
+                          />
+                        );
+                      })}
+                    </div>
+                    {isScoringPhase && isRevealed && result && (
+                      <p className="text-[11px] text-gray-600 font-bold text-center mt-1">
+                        {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Community board */}
+                  <div className="w-full bg-white/75 p-2 rounded-2xl border-2 border-white shadow-inner">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide text-center mb-1.5">Board</p>
+                    {/* Flop: 3 cards */}
+                    <div className="flex gap-1 justify-center mb-1">
+                      {[0, 1, 2].map(i => {
+                        const card = communityCards[i];
+                        return card
+                          ? <PlayingCard key={i} card={card} width={cardW} height={cardH} />
+                          : <div key={i} className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />;
+                      })}
+                    </div>
+                    {/* Turn + River */}
+                    <div className="flex gap-1 justify-center">
+                      {hasAll ? (
+                        <>
+                          <PlayingCard card={communityCards[3]} width={cardW} height={cardH} />
+                          <PlayingCard card={communityCards[4]} width={cardW} height={cardH} />
+                        </>
+                      ) : (
+                        <>
+                          <div className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />
+                          <div className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* My row */}
+                  <div className="w-full">
+                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wide mb-1 text-center">
+                      You {!isScoringPhase ? `(${assignmentByFlop[flopIdx].length}/4)` : ''}
+                    </p>
+                    <div className="flex gap-1 justify-center">
+                      {[0, 1, 2, 3].map(s => {
+                        const card   = myFlopCards[s];
+                        const isUsed = card && myUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
+                        return card ? (
+                          <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-xl' : ''}>
+                            <PlayingCard card={card} width={cardW} height={cardH} />
+                          </div>
+                        ) : (
+                          <div key={s}
+                            className={`rounded-xl border-2 border-dashed flex items-center justify-center flex-shrink-0 transition cursor-pointer ${theme.mySlotCls}`}
+                            style={{ width: cardW, height: cardH }}
+                          >
+                            {!iHaveSubmitted && !isScoringPhase && (
+                              <span className="text-2xl font-black leading-none select-none">+</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {isScoringPhase && isRevealed && result && (
+                      <p className="pz-h text-sm text-blue-700 text-center mt-1">
+                        {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </main>
+
+      {/* ── Bottom-center: YOUR HAND arc fan (ASSIGNING only) ─────────────── */}
+      {!isScoringPhase && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
+          <div className="relative bg-white/55 backdrop-blur-xl px-6 pt-8 pb-3 rounded-[2.5rem] border-4 border-white/70 shadow-[0_15px_40px_rgba(0,0,0,0.08)]">
+            {/* Badge */}
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-1.5 rounded-full pz-h text-sm tracking-wider whitespace-nowrap z-10">
+              YOUR HAND · {assignment.filter(a => a !== null).length}/12
             </div>
 
+            {/* Hint */}
             {!iHaveSubmitted && (
-              <p className="text-white/40 text-xs text-center mb-2">
-                {selectedCardIdx !== null ? '👆 Click a flop or drag card there' : 'Click or drag a card to assign it'}
+              <p className="text-center text-gray-500 text-xs font-semibold mb-2">
+                {selectedCardIdx !== null ? '👆 Click a hand or drag' : 'Click or drag cards to assign'}
               </p>
             )}
 
-            {/* Arc/fan layout */}
-            <div className="relative overflow-visible mx-auto" style={{ width: fanContainerW, height: fanContainerH }}>
+            {/* Arc fan */}
+            <div className="relative overflow-visible mx-auto" style={{ width: fanW, height: fanH }}>
               {visibleCards.map(({ idx, card }, displayPos) => {
-                const angle = numVisible > 1
-                  ? (displayPos / (numVisible - 1) - 0.5) * fanTotalAngle
-                  : 0;
-                const x = displayPos * cardStep;
+                const off = FAN_OFFSETS[displayPos] ?? { x: 0, y: 0, r: 0 };
                 const fi = assignment[idx];
                 const flopAssigned = fi !== null && fi !== undefined ? fi : undefined;
-                const isSelected = selectedCardIdx === idx;
+                const isSelected   = selectedCardIdx === idx;
 
                 return (
                   <div
                     key={idx}
                     style={{
                       position: 'absolute',
-                      left: x,
+                      left: '50%',
                       bottom: 0,
                       width: LG.w,
+                      marginLeft: -LG.w / 2,
+                      transform: `rotate(${off.r}deg) translate(${off.x * fanScale}px, ${off.y * fanScale}px)${isSelected ? ' translateY(-14px) scale(1.1)' : ''}`,
                       transformOrigin: 'bottom center',
-                      transform: `rotate(${angle}deg) ${isSelected ? 'translateY(-12px) scale(1.08)' : ''}`,
                       zIndex: isSelected ? 50 : displayPos + 1,
                       transition: 'transform 0.15s ease',
                     }}
                     className={!iHaveSubmitted ? 'cursor-pointer' : ''}
                     onClick={!iHaveSubmitted ? () => handleCardClick(idx) : undefined}
                     draggable={!iHaveSubmitted && flopAssigned === undefined}
-                    onDragStart={!iHaveSubmitted && flopAssigned === undefined ? (e) => {
+                    onDragStart={!iHaveSubmitted && flopAssigned === undefined ? e => {
                       e.dataTransfer.setData('cardIndex', String(idx));
                       setDraggedIdx(idx);
                       setSelectedCardIdx(null);
                     } : undefined}
                     onDragEnd={() => setDraggedIdx(null)}
                   >
-                    <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-gold ring-offset-1 ring-offset-black rounded-lg' : ''}`}>
+                    <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent rounded-xl' : ''}`}>
                       <PlayingCard card={card} width={LG.w} height={LG.h} />
                     </div>
                     {flopAssigned !== undefined && (
-                      <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gold text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
                         F{flopAssigned + 1}
                       </span>
                     )}
-                    {draggedIdx === idx && (
-                      <div className="absolute inset-0 rounded-lg bg-black/30" />
-                    )}
+                    {draggedIdx === idx && <div className="absolute inset-0 rounded-xl bg-black/20" />}
                   </div>
                 );
               })}
             </div>
+
+            {/* Controls below fan */}
+            <div className="flex gap-2 justify-center mt-3 bg-white/50 p-1.5 rounded-full border border-white/60 w-fit mx-auto">
+              {!iHaveSubmitted && (
+                <button
+                  onClick={() => setIsSorted(s => !s)}
+                  className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-gray-50"
+                >
+                  ↕ {isSorted ? 'Sorted' : 'Sort'}
+                </button>
+              )}
+              {oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
+                <div className={`px-4 py-1.5 rounded-[1.5rem] font-bold text-sm ${pressureSeconds <= 30 ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-yellow-100 text-yellow-700'}`}>
+                  ⚡ {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-      {/* Submit / waiting / pressure timer / back to lobby */}
-        <div className="flex-shrink-0 flex flex-col items-center gap-2 pb-1">
-          {/* Pressure timer: show when opponent submitted but I haven't */}
-          {!isScoringPhase && oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
-            <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border font-bold tabular-nums text-sm ${
-              pressureSeconds <= 30 ? 'text-red-400 border-red-500/40 bg-red-500/10 animate-pulse' : 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10'
-            }`}>
-              ⚡ Submit in {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
-            </div>
-          )}
-
-          {isScoringPhase ? null : iHaveSubmitted ? (
-            <div className="text-center space-y-1">
-              <p className="text-green-400 font-semibold text-sm">Assignment submitted!</p>
-              <p className="text-white/40 text-xs">
-                {oppHasSubmitted ? 'Both submitted — revealing…' : 'Waiting for opponent…'}
-              </p>
-            </div>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={!allAssigned}
-              className="btn-primary px-8 py-2.5 text-base disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Submit Assignment
-            </button>
-          )}
+      {/* ── Bottom-left: player info ───────────────────────────────────────── */}
+      <div className="absolute bottom-4 left-4 z-50">
+        <div className="flex items-center gap-3 bg-white/95 backdrop-blur-xl p-2 pr-5 rounded-[2rem] shadow-[0_8px_20px_rgba(0,0,0,0.07)] border border-white/80">
+          {myPlayer?.avatarUrl
+            ? <img src={myPlayer.avatarUrl} className="w-11 h-11 rounded-full border-2 border-gray-700 object-cover" alt="" />
+            : <div className="w-11 h-11 rounded-full border-2 border-gray-700 bg-gray-200 flex items-center justify-center text-gray-600 font-bold">{myPlayer?.name?.[0] ?? 'Y'}</div>
+          }
+          <div>
+            <div className="pz-h text-gray-900 text-base leading-tight">{myPlayer?.name ?? 'You'}</div>
+            <div className="text-xs text-gray-500 font-semibold">{iHaveSubmitted ? '✅ Submitted' : '🃏 Assigning…'}</div>
+          </div>
         </div>
       </div>
+
+      {/* ── Bottom-right: confirm / back ───────────────────────────────────── */}
+      <div className="absolute bottom-4 right-4 z-50">
+        {isScoringPhase ? (
+          <button
+            onClick={goToLobby}
+            className="pz-btn px-6 py-3 rounded-2xl bg-blue-500 text-white pz-h text-xl shadow-[0_6px_0_#2563eb] hover:bg-blue-400 border-2 border-blue-400 flex items-center gap-2"
+          >
+            ← Back to Lobby
+          </button>
+        ) : iHaveSubmitted ? (
+          <div className="px-5 py-3 rounded-2xl bg-green-100 text-green-700 pz-h text-lg border-2 border-green-200 shadow-sm">
+            {oppHasSubmitted ? '🎯 Revealing…' : '⏳ Waiting for opponent'}
+          </div>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!allAssigned}
+            className="pz-btn px-7 py-3 rounded-2xl bg-green-500 text-white pz-h text-xl shadow-[0_6px_0_#059669] hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed border-2 border-green-400 flex items-center gap-2"
+          >
+            ✓ Confirm Hand
+          </button>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && error !== 'Room not found' && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-6 py-2 rounded-full text-sm font-semibold shadow">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
