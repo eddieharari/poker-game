@@ -7,6 +7,7 @@ import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
 import { registerPazPazHandlers } from './pazpaz.js';
 import { roomService } from '../services/roomService.js';
+import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { log } from '../logger.js';
 
 // Changes on every server restart — clients detect a new bootId and re-authenticate
@@ -50,6 +51,20 @@ export function createSocketServer(httpServer: HttpServer): Server {
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
 
+        // If player has an active Poker5O game, push them back to it
+        roomService.findByPlayerId(playerId).then((room) => {
+          if (room && room.status === 'active') {
+            socket.emit('game:rejoin_required', { roomId: room.roomId });
+          }
+        });
+
+        // If player has an active PazPaz game, push them back to it
+        pazpazRoomService.findByPlayerId(playerId).then((pazpazRoom) => {
+          if (pazpazRoom && pazpazRoom.status === 'active') {
+            socket.emit('pazpaz:rejoin_required', { roomId: pazpazRoom.roomId });
+          }
+        });
+
         socket.on('disconnect', (reason) => {
           log('PLAYER_LOGOUT', { playerId, nickname, reason });
         });
@@ -65,10 +80,17 @@ export function createSocketServer(httpServer: HttpServer): Server {
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
 
-    // If player has an active game, push them back to it
+    // If player has an active Poker5O game, push them back to it
     roomService.findByPlayerId(playerId).then((room) => {
       if (room && room.status === 'active') {
         socket.emit('game:rejoin_required', { roomId: room.roomId });
+      }
+    });
+
+    // If player has an active PazPaz game, push them back to it
+    pazpazRoomService.findByPlayerId(playerId).then((pazpazRoom) => {
+      if (pazpazRoom && pazpazRoom.status === 'active') {
+        socket.emit('pazpaz:rejoin_required', { roomId: pazpazRoom.roomId });
       }
     });
 
