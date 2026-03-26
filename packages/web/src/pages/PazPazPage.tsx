@@ -34,9 +34,9 @@ function useCountdown(deadline: number | null): number | null {
 }
 
 // Card sizes
-const SM = { w: 36, h: 50 };    // community + flop hand slots (ASSIGNING)
-const SCORE = { w: 90, h: 125 }; // flop cards during SCORING (2.5× SM)
-const LG = { w: 56, h: 78 };    // my dealt cards (fan)
+const SM = { w: 36, h: 50 };  // hole cards (both phases)
+const LG = { w: 56, h: 78 };  // my dealt cards (fan)
+// Community cards in scoring: up to 1.5× SM, calculated responsively at runtime
 
 // ─── Empty slot placeholder ───────────────────────────────────────────────────
 
@@ -82,6 +82,19 @@ export function PazPazPage() {
 
   // Scoring reveal: which flop result is revealed (0 = none, 1/2/3 = flops revealed)
   const [revealedFlops, setRevealedFlops] = useState(0);
+
+  // Responsive community card size: up to 1.5× SM, scales to fit 3 columns on screen
+  const [vw, setVw] = useState(window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  // Available column width ≈ 1/3 of viewport minus outer padding + gaps
+  const colAvailW = Math.floor((vw - 24) / 3) - 12;
+  // Fit 4 community cards per row with gaps; cap at 1.5× SM.w
+  const commW = Math.max(SM.w, Math.min(Math.round(SM.w * 1.5), Math.floor((colAvailW - 12) / 4)));
+  const commH = Math.round(commW * SM.h / SM.w);
 
   const timerSeconds = useCountdown(gameState?.assignDeadline ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
@@ -381,8 +394,8 @@ export function PazPazPage() {
         </div>
 
         {/* 3 Flop columns */}
-        <div className={`flex-1 min-h-0 ${isScoringPhase ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}`}>
-          <div className={`h-full ${isScoringPhase ? 'flex gap-3 px-1' : 'grid grid-cols-3 gap-2'}`}>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="h-full grid grid-cols-3 gap-2">
           {([0, 1, 2] as const).map(flopIdx => {
             const result = allFlopResults[flopIdx];
             const isRevealed = flopIdx < revealedFlops;
@@ -393,8 +406,10 @@ export function PazPazPage() {
             const { cards: communityCards, hasAll } = getCommunityCards(flopIdx);
 
             const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
-            const cardW = isScoringPhase ? SCORE.w : SM.w;
-            const cardH = isScoringPhase ? SCORE.h : SM.h;
+
+            // Community cards use responsive size in scoring; hole cards always SM
+            const boardW = isScoringPhase ? commW : SM.w;
+            const boardH = isScoringPhase ? commH : SM.h;
 
             // Per-flop winner from this player's perspective
             const flopWinnerLabel = isRevealed && result
@@ -417,64 +432,58 @@ export function PazPazPage() {
                   const idxStr = e.dataTransfer.getData('cardIndex');
                   if (idxStr !== '') handleFlopDrop(flopIdx, parseInt(idxStr));
                 } : undefined}
-                style={isScoringPhase ? { minWidth: cardW * 4 + 40, flexShrink: 0 } : undefined}
                 className={`bg-black/40 rounded-xl p-1.5 border transition-all flex flex-col gap-1 overflow-hidden
                   ${isActive ? 'border-gold/60 bg-gold/5 cursor-pointer hover:border-gold shadow-lg shadow-gold/10' : 'border-white/10'}
                   ${isScoringPhase && isRevealed && result ? (result.winner === playerIndex ? 'border-green-500/40 bg-green-500/5' : result.winner === 'draw' ? 'border-yellow-500/30' : 'border-red-500/30 bg-red-500/5') : ''}`}
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">F{flopIdx + 1}</p>
-                </div>
+                <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">F{flopIdx + 1}</p>
 
                 {/* Opponent hand */}
                 <div className="bg-black/30 rounded-lg p-1 flex-shrink-0">
-                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/30 mb-0.5`}>
-                    {oppPlayer?.name ?? 'Opp'}
-                  </p>
-                  <div className="flex gap-1 flex-wrap">
+                  <p className="text-[9px] text-white/30 mb-0.5">{oppPlayer?.name ?? 'Opp'}</p>
+                  <div className="flex gap-0.5 flex-wrap">
                     {[0, 1, 2, 3].map(s => {
                       const card = oppCards[s];
                       return card
-                        ? <PlayingCard key={s} card={card} width={cardW} height={cardH} />
-                        : <PlayingCard key={s} card={FACE_DOWN_CARD} width={cardW} height={cardH} />;
+                        ? <PlayingCard key={s} card={card} width={SM.w} height={SM.h} />
+                        : <PlayingCard key={s} card={FACE_DOWN_CARD} width={SM.w} height={SM.h} />;
                     })}
                   </div>
                   {isScoringPhase && isRevealed && result && (
-                    <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/50 mt-1 text-center`}>
+                    <p className="text-[9px] text-white/50 mt-0.5 text-center">
                       {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
                     </p>
                   )}
                 </div>
 
-                {/* Community cards */}
+                {/* Community cards (board) — responsive larger size in scoring */}
                 <div className="flex-shrink-0">
-                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/40 mb-0.5`}>Board</p>
-                  <div className="flex gap-1 flex-wrap">
+                  <p className="text-[9px] text-white/40 mb-0.5">Board</p>
+                  <div className="flex gap-0.5 flex-wrap">
                     {communityCards.map((card, i) => (
-                      <PlayingCard key={i} card={card} width={cardW} height={cardH} />
+                      <PlayingCard key={i} card={card} width={boardW} height={boardH} />
                     ))}
-                    {/* Show empty slots for turn+river during ASSIGNING */}
                     {!hasAll && [0, 1].map(i => (
-                      <EmptySlot key={`tr-${i}`} width={cardW} height={cardH} />
+                      <EmptySlot key={`tr-${i}`} width={boardW} height={boardH} />
                     ))}
                   </div>
                 </div>
 
                 {/* My hand */}
                 <div className="bg-black/30 rounded-lg p-1 flex-shrink-0">
-                  <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-white/30 mb-0.5`}>
+                  <p className="text-[9px] text-white/30 mb-0.5">
                     You {!isScoringPhase ? `${assignmentByFlop[flopIdx].length}/4` : ''}
                   </p>
-                  <div className="flex gap-1 flex-wrap">
+                  <div className="flex gap-0.5 flex-wrap">
                     {[0, 1, 2, 3].map(s => {
                       const card = myFlopCards[s];
                       return card
-                        ? <PlayingCard key={s} card={card} width={cardW} height={cardH} />
-                        : <EmptySlot key={s} width={cardW} height={cardH} />;
+                        ? <PlayingCard key={s} card={card} width={SM.w} height={SM.h} />
+                        : <EmptySlot key={s} width={SM.w} height={SM.h} />;
                     })}
                   </div>
                   {isScoringPhase && isRevealed && result && (
-                    <p className={`${isScoringPhase ? 'text-xs' : 'text-[9px]'} text-gold mt-1 text-center font-semibold`}>
+                    <p className="text-[9px] text-gold mt-0.5 text-center font-semibold">
                       {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
                     </p>
                   )}
@@ -482,7 +491,7 @@ export function PazPazPage() {
 
                 {/* Big WIN / LOSE / DRAW badge */}
                 {isScoringPhase && flopWinnerLabel && (
-                  <div className={`text-center font-black text-3xl tracking-widest mt-1 ${flopWinnerColor}`}>
+                  <div className={`text-center font-black text-2xl tracking-widest mt-0.5 ${flopWinnerColor}`}>
                     {flopWinnerLabel}
                   </div>
                 )}
