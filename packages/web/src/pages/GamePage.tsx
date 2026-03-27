@@ -29,6 +29,15 @@ function prepareReveal(state: GameState, revealedCols: number, myPlayerIndex: 0 
   };
 }
 
+// ─── Shared PazPaz-style CSS ──────────────────────────────────────────────────
+
+const PZ_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
+  .pz-h { font-family: 'Fredoka One', cursive !important; }
+  .pz-btn { transition: all 0.1s; position: relative; top: 0; }
+  .pz-btn:active { top: 4px; box-shadow: none !important; }
+`;
+
 // ─── GamePage ─────────────────────────────────────────────────────────────────
 
 export function GamePage() {
@@ -40,6 +49,7 @@ export function GamePage() {
   useSocketEvents();
   const { cardW, cardH } = useCardSize();
   const [confirmForfeit, setConfirmForfeit] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Reveal animation: -1 = not started, 0-4 = column index revealed so far
@@ -104,10 +114,12 @@ export function GamePage() {
 
   if (playerIndex === null || !gameState) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundImage: 'url(/bg-poker.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="text-center space-y-3">
-          <div className="text-5xl animate-bounce">🃏</div>
-          <p className="text-white/50">Connecting to game…</p>
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}>
+        <style>{PZ_STYLES}</style>
+        <div className="text-center space-y-3 bg-white/80 p-10 rounded-3xl border-2 border-white shadow-xl">
+          <div className="text-6xl animate-bounce">🃏</div>
+          <p className="pz-h text-2xl text-blue-600">Connecting to game…</p>
         </div>
       </div>
     );
@@ -161,28 +173,13 @@ export function GamePage() {
   return (
     <div
       className="h-screen flex flex-col overflow-hidden"
-      style={{
-        backgroundImage: 'url(/bg-poker.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }}
+      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)', fontFamily: "'Nunito', sans-serif" }}
     >
+      <style>{PZ_STYLES}</style>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 bg-black/60 backdrop-blur-sm border-b border-white/10 px-4 py-2 flex items-center justify-between">
+      <header className="flex-shrink-0 bg-white/85 border-b-2 border-white/80 px-4 py-2 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
-          {!isRevealMode && (
-            <button
-              onClick={() => setConfirmForfeit(true)}
-              className="text-white/50 hover:text-white transition-colors"
-              aria-label="Forfeit"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          )}
-          <h1 className="font-display text-lg text-gold">Poker5O</h1>
+          <h1 className="pz-h text-xl text-blue-700">Poker5O</h1>
         </div>
 
         {/* Center: phase label OR result banner */}
@@ -191,34 +188,34 @@ export function GamePage() {
             allRevealed ? (
               <>
                 <span className="text-2xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
-                <span className="font-display text-xl text-gold">
+                <span className="pz-h text-xl text-blue-700">
                   {isDraw ? 'Draw!' : iWon ? 'You Win!' : 'You Lose!'}
                 </span>
-                <span className="text-white/50 text-sm">
+                <span className="text-gray-500 text-sm font-semibold">
                   {score!.player0Wins}–{score!.player1Wins}
                   {score!.draws > 0 ? ` (${score!.draws} tied)` : ''}
                 </span>
                 {score!.completeWinBonus && score!.isCompleteWin && (
-                  <span className="text-xs font-semibold bg-gold/20 text-gold border border-gold/40 rounded-full px-2 py-0.5">
+                  <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-2 py-0.5">
                     🏆 Complete Win — Double Payout!
                   </span>
                 )}
               </>
             ) : (
               <>
-                <span className="text-white/50 text-sm animate-pulse">Revealing results…</span>
-                <button onClick={() => setRevealedCols(4)} className="btn-ghost text-xs px-2 py-1">
+                <span className="text-gray-500 text-sm font-semibold animate-pulse">Revealing results…</span>
+                <button onClick={() => setRevealedCols(4)} className="text-xs text-blue-500 underline font-bold">
                   Skip
                 </button>
               </>
             )
           ) : (
             <>
-              <span className="text-xs text-white/50 bg-black/30 px-3 py-1 rounded-full">
+              <span className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">
                 {phaseLabel[gameState.phase] ?? ''}
               </span>
               {stake != null && (
-                <span className="text-xs font-semibold text-gold bg-gold/10 border border-gold/30 px-3 py-1 rounded-full">
+                <span className="text-xs font-bold text-yellow-700 bg-yellow-100 border border-yellow-300 px-3 py-1 rounded-full">
                   Pot: {(stake * 2).toLocaleString()} chips{completeWinBonus ? ' (2x bonus)' : ''}
                 </span>
               )}
@@ -229,20 +226,23 @@ export function GamePage() {
         {/* Right actions */}
         <div className="flex items-center gap-2">
           {isRevealMode ? (
-            <button onClick={goToLobby} className="btn-primary px-4 py-1.5 text-sm">
-              Back to Lobby
+            <button
+              onClick={goToLobby}
+              className="pz-btn px-5 py-2 rounded-2xl bg-blue-500 text-white pz-h text-base shadow-[0_4px_0_#2563eb] hover:bg-blue-400 border-2 border-blue-400"
+            >
+              ← Back to Lobby
             </button>
           ) : (
             <>
               <button
-                onClick={() => navigate('/lobby')}
-                className="text-xs text-white/50 hover:text-white border border-white/20 hover:border-white/40 px-2 py-1 rounded transition-colors"
+                onClick={() => setConfirmExit(true)}
+                className="pz-btn text-xs text-gray-500 hover:text-gray-700 border-2 border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-xl font-bold transition-colors shadow-sm"
               >
                 Exit to Lobby
               </button>
               <button
                 onClick={() => setConfirmForfeit(true)}
-                className="text-xs text-red-400/70 hover:text-red-400 border border-red-900/40 hover:border-red-500/50 px-2 py-1 rounded transition-colors"
+                className="pz-btn text-xs text-red-500 hover:text-red-600 border-2 border-red-200 hover:border-red-300 bg-white px-3 py-1.5 rounded-xl font-bold transition-colors shadow-sm"
               >
                 Give Up
               </button>
@@ -271,7 +271,7 @@ export function GamePage() {
 
         {/* ── Center strip ──────────────────────────────────────────────── */}
         <div
-          className="flex-shrink-0 border-y border-white/10 bg-black/40 relative"
+          className="flex-shrink-0 border-y-2 border-white/80 bg-white/70 relative"
           style={{ height: 120 }}
         >
           {isRevealMode ? (
@@ -298,11 +298,11 @@ export function GamePage() {
                         {myWon ? '✓' : draw ? '—' : '✗'}
                       </span>
                       {/* My hand strength */}
-                      <span className="text-[9px] text-gold font-semibold whitespace-nowrap leading-none text-center">
+                      <span className="text-[9px] text-blue-600 font-bold whitespace-nowrap leading-none text-center">
                         {r[playerIndex === 0 ? 'player0Hand' : 'player1Hand'].label}
                       </span>
                       {/* Opponent hand strength */}
-                      <span className="text-[9px] text-white/40 whitespace-nowrap leading-none text-center">
+                      <span className="text-[9px] text-gray-400 whitespace-nowrap leading-none text-center">
                         {r[playerIndex === 0 ? 'player1Hand' : 'player0Hand'].label}
                       </span>
                     </div>
@@ -383,13 +383,13 @@ export function GamePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3 animate-fade-in">
             <span className="text-6xl">🃏</span>
-            <div className="text-center bg-black/80 backdrop-blur-sm rounded-2xl px-10 py-6 border border-gold/40 shadow-2xl shadow-gold/10">
-              <p className="text-white/60 text-sm font-medium uppercase tracking-widest mb-1">First to play</p>
-              <p className={`font-display text-4xl font-bold ${startingPlayer.index === playerIndex ? 'text-gold' : 'text-white'}`}>
+            <div className="text-center bg-white/95 rounded-3xl px-10 py-6 border-2 border-white shadow-2xl">
+              <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-1">First to play</p>
+              <p className={`pz-h text-4xl ${startingPlayer.index === playerIndex ? 'text-blue-600' : 'text-gray-700'}`}>
                 {startingPlayer.index === playerIndex ? 'You' : startingPlayer.name}
               </p>
               {startingPlayer.index === playerIndex && (
-                <p className="text-gold/60 text-sm mt-2">Get ready…</p>
+                <p className="text-blue-400 text-sm font-semibold mt-2">Get ready…</p>
               )}
             </div>
           </div>
@@ -398,20 +398,25 @@ export function GamePage() {
 
       {/* ── Opponent disconnected modal ─────────────────────────────────────── */}
       {opponentLeft && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl animate-pulse">📡</p>
-              <h2 className="font-display text-xl text-gold">Opponent Disconnected</h2>
-              <p className="text-white/60 text-sm">
+              <h2 className="pz-h text-2xl text-blue-700">Opponent Disconnected</h2>
+              <p className="text-gray-500 text-sm font-semibold">
                 Your opponent lost connection. They have 10 minutes to reconnect before the game is abandoned.
               </p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setOpponentLeft(false)} className="btn-ghost flex-1">Wait</button>
+              <button
+                onClick={() => setOpponentLeft(false)}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
+              >
+                Wait
+              </button>
               <button
                 onClick={() => { setOpponentLeft(false); navigate('/lobby'); }}
-                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
+                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
               >
                 Go to Lobby
               </button>
@@ -422,22 +427,56 @@ export function GamePage() {
 
       {/* ── Give Up confirmation ────────────────────────────────────────────── */}
       {confirmForfeit && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl">🏳️</p>
-              <h2 className="font-display text-xl text-gold">Give Up?</h2>
-              <p className="text-white/60 text-sm">
+              <h2 className="pz-h text-2xl text-blue-700">Give Up?</h2>
+              <p className="text-gray-500 text-sm font-semibold">
                 You will forfeit the game and lose your stake. This cannot be undone.
               </p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmForfeit(false)} className="btn-ghost flex-1">Cancel</button>
+              <button
+                onClick={() => setConfirmForfeit(false)}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleForfeit}
-                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold transition-colors"
+                className="pz-btn flex-1 py-2 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-bold border-2 border-red-400 shadow-[0_4px_0_#dc2626]"
               >
                 Yes, Give Up
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exit to Lobby confirmation ──────────────────────────────────────── */}
+      {confirmExit && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-3xl">🚪</p>
+              <h2 className="pz-h text-2xl text-blue-700">Exit the Game?</h2>
+              <p className="text-gray-500 text-sm font-semibold">
+                You'll leave the game in progress. The game will continue and you can rejoin from the lobby.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmExit(false)}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
+              >
+                Stay
+              </button>
+              <button
+                onClick={() => { setConfirmExit(false); navigate('/lobby'); }}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
+              >
+                Exit to Lobby
               </button>
             </div>
           </div>

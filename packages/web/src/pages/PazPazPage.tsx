@@ -135,6 +135,8 @@ export function PazPazPage() {
   const retryRef = useRef(0);
   const [retryCount, setRetryCount] = useState(0);
 
+  const [confirmExit, setConfirmExit] = useState(false);
+
   // Assignment state
   const [assignment, setAssignment] = useState<(0 | 1 | 2 | null)[]>([]);
   const [selectedCardIdx, setSelectedCardIdx] = useState<number | null>(null);
@@ -387,7 +389,7 @@ export function PazPazPage() {
       {!isScoringPhase && (
         <div className="absolute top-4 left-4 z-50">
           <button
-            onClick={goToLobby}
+            onClick={() => setConfirmExit(true)}
             className="pz-btn flex items-center gap-2 bg-white text-red-500 px-4 py-2 rounded-2xl font-bold text-sm shadow-[0_4px_0_#d1d5db] border-2 border-gray-100 hover:bg-gray-50"
           >
             ← Lobby
@@ -519,7 +521,7 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="text-xs font-black text-black text-center mt-1">
+                      <p className="text-2xl font-black text-black text-center mt-1">
                         {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
                       </p>
                     )}
@@ -566,7 +568,7 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="text-xs font-black text-black text-center mt-1">
+                      <p className="text-2xl font-black text-black text-center mt-1">
                         {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
                       </p>
                     )}
@@ -693,6 +695,35 @@ export function PazPazPage() {
       {error && error !== 'Room not found' && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-6 py-2 rounded-full text-sm font-semibold shadow">
           {error}
+        </div>
+      )}
+
+      {/* ── Exit confirmation modal ─────────────────────────────────────────── */}
+      {confirmExit && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-3xl">🚪</p>
+              <h2 className="pz-h text-2xl text-blue-700">Exit the Game?</h2>
+              <p className="text-gray-500 text-sm font-semibold">
+                You'll leave the game in progress. Your partial assignment is saved.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmExit(false)}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
+              >
+                Stay
+              </button>
+              <button
+                onClick={goToLobby}
+                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
+              >
+                Exit to Lobby
+              </button>
+            </div>
+          </div>
         </div>
       )}
       </div>
