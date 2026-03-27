@@ -410,7 +410,7 @@ export function PazPazPage() {
       </div>
 
       {/* ── Main: 3 connected panels ──────────────────────────────────────── */}
-      <main className="absolute inset-0 flex items-center justify-center pt-20 pb-40 px-2 overflow-hidden">
+      <main className={`absolute inset-0 flex items-center justify-center pt-20 px-2 overflow-hidden ${isScoringPhase ? 'pb-16' : 'pb-[252px]'}`}>
         <div className="flex items-stretch h-full max-h-[520px] overflow-x-auto w-full max-w-[1400px]">
           <div className="flex flex-row items-stretch mx-auto flex-shrink-0">
             {([0, 1, 2] as const).map(flopIdx => {
@@ -479,7 +479,7 @@ export function PazPazPage() {
                         const card   = oppCards[s];
                         const isUsed = card && oppUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
                         return card ? (
-                          <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-xl' : ''}>
+                          <div key={s} style={isUsed ? { borderRadius: 8, boxShadow: '0 0 10px 3px rgba(0,191,255,0.9)', outline: '2px solid #00bfff' } : {}}>
                             <PlayingCard card={card} width={cardW} height={cardH} />
                           </div>
                         ) : (
@@ -491,7 +491,7 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="text-[11px] text-gray-600 font-bold text-center mt-1">
+                      <p className="text-xs font-black text-black text-center mt-1">
                         {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
                       </p>
                     )}
@@ -500,28 +500,15 @@ export function PazPazPage() {
                   {/* Community board */}
                   <div className="w-full bg-white/75 p-2 rounded-2xl border-2 border-white shadow-inner">
                     <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide text-center mb-1.5">Board</p>
-                    {/* Flop: 3 cards */}
-                    <div className="flex gap-1 justify-center mb-1">
-                      {[0, 1, 2].map(i => {
+                    {/* All 5 community cards in one row */}
+                    <div className="flex gap-1 justify-center">
+                      {[0, 1, 2, 3, 4].map(i => {
                         const card = communityCards[i];
-                        return card
+                        const show = card && (i < 3 || hasAll);
+                        return show
                           ? <PlayingCard key={i} card={card} width={cardW} height={cardH} />
                           : <div key={i} className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />;
                       })}
-                    </div>
-                    {/* Turn + River */}
-                    <div className="flex gap-1 justify-center">
-                      {hasAll ? (
-                        <>
-                          <PlayingCard card={communityCards[3]} width={cardW} height={cardH} />
-                          <PlayingCard card={communityCards[4]} width={cardW} height={cardH} />
-                        </>
-                      ) : (
-                        <>
-                          <div className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />
-                          <div className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />
-                        </>
-                      )}
                     </div>
                   </div>
 
@@ -535,7 +522,7 @@ export function PazPazPage() {
                         const card   = myFlopCards[s];
                         const isUsed = card && myUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
                         return card ? (
-                          <div key={s} className={isUsed ? 'ring-2 ring-red-500 rounded-xl' : ''}>
+                          <div key={s} style={isUsed ? { borderRadius: 8, boxShadow: '0 0 10px 3px rgba(255,0,64,0.9)', outline: '2px solid #ff0040' } : {}}>
                             <PlayingCard card={card} width={cardW} height={cardH} />
                           </div>
                         ) : (
@@ -551,7 +538,7 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="pz-h text-sm text-blue-700 text-center mt-1">
+                      <p className="text-xs font-black text-black text-center mt-1">
                         {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
                       </p>
                     )}
@@ -565,82 +552,75 @@ export function PazPazPage() {
 
       {/* ── Bottom-center: YOUR HAND arc fan (ASSIGNING only) ─────────────── */}
       {!isScoringPhase && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
-          <div className="relative bg-white/55 backdrop-blur-xl px-6 pt-8 pb-3 rounded-[2.5rem] border-4 border-white/70 shadow-[0_15px_40px_rgba(0,0,0,0.08)]">
-            {/* Badge */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-1.5 rounded-full pz-h text-sm tracking-wider whitespace-nowrap z-10">
-              YOUR HAND · {assignment.filter(a => a !== null).length}/12
-            </div>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1">
+          {/* Hint + counter */}
+          {!iHaveSubmitted && (
+            <p className="text-center text-gray-700 text-[11px] font-bold bg-black/10 px-4 py-0.5 rounded-full whitespace-nowrap">
+              {selectedCardIdx !== null ? '👆 Click a hand or drag' : `YOUR HAND · ${assignment.filter(a => a !== null).length}/12 — Click or drag cards to assign`}
+            </p>
+          )}
 
-            {/* Hint */}
-            {!iHaveSubmitted && (
-              <p className="text-center text-gray-500 text-xs font-semibold mb-2">
-                {selectedCardIdx !== null ? '👆 Click a hand or drag' : 'Click or drag cards to assign'}
-              </p>
-            )}
+          {/* Arc fan — no surrounding box */}
+          <div className="relative overflow-visible" style={{ width: fanW, height: fanH }}>
+            {visibleCards.map(({ idx, card }, displayPos) => {
+              const off = FAN_OFFSETS[displayPos] ?? { x: 0, y: 0, r: 0 };
+              const fi = assignment[idx];
+              const flopAssigned = fi !== null && fi !== undefined ? fi : undefined;
+              const isSelected   = selectedCardIdx === idx;
 
-            {/* Arc fan */}
-            <div className="relative overflow-visible mx-auto" style={{ width: fanW, height: fanH }}>
-              {visibleCards.map(({ idx, card }, displayPos) => {
-                const off = FAN_OFFSETS[displayPos] ?? { x: 0, y: 0, r: 0 };
-                const fi = assignment[idx];
-                const flopAssigned = fi !== null && fi !== undefined ? fi : undefined;
-                const isSelected   = selectedCardIdx === idx;
-
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      position: 'absolute',
-                      left: '50%',
-                      bottom: 0,
-                      width: LG.w,
-                      marginLeft: -LG.w / 2,
-                      transform: `rotate(${off.r}deg) translate(${off.x * fanScale}px, ${off.y * fanScale}px)${isSelected ? ' translateY(-14px) scale(1.1)' : ''}`,
-                      transformOrigin: 'bottom center',
-                      zIndex: isSelected ? 50 : displayPos + 1,
-                      transition: 'transform 0.15s ease',
-                    }}
-                    className={!iHaveSubmitted ? 'cursor-pointer' : ''}
-                    onClick={!iHaveSubmitted ? () => handleCardClick(idx) : undefined}
-                    draggable={!iHaveSubmitted && flopAssigned === undefined}
-                    onDragStart={!iHaveSubmitted && flopAssigned === undefined ? e => {
-                      e.dataTransfer.setData('cardIndex', String(idx));
-                      setDraggedIdx(idx);
-                      setSelectedCardIdx(null);
-                    } : undefined}
-                    onDragEnd={() => setDraggedIdx(null)}
-                  >
-                    <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent rounded-xl' : ''}`}>
-                      <PlayingCard card={card} width={LG.w} height={LG.h} />
-                    </div>
-                    {flopAssigned !== undefined && (
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
-                        F{flopAssigned + 1}
-                      </span>
-                    )}
-                    {draggedIdx === idx && <div className="absolute inset-0 rounded-xl bg-black/20" />}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Controls below fan */}
-            <div className="flex gap-2 justify-center mt-3 bg-white/50 p-1.5 rounded-full border border-white/60 w-fit mx-auto">
-              {!iHaveSubmitted && (
-                <button
-                  onClick={() => setIsSorted(s => !s)}
-                  className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-gray-50"
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: 0,
+                    width: LG.w,
+                    marginLeft: -LG.w / 2,
+                    transform: `rotate(${off.r}deg) translate(${off.x * fanScale}px, ${off.y * fanScale}px)${isSelected ? ' translateY(-14px) scale(1.1)' : ''}`,
+                    transformOrigin: 'bottom center',
+                    zIndex: isSelected ? 50 : displayPos + 1,
+                    transition: 'transform 0.15s ease',
+                  }}
+                  className={!iHaveSubmitted ? 'cursor-pointer' : ''}
+                  onClick={!iHaveSubmitted ? () => handleCardClick(idx) : undefined}
+                  draggable={!iHaveSubmitted && flopAssigned === undefined}
+                  onDragStart={!iHaveSubmitted && flopAssigned === undefined ? e => {
+                    e.dataTransfer.setData('cardIndex', String(idx));
+                    setDraggedIdx(idx);
+                    setSelectedCardIdx(null);
+                  } : undefined}
+                  onDragEnd={() => setDraggedIdx(null)}
                 >
-                  ↕ {isSorted ? 'Sorted' : 'Sort'}
-                </button>
-              )}
-              {oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
-                <div className={`px-4 py-1.5 rounded-[1.5rem] font-bold text-sm ${pressureSeconds <= 30 ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-yellow-100 text-yellow-700'}`}>
-                  ⚡ {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
+                  <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent rounded-xl' : ''}`}>
+                    <PlayingCard card={card} width={LG.w} height={LG.h} />
+                  </div>
+                  {flopAssigned !== undefined && (
+                    <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
+                      F{flopAssigned + 1}
+                    </span>
+                  )}
+                  {draggedIdx === idx && <div className="absolute inset-0 rounded-xl bg-black/20" />}
                 </div>
-              )}
-            </div>
+              );
+            })}
+          </div>
+
+          {/* Controls below fan */}
+          <div className="flex gap-2 justify-center">
+            {!iHaveSubmitted && (
+              <button
+                onClick={() => setIsSorted(s => !s)}
+                className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white/90 text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-white"
+              >
+                ↕ {isSorted ? 'Sorted' : 'Sort'}
+              </button>
+            )}
+            {oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
+              <div className={`px-4 py-1.5 rounded-[1.5rem] font-bold text-sm ${pressureSeconds <= 30 ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-yellow-100 text-yellow-700'}`}>
+                ⚡ {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
+              </div>
+            )}
           </div>
         </div>
       )}
