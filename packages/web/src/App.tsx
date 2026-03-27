@@ -13,6 +13,7 @@ import { SettingsPage } from './pages/SettingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
 import { CashierPage } from './pages/CashierPage.js';
 import { AgentPage } from './pages/AgentPage.js';
+import { CardPreviewPage } from './pages/CardPreviewPage.js';
 
 export function App() {
   const { session, profile, loading, setSession, refreshSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
@@ -119,6 +120,9 @@ export function App() {
 
         {/* Admin — no auth protection */}
         <Route path="/admin" element={<AdminPage />} />
+
+        {/* Card preview — no auth required */}
+        <Route path="/cards" element={<CardPreviewPage />} />
 
         {/* Agent — requires auth */}
         <Route path="/agent" element={
