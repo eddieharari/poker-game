@@ -2,6 +2,7 @@
  * /cards — Preview all 52 cards in the colored deck style.
  * Not linked from the main nav; open it manually at /cards.
  */
+import { useEffect } from 'react';
 import { PlayingCard } from '../components/game/PlayingCard.js';
 import { usePreferencesStore } from '../store/preferencesStore.js';
 import type { Card, Rank, Suit } from '@poker5o/shared';
@@ -19,6 +20,9 @@ const H = 100;
 
 export function CardPreviewPage() {
   const { fourColorDeck, setFourColorDeck } = usePreferencesStore();
+
+  // Always start in colored mode on this page
+  useEffect(() => { setFourColorDeck(true); }, []);
 
   return (
     <div className="min-h-screen bg-[#1a1033] p-6 font-sans">

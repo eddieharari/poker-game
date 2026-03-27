@@ -11,11 +11,14 @@ interface PreferencesState {
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
-      fourColorDeck: false,
+      fourColorDeck: true,  // colored deck is the default
       setFourColorDeck: (val) => set({ fourColorDeck: val }),
       twoCornerDeck: false,
       setTwoCornerDeck: (val) => set({ twoCornerDeck: val }),
     }),
-    { name: 'poker5o-preferences' },
+    {
+      name: 'poker5o-preferences',
+      version: 2, // bumped to clear old cached value (was false)
+    },
   ),
 );
