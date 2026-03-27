@@ -272,7 +272,7 @@ export function GamePage() {
         {/* ── Center strip ──────────────────────────────────────────────── */}
         <div
           className="flex-shrink-0 border-y-2 border-white/80 bg-white/70 relative"
-          style={{ height: 120 }}
+          style={{ height: isRevealMode ? 180 : 120 }}
         >
           {isRevealMode ? (
             /* ── Result row: V/X badges + hand labels per column ── */
@@ -292,17 +292,17 @@ export function GamePage() {
                       className="flex flex-col items-center gap-0.5"
                     >
                       <span
-                        className={`text-2xl font-black leading-none select-none transition-all duration-300
+                        className={`text-6xl font-black leading-none select-none transition-all duration-300
                           ${myWon ? 'text-green-400' : draw ? 'text-yellow-400' : 'text-red-500'}`}
                       >
                         {myWon ? '✓' : draw ? '—' : '✗'}
                       </span>
                       {/* My hand strength */}
-                      <span className="text-[9px] text-blue-600 font-bold whitespace-nowrap leading-none text-center">
+                      <span className="pz-h text-2xl text-blue-600 whitespace-nowrap leading-tight text-center">
                         {r[playerIndex === 0 ? 'player0Hand' : 'player1Hand'].label}
                       </span>
                       {/* Opponent hand strength */}
-                      <span className="text-[9px] text-gray-400 whitespace-nowrap leading-none text-center">
+                      <span className="pz-h text-2xl text-gray-400 whitespace-nowrap leading-tight text-center">
                         {r[playerIndex === 0 ? 'player1Hand' : 'player0Hand'].label}
                       </span>
                     </div>
