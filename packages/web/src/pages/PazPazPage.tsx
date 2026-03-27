@@ -56,36 +56,36 @@ const LG = { w: cardW, h: cardH }; // fan cards match slot cards at design res
 
 // ─── Hand themes (one per flop) ───────────────────────────────────────────────
 
-const NEON_PURPLE_GLOW   = 'inset 0 0 24px rgba(200,0,255,0.40), 0 0 18px rgba(200,0,255,0.22)';
-const NEON_PURPLE_BORDER = 'rgba(200,0,255,0.85)';
-
 const HAND_THEMES = [
   {
     label: 'BACK HAND',
-    glow: NEON_PURPLE_GLOW,
-    border: NEON_PURPLE_BORDER,
-    badgeCls: 'bg-blue-200 text-blue-800 border-blue-100',
-    commCls:  'border-blue-300 bg-blue-50/80',
-    mySlotCls:'border-blue-300 bg-blue-50/70 text-blue-400 hover:bg-blue-100',
-    oppSlotCls:'border-blue-200 bg-blue-50/40',
+    topLine: '#39FF14',
+    glow: '0 0 30px rgba(57,255,20,0.18), inset 0 0 20px rgba(57,255,20,0.08)',
+    border: 'rgba(57,255,20,0.6)',
+    badgeCls: 'bg-[#39FF14]/10 text-[#39FF14] border-[#39FF14]/30',
+    commCls:  'border-[#39FF14]/25 bg-black/50',
+    mySlotCls:'border-[#39FF14]/40 bg-black/60 text-[#39FF14]/40 hover:bg-[#39FF14]/5',
+    oppSlotCls:'border-[#39FF14]/25 bg-black/50',
   },
   {
     label: 'MIDDLE HAND',
-    glow: NEON_PURPLE_GLOW,
-    border: NEON_PURPLE_BORDER,
-    badgeCls: 'bg-purple-200 text-purple-800 border-purple-100',
-    commCls:  'border-purple-300 bg-purple-50/80',
-    mySlotCls:'border-purple-300 bg-purple-50/70 text-purple-400 hover:bg-purple-100',
-    oppSlotCls:'border-purple-200 bg-purple-50/40',
+    topLine: '#FF00FF',
+    glow: '0 0 30px rgba(255,0,255,0.18), inset 0 0 20px rgba(255,0,255,0.08)',
+    border: 'rgba(255,0,255,0.6)',
+    badgeCls: 'bg-[#FF00FF]/10 text-[#FF00FF] border-[#FF00FF]/30',
+    commCls:  'border-[#FF00FF]/25 bg-black/50',
+    mySlotCls:'border-[#FF00FF]/40 bg-black/60 text-[#FF00FF]/40 hover:bg-[#FF00FF]/5',
+    oppSlotCls:'border-[#FF00FF]/25 bg-black/50',
   },
   {
     label: 'FRONT HAND',
-    glow: NEON_PURPLE_GLOW,
-    border: NEON_PURPLE_BORDER,
-    badgeCls: 'bg-green-200 text-green-800 border-green-100',
-    commCls:  'border-green-300 bg-green-50/80',
-    mySlotCls:'border-green-300 bg-green-50/70 text-green-400 hover:bg-green-100',
-    oppSlotCls:'border-green-200 bg-green-50/40',
+    topLine: '#00FFFF',
+    glow: '0 0 30px rgba(0,255,255,0.18), inset 0 0 20px rgba(0,255,255,0.08)',
+    border: 'rgba(0,255,255,0.6)',
+    badgeCls: 'bg-[#00FFFF]/10 text-[#00FFFF] border-[#00FFFF]/30',
+    commCls:  'border-[#00FFFF]/25 bg-black/50',
+    mySlotCls:'border-[#00FFFF]/40 bg-black/60 text-[#00FFFF]/40 hover:bg-[#00FFFF]/5',
+    oppSlotCls:'border-[#00FFFF]/25 bg-black/50',
   },
 ] as const;
 
@@ -101,25 +101,55 @@ const FAN_OFFSETS = [
   { x:  175, r:  13 }, { x:  225, r:  16 }, { x:  275, r:  20 },
 ];
 
-// ─── Inline CSS for animations + playful font ─────────────────────────────────
+// ─── Inline CSS — dark space theme ────────────────────────────────────────────
 
 const PZ_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
-  .pz-h { font-family: 'Fredoka One', cursive !important; }
-  @keyframes pzCloud {
-    0%   { background-position: 0% 0%; }
-    100% { background-position: 100% 100%; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  .pz-h { font-family: 'Space Grotesk', sans-serif !important; }
+  .glass-panel {
+    background: rgba(26, 28, 35, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
   }
-  .pz-clouds {
+  .pz-btn {
+    transition: all 0.2s ease;
+    position: relative;
+    background: linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #E0E6ED;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  .pz-btn:hover {
+    background: linear-gradient(180deg, #33334D 0%, #252538 100%);
+    border-color: rgba(69,243,255,0.5);
+    box-shadow: 0 0 15px rgba(69,243,255,0.4);
+    color: #fff;
+  }
+  .pz-btn:active { box-shadow: none; }
+  .pz-stars {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
     background-image:
-      radial-gradient(circle at 20% 30%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 10%),
-      radial-gradient(circle at 80% 20%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 15%),
-      radial-gradient(circle at 50% 80%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 20%);
-    background-size: 150% 150%;
-    animation: pzCloud 20s ease-in-out infinite alternate;
+      radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 50px 160px, #fff, rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 90px 40px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 160px 120px, #fff, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 300px 300px;
+    animation: twinkle 8s infinite alternate;
   }
-  .pz-btn { transition: all 0.1s; position: relative; top: 0; }
-  .pz-btn:active { top: 4px; box-shadow: none !important; }
+  @keyframes twinkle { 0% { opacity: 0.3; } 100% { opacity: 0.7; } }
+  .pz-nebula {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 15% 50%, rgba(110,86,207,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(69,243,255,0.1) 0%, transparent 50%);
+  }
 `;
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -258,13 +288,13 @@ export function PazPazPage() {
   if (!gameState) {
     return (
       <div className="min-h-screen flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}>
+        style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', color: '#E0E6ED' }}>
         <style>{PZ_STYLES}</style>
-        <div className="text-center space-y-3 bg-white/70  p-10 rounded-3xl border-2 border-white shadow-xl">
+        <div className="glass-panel text-center space-y-3 p-10 rounded-3xl border border-white/10 shadow-xl">
           <div className="text-6xl animate-bounce">🃏</div>
-          <p className="pz-h text-2xl text-blue-600">Connecting…</p>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          {retryCount > 0 && <p className="text-gray-400 text-xs">Retrying… ({retryCount}/5)</p>}
+          <p className="pz-h text-2xl text-[#45F3FF]">Connecting…</p>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {retryCount > 0 && <p className="text-gray-500 text-xs">Retrying… ({retryCount}/5)</p>}
         </div>
       </div>
     );
@@ -364,7 +394,7 @@ export function PazPazPage() {
     /* Outer shell: always fills the viewport, clips overflow, centers the canvas */
     <div
       className="w-screen h-screen overflow-hidden flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}
+      style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)' }}
     >
       <style>{PZ_STYLES}</style>
       {/* Fixed-size design canvas scaled to fit */}
@@ -376,21 +406,23 @@ export function PazPazPage() {
           transformOrigin: 'center center',
           position: 'relative',
           overflow: 'hidden',
-          background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)',
-          fontFamily: "'Nunito', sans-serif",
+          background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)',
+          fontFamily: "'Inter', sans-serif",
+          color: '#E0E6ED',
           flexShrink: 0,
           willChange: 'transform',
           isolation: 'isolate',
         }}
       >
-      <div className="pz-clouds absolute inset-0 z-0 pointer-events-none" />
+      <div className="pz-stars" />
+      <div className="pz-nebula" />
 
       {/* ── Floating top-left: back to lobby ──────────────────────────────── */}
       {!isScoringPhase && (
         <div className="absolute top-4 left-4 z-50">
           <button
             onClick={() => setConfirmExit(true)}
-            className="pz-btn flex items-center gap-2 bg-white text-red-500 px-4 py-2 rounded-2xl font-bold text-sm shadow-[0_4px_0_#d1d5db] border-2 border-gray-100 hover:bg-gray-50"
+            className="pz-btn glass-panel flex items-center gap-3 px-5 py-2.5 rounded-xl font-medium text-sm border border-white/10 text-gray-300 hover:text-white"
           >
             ← Lobby
           </button>
@@ -399,15 +431,15 @@ export function PazPazPage() {
 
       {/* ── Floating top-center: opponent info ────────────────────────────── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-        <div className="flex items-center gap-3 bg-white/85  px-4 py-2 rounded-full border-2 border-white shadow-md">
+        <div className="flex items-center gap-3 glass-panel px-4 py-2 rounded-full border border-white/10">
           {oppPlayer?.avatarUrl
-            ? <img src={oppPlayer.avatarUrl} className="w-9 h-9 rounded-full border-2 border-blue-300 object-cover" alt="" />
-            : <div className="w-9 h-9 rounded-full border-2 border-blue-300 bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-bold">{oppPlayer?.name?.[0] ?? '?'}</div>
+            ? <img src={oppPlayer.avatarUrl} className="w-9 h-9 rounded-full border-2 border-[#6E56CF] object-cover" alt="" />
+            : <div className="w-9 h-9 rounded-full border-2 border-[#6E56CF] bg-black/50 flex items-center justify-center text-[#8B5CF6] text-sm font-bold">{oppPlayer?.name?.[0] ?? '?'}</div>
           }
           <div>
-            <div className="pz-h text-blue-700 text-base leading-tight">{oppPlayer?.name ?? 'Opponent'}</div>
-            <div className="text-[11px] text-gray-500 font-semibold">
-              {oppHasSubmitted ? '✅ Ready' : '🤔 Thinking…'}
+            <div className="pz-h text-white text-sm tracking-wide">{oppPlayer?.name ?? 'Opponent'}</div>
+            <div className="text-[10px] text-gray-400 font-medium tracking-widest uppercase mt-0.5">
+              {oppHasSubmitted ? '✅ Ready' : '⟳ Thinking…'}
             </div>
           </div>
         </div>
@@ -416,27 +448,31 @@ export function PazPazPage() {
       {/* ── Floating top-right: timer / result ────────────────────────────── */}
       <div className="absolute top-4 right-4 z-50">
         {isScoringPhase && allRevealed ? (
-          <div className={`px-5 py-2 rounded-2xl border-4 text-white shadow-[0_4px_0_rgba(0,0,0,0.2)] text-center
-            ${isDraw ? 'bg-yellow-400 border-yellow-300' : iWon ? 'bg-green-500 border-green-400' : 'bg-red-500 border-red-400'}`}>
-            <div className="pz-h text-2xl leading-tight">
+          <div className="glass-panel px-5 py-2 rounded-2xl border text-center"
+            style={{
+              borderColor: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366',
+              boxShadow: `0 0 25px ${isDraw ? 'rgba(255,215,0,0.25)' : iWon ? 'rgba(0,255,157,0.25)' : 'rgba(255,51,102,0.25)'}`,
+            }}>
+            <div className={`pz-h text-2xl leading-tight ${isDraw ? 'text-[#FFD700]' : iWon ? 'text-[#00FF9D]' : 'text-[#FF3366]'}`}>
               {isDraw ? '🤝 DRAW' : iWon ? '🏆 YOU WIN!' : '😞 YOU LOSE'}
             </div>
             {gameState.stake != null && (
-              <div className="text-sm font-bold opacity-90">
+              <div className="text-sm font-medium opacity-80">
                 {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
               </div>
             )}
           </div>
         ) : isScoringPhase ? (
-          <div className="flex items-center gap-2 bg-white/90  px-4 py-2 rounded-full border-2 border-white shadow-md">
-            <span className="text-gray-500 text-sm font-semibold animate-pulse">Revealing…</span>
-            <button onClick={() => setRevealedFlops(3)} className="text-xs text-blue-500 underline font-bold">Skip</button>
+          <div className="glass-panel flex items-center gap-2 px-4 py-2 rounded-full border border-white/10">
+            <span className="text-gray-400 text-sm font-medium animate-pulse">Revealing…</span>
+            <button onClick={() => setRevealedFlops(3)} className="text-xs text-[#45F3FF] underline font-medium">Skip</button>
           </div>
         ) : timerSeconds !== null ? (
-          <div className={`flex items-center gap-2 bg-white px-5 py-2 rounded-full border-4 shadow-[0_4px_0_#d1d5db]
-            ${timerSeconds <= 30 ? 'border-red-400 text-red-500 animate-pulse' : 'border-gray-200 text-gray-700'}`}>
-            <span className="text-lg">⏱</span>
-            <span className="pz-h text-2xl tabular-nums">
+          <div className={`glass-panel flex items-center gap-3 px-6 py-3 rounded-full border
+            ${timerSeconds <= 30 ? 'border-red-500/50 text-red-400 animate-pulse' : 'border-[#45F3FF]/40 text-white'}`}
+            style={{ boxShadow: timerSeconds <= 30 ? undefined : '0 0 25px rgba(69,243,255,0.15)' }}>
+            <span className="text-sm">⏱</span>
+            <span className="pz-h text-xl tabular-nums" style={{ textShadow: timerSeconds <= 30 ? undefined : '0 0 10px rgba(69,243,255,0.5)' }}>
               {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
             </span>
           </div>
@@ -470,11 +506,11 @@ export function PazPazPage() {
 
               // Badge: result during scoring, hand label otherwise
               const badge = flopResult === 'WIN'
-                ? { cls: 'bg-green-400 text-white border-green-300', text: '🏆 WIN' }
+                ? { cls: 'bg-[#00FF9D]/15 text-[#00FF9D] border-[#00FF9D]/40', text: '🏆 WIN' }
                 : flopResult === 'LOSE'
-                ? { cls: 'bg-red-400 text-white border-red-300', text: '😞 LOSE' }
+                ? { cls: 'bg-[#FF3366]/15 text-[#FF3366] border-[#FF3366]/40', text: '😞 LOSE' }
                 : flopResult === 'DRAW'
-                ? { cls: 'bg-yellow-400 text-white border-yellow-300', text: '🤝 DRAW' }
+                ? { cls: 'bg-[#FFD700]/15 text-[#FFD700] border-[#FFD700]/40', text: '🤝 DRAW' }
                 : { cls: theme.badgeCls, text: theme.label };
 
               return (
@@ -487,7 +523,7 @@ export function PazPazPage() {
                     const s = e.dataTransfer.getData('cardIndex');
                     if (s !== '') handleFlopDrop(flopIdx, parseInt(s));
                   } : undefined}
-                  className={`relative flex flex-col items-center gap-2 bg-white/70 border-4 p-3 pt-6 rounded-2xl transition-transform
+                  className={`relative flex flex-col items-center gap-2 glass-panel border-2 p-3 pt-6 rounded-[2rem] transition-transform overflow-hidden
                     ${isActive ? 'cursor-pointer scale-[1.01]' : 'hover:scale-[1.002]'}`}
                   style={{
                     boxShadow: theme.glow,
@@ -496,14 +532,17 @@ export function PazPazPage() {
                     flexShrink: 0,
                   }}
                 >
+                  {/* Top gradient line */}
+                  <div className="absolute top-0 left-0 w-full h-px pointer-events-none opacity-60"
+                    style={{ background: `linear-gradient(90deg, transparent, ${theme.topLine}, transparent)` }} />
                   {/* Floating badge */}
-                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pz-h text-sm border-2 shadow-sm whitespace-nowrap z-10 ${badge.cls}`}>
+                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pz-h text-xs border tracking-[0.15em] uppercase shadow-sm whitespace-nowrap z-10 ${badge.cls}`}>
                     {badge.text}
                   </div>
 
                   {/* Opponent row */}
                   <div className="w-full">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mb-1 text-center">{oppPlayer?.name ?? 'Opponent'}</p>
+                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest mb-1 text-center">{oppPlayer?.name ?? 'Opponent'}</p>
                     <div className="flex gap-1 justify-center">
                       {[0, 1, 2, 3].map(s => {
                         const card   = oppCards[s];
@@ -521,15 +560,15 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="text-2xl font-black text-black text-center mt-1">
+                      <p className="pz-h text-2xl text-gray-300 text-center mt-1">
                         {(playerIndex === 0 ? result.player1Best : result.player0Best).label}
                       </p>
                     )}
                   </div>
 
                   {/* Community board */}
-                  <div className="w-full bg-white/75 p-2 rounded-2xl border-2 border-white shadow-inner">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide text-center mb-1.5">Board</p>
+                  <div className="w-full bg-black/40 p-2 rounded-2xl border border-white/10">
+                    <p className="text-[9px] text-gray-500 font-medium uppercase tracking-widest text-center mb-1.5">Board</p>
                     {/* All 5 community cards in one row */}
                     <div className="flex gap-1 justify-center">
                       {[0, 1, 2, 3, 4].map(i => {
@@ -544,7 +583,7 @@ export function PazPazPage() {
 
                   {/* My row */}
                   <div className="w-full">
-                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wide mb-1 text-center">
+                    <p className="text-[10px] text-[#45F3FF] font-medium uppercase tracking-widest mb-1 text-center">
                       You {!isScoringPhase ? `(${assignmentByFlop[flopIdx].length}/4)` : ''}
                     </p>
                     <div className="flex gap-1 justify-center">
@@ -568,7 +607,7 @@ export function PazPazPage() {
                       })}
                     </div>
                     {isScoringPhase && isRevealed && result && (
-                      <p className="text-2xl font-black text-black text-center mt-1">
+                      <p className="pz-h text-2xl text-[#45F3FF] text-center mt-1">
                         {(playerIndex === 0 ? result.player0Best : result.player1Best).label}
                       </p>
                     )}
@@ -582,18 +621,18 @@ export function PazPazPage() {
       {!isScoringPhase && !iHaveSubmitted && (
         <div className="absolute left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1"
           style={{ bottom: LG.h + 14 }}>
-          <p className="text-center text-gray-700 text-[11px] font-bold bg-black/10 px-4 py-0.5 rounded-full whitespace-nowrap">
+          <p className="text-center text-gray-400 text-[11px] font-medium glass-panel px-4 py-1 rounded-full whitespace-nowrap border border-white/10">
             {selectedCardIdx !== null ? '👆 Click a hand or drag' : `YOUR HAND · ${assignment.filter(a => a !== null).length}/12 — Click or drag cards to assign`}
           </p>
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => setIsSorted(s => !s)}
-              className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white/90 text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-white"
+              className="pz-btn px-4 py-1.5 rounded-xl text-sm font-medium tracking-wide"
             >
               ↕ {isSorted ? 'Sorted' : 'Sort'}
             </button>
             {oppHasSubmitted && pressureSeconds !== null && (
-              <div className={`px-4 py-1.5 rounded-[1.5rem] font-bold text-sm ${pressureSeconds <= 30 ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-yellow-100 text-yellow-700'}`}>
+              <div className={`glass-panel px-4 py-1.5 rounded-xl font-medium text-sm border ${pressureSeconds <= 30 ? 'border-red-500/50 text-red-400 animate-pulse' : 'border-[#FFD700]/40 text-[#FFD700]'}`}>
                 ⚡ {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
               </div>
             )}
@@ -655,14 +694,14 @@ export function PazPazPage() {
 
       {/* ── Bottom-left: player info ───────────────────────────────────────── */}
       <div className="absolute bottom-4 left-4 z-50">
-        <div className="flex items-center gap-3 bg-white/95  p-2 pr-5 rounded-[2rem] shadow-[0_8px_20px_rgba(0,0,0,0.07)] border border-white/80">
+        <div className="flex items-center gap-4 glass-panel p-2 pr-6 rounded-full border border-white/10 shadow-lg">
           {myPlayer?.avatarUrl
-            ? <img src={myPlayer.avatarUrl} className="w-11 h-11 rounded-full border-2 border-gray-700 object-cover" alt="" />
-            : <div className="w-11 h-11 rounded-full border-2 border-gray-700 bg-gray-200 flex items-center justify-center text-gray-600 font-bold">{myPlayer?.name?.[0] ?? 'Y'}</div>
+            ? <img src={myPlayer.avatarUrl} className="w-12 h-12 rounded-full border-2 border-[#45F3FF] object-cover" alt="" />
+            : <div className="w-12 h-12 rounded-full border-2 border-[#45F3FF] bg-black/50 flex items-center justify-center text-[#45F3FF] font-bold">{myPlayer?.name?.[0] ?? 'Y'}</div>
           }
           <div>
-            <div className="pz-h text-gray-900 text-base leading-tight">{myPlayer?.name ?? 'You'}</div>
-            <div className="text-xs text-gray-500 font-semibold">{iHaveSubmitted ? '✅ Submitted' : '🃏 Assigning…'}</div>
+            <div className="pz-h text-white text-sm tracking-wide">{myPlayer?.name ?? 'You'}</div>
+            <div className="text-[10px] text-[#45F3FF] uppercase tracking-widest font-medium mt-0.5">{iHaveSubmitted ? '✅ Submitted' : '🃏 Assigning…'}</div>
           </div>
         </div>
       </div>
@@ -672,21 +711,23 @@ export function PazPazPage() {
         {isScoringPhase ? (
           <button
             onClick={goToLobby}
-            className="pz-btn px-6 py-3 rounded-2xl bg-blue-500 text-white pz-h text-xl shadow-[0_6px_0_#2563eb] hover:bg-blue-400 border-2 border-blue-400 flex items-center gap-2"
+            className="pz-btn glass-panel px-6 py-3 rounded-2xl pz-h text-lg border border-[#45F3FF]/40 text-[#45F3FF] flex items-center gap-2"
+            style={{ boxShadow: '0 0 20px rgba(69,243,255,0.15)' }}
           >
             ← Back to Lobby
           </button>
         ) : iHaveSubmitted ? (
-          <div className="px-5 py-3 rounded-2xl bg-green-100 text-green-700 pz-h text-lg border-2 border-green-200 shadow-sm">
-            {oppHasSubmitted ? '🎯 Revealing…' : '⏳ Waiting for opponent'}
+          <div className="glass-panel px-5 py-3 rounded-2xl pz-h text-lg border border-[#00FF9D]/30 text-[#00FF9D]">
+            {oppHasSubmitted ? '🎯 Revealing…' : '⏳ Waiting…'}
           </div>
         ) : (
           <button
             onClick={handleSubmit}
             disabled={!allAssigned}
-            className="pz-btn px-7 py-3 rounded-2xl bg-green-500 text-white pz-h text-xl shadow-[0_6px_0_#059669] hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed border-2 border-green-400 flex items-center gap-2"
+            className="pz-h text-base tracking-widest uppercase px-8 py-4 rounded-2xl flex items-center gap-3 transition-all border font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105"
+            style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D', boxShadow: '0 0 30px rgba(0,255,157,0.3)' }}
           >
-            ✓ Confirm Hand
+            Confirm Hand ✓
           </button>
         )}
       </div>
@@ -700,25 +741,26 @@ export function PazPazPage() {
 
       {/* ── Exit confirmation modal ─────────────────────────────────────────── */}
       {confirmExit && (
-        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
+          <div className="glass-panel rounded-3xl border border-white/10 p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl">🚪</p>
-              <h2 className="pz-h text-2xl text-blue-700">Exit the Game?</h2>
-              <p className="text-gray-500 text-sm font-semibold">
+              <h2 className="pz-h text-2xl text-[#45F3FF]">Exit the Game?</h2>
+              <p className="text-gray-400 text-sm font-medium">
                 You'll leave the game in progress. Your partial assignment is saved.
               </p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmExit(false)}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
+                className="pz-btn flex-1 py-2 rounded-2xl font-medium border border-white/10"
               >
                 Stay
               </button>
               <button
                 onClick={goToLobby}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
+                className="flex-1 py-2 rounded-2xl font-medium border border-[#45F3FF]/40 text-[#45F3FF] transition-all hover:bg-[#45F3FF]/10"
+                style={{ boxShadow: '0 0 15px rgba(69,243,255,0.15)' }}
               >
                 Exit to Lobby
               </button>
