@@ -89,13 +89,16 @@ const HAND_THEMES = [
   },
 ] as const;
 
-// ─── Arc fan offsets (pre-computed, scaled at render time) ────────────────────
+// ─── Arc fan offsets ──────────────────────────────────────────────────────────
+// Transform applied as translateX(x) then rotate(r) around bottom-center.
+// x is true screen-space pixels from center; y is always 0 so cards don't
+// extend below the canvas bottom and get clipped.
 
 const FAN_OFFSETS = [
-  { x: -250, y: 28, r: -15 }, { x: -205, y: 18, r: -12 }, { x: -160, y: 10, r: -9 },
-  { x: -113, y:  5, r:  -6 }, { x:  -68, y:  1, r:  -3 }, { x:  -23, y:  0, r:   0 },
-  { x:   27, y:  0, r:   3 }, { x:   72, y:  1, r:   6 }, { x:  117, y:  5, r:   9 },
-  { x:  164, y: 10, r:  12 }, { x:  209, y: 18, r:  15 }, { x:  254, y: 28, r:  18 },
+  { x: -275, r: -20 }, { x: -225, r: -16 }, { x: -175, r: -13 },
+  { x: -125, r:  -9 }, { x:  -75, r:  -6 }, { x:  -25, r:  -2 },
+  { x:   25, r:   2 }, { x:   75, r:   6 }, { x:  125, r:   9 },
+  { x:  175, r:  13 }, { x:  225, r:  16 }, { x:  275, r:  20 },
 ];
 
 // ─── Inline CSS for animations + playful font ─────────────────────────────────
@@ -255,7 +258,7 @@ export function PazPazPage() {
       <div className="min-h-screen flex items-center justify-center"
         style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}>
         <style>{PZ_STYLES}</style>
-        <div className="text-center space-y-3 bg-white/70 backdrop-blur-md p-10 rounded-3xl border-2 border-white shadow-xl">
+        <div className="text-center space-y-3 bg-white/70  p-10 rounded-3xl border-2 border-white shadow-xl">
           <div className="text-6xl animate-bounce">🃏</div>
           <p className="pz-h text-2xl text-blue-600">Connecting…</p>
           {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -349,10 +352,10 @@ export function PazPazPage() {
     return gameState!.flops[flopIdx];
   }
 
-  // Fan
+  // Fan — cards emerge from canvas bottom, no y-offset clipping
   const visibleCards  = displayOrder.slice(0, dealtVisible).map(idx => ({ idx, card: dealtCards[idx] }));
-  const fanW          = Math.max(LG.w, 520 * fanScale + LG.w);
-  const fanH          = LG.h + 44;
+  const fanW          = 2 * (275 + LG.w / 2) + 40; // span of ±(275+halfCard) + margin = ~675px
+  const fanH          = LG.h;                         // just card height; no extra rise
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -374,6 +377,8 @@ export function PazPazPage() {
           background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)',
           fontFamily: "'Nunito', sans-serif",
           flexShrink: 0,
+          willChange: 'transform',
+          isolation: 'isolate',
         }}
       >
       <div className="pz-clouds absolute inset-0 z-0 pointer-events-none" />
@@ -392,7 +397,7 @@ export function PazPazPage() {
 
       {/* ── Floating top-center: opponent info ────────────────────────────── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-        <div className="flex items-center gap-3 bg-white/85 backdrop-blur-md px-4 py-2 rounded-full border-2 border-white shadow-md">
+        <div className="flex items-center gap-3 bg-white/85  px-4 py-2 rounded-full border-2 border-white shadow-md">
           {oppPlayer?.avatarUrl
             ? <img src={oppPlayer.avatarUrl} className="w-9 h-9 rounded-full border-2 border-blue-300 object-cover" alt="" />
             : <div className="w-9 h-9 rounded-full border-2 border-blue-300 bg-blue-100 flex items-center justify-center text-blue-500 text-sm font-bold">{oppPlayer?.name?.[0] ?? '?'}</div>
@@ -421,7 +426,7 @@ export function PazPazPage() {
             )}
           </div>
         ) : isScoringPhase ? (
-          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full border-2 border-white shadow-md">
+          <div className="flex items-center gap-2 bg-white/90  px-4 py-2 rounded-full border-2 border-white shadow-md">
             <span className="text-gray-500 text-sm font-semibold animate-pulse">Revealing…</span>
             <button onClick={() => setRevealedFlops(3)} className="text-xs text-blue-500 underline font-bold">Skip</button>
           </div>
@@ -437,7 +442,7 @@ export function PazPazPage() {
       </div>
 
       {/* ── Main: 3 panels — full width, 5px gaps, no outer margin ──────── */}
-      <main className={`absolute inset-0 flex items-stretch pt-20 overflow-hidden ${isScoringPhase ? 'pb-16' : 'pb-[252px]'}`}
+      <main className={`absolute inset-0 flex items-stretch pt-20 overflow-hidden ${isScoringPhase ? 'pb-16' : 'pb-[200px]'}`}
         style={{ gap: PANEL_GAP }}>
             {([0, 1, 2] as const).map(flopIdx => {
               const theme      = HAND_THEMES[flopIdx];
@@ -480,7 +485,7 @@ export function PazPazPage() {
                     const s = e.dataTransfer.getData('cardIndex');
                     if (s !== '') handleFlopDrop(flopIdx, parseInt(s));
                   } : undefined}
-                  className={`relative flex flex-col items-center gap-2 bg-white/40 backdrop-blur-md border-4 p-3 pt-6 rounded-2xl transition-transform
+                  className={`relative flex flex-col items-center gap-2 bg-white/70 border-4 p-3 pt-6 rounded-2xl transition-transform
                     ${isActive ? 'cursor-pointer scale-[1.01]' : 'hover:scale-[1.002]'}`}
                   style={{
                     boxShadow: theme.glow,
@@ -571,73 +576,21 @@ export function PazPazPage() {
             })}
       </main>
 
-      {/* ── Bottom-center: YOUR HAND arc fan (ASSIGNING only) ─────────────── */}
-      {!isScoringPhase && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1">
-          {/* Hint + counter */}
-          {!iHaveSubmitted && (
-            <p className="text-center text-gray-700 text-[11px] font-bold bg-black/10 px-4 py-0.5 rounded-full whitespace-nowrap">
-              {selectedCardIdx !== null ? '👆 Click a hand or drag' : `YOUR HAND · ${assignment.filter(a => a !== null).length}/12 — Click or drag cards to assign`}
-            </p>
-          )}
-
-          {/* Arc fan — no surrounding box */}
-          <div className="relative overflow-visible" style={{ width: fanW, height: fanH }}>
-            {visibleCards.map(({ idx, card }, displayPos) => {
-              const off = FAN_OFFSETS[displayPos] ?? { x: 0, y: 0, r: 0 };
-              const fi = assignment[idx];
-              const flopAssigned = fi !== null && fi !== undefined ? fi : undefined;
-              const isSelected   = selectedCardIdx === idx;
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    position: 'absolute',
-                    left: '50%',
-                    bottom: 0,
-                    width: LG.w,
-                    marginLeft: -LG.w / 2,
-                    transform: `rotate(${off.r}deg) translate(${off.x * fanScale}px, ${off.y * fanScale}px)${isSelected ? ' translateY(-14px) scale(1.1)' : ''}`,
-                    transformOrigin: 'bottom center',
-                    zIndex: isSelected ? 50 : displayPos + 1,
-                    transition: 'transform 0.15s ease',
-                  }}
-                  className={!iHaveSubmitted ? 'cursor-pointer' : ''}
-                  onClick={!iHaveSubmitted ? () => handleCardClick(idx) : undefined}
-                  draggable={!iHaveSubmitted && flopAssigned === undefined}
-                  onDragStart={!iHaveSubmitted && flopAssigned === undefined ? e => {
-                    e.dataTransfer.setData('cardIndex', String(idx));
-                    setDraggedIdx(idx);
-                    setSelectedCardIdx(null);
-                  } : undefined}
-                  onDragEnd={() => setDraggedIdx(null)}
-                >
-                  <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent rounded-xl' : ''}`}>
-                    <PlayingCard card={card} width={LG.w} height={LG.h} />
-                  </div>
-                  {flopAssigned !== undefined && (
-                    <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
-                      F{flopAssigned + 1}
-                    </span>
-                  )}
-                  {draggedIdx === idx && <div className="absolute inset-0 rounded-xl bg-black/20" />}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Controls below fan */}
+      {/* ── Hint + controls — float above the fan ─────────────────────────── */}
+      {!isScoringPhase && !iHaveSubmitted && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1"
+          style={{ bottom: LG.h + 14 }}>
+          <p className="text-center text-gray-700 text-[11px] font-bold bg-black/10 px-4 py-0.5 rounded-full whitespace-nowrap">
+            {selectedCardIdx !== null ? '👆 Click a hand or drag' : `YOUR HAND · ${assignment.filter(a => a !== null).length}/12 — Click or drag cards to assign`}
+          </p>
           <div className="flex gap-2 justify-center">
-            {!iHaveSubmitted && (
-              <button
-                onClick={() => setIsSorted(s => !s)}
-                className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white/90 text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-white"
-              >
-                ↕ {isSorted ? 'Sorted' : 'Sort'}
-              </button>
-            )}
-            {oppHasSubmitted && !iHaveSubmitted && pressureSeconds !== null && (
+            <button
+              onClick={() => setIsSorted(s => !s)}
+              className="pz-btn px-4 py-1.5 rounded-[1.5rem] bg-white/90 text-gray-700 font-bold text-sm shadow-[0_4px_0_#d1d5db] border border-gray-100 hover:bg-white"
+            >
+              ↕ {isSorted ? 'Sorted' : 'Sort'}
+            </button>
+            {oppHasSubmitted && pressureSeconds !== null && (
               <div className={`px-4 py-1.5 rounded-[1.5rem] font-bold text-sm ${pressureSeconds <= 30 ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-yellow-100 text-yellow-700'}`}>
                 ⚡ {Math.floor(pressureSeconds / 60)}:{String(pressureSeconds % 60).padStart(2, '0')}
               </div>
@@ -646,9 +599,61 @@ export function PazPazPage() {
         </div>
       )}
 
+      {/* ── Fan cards — emerge from the very bottom of the canvas ──────────── */}
+      {!isScoringPhase && (
+        <div
+          className="absolute z-40 overflow-visible"
+          style={{ bottom: 0, left: '50%', marginLeft: -fanW / 2, width: fanW, height: fanH }}
+        >
+          {visibleCards.map(({ idx, card }, displayPos) => {
+            const off = FAN_OFFSETS[displayPos] ?? { x: 0, r: 0 };
+            const fi = assignment[idx];
+            const flopAssigned = fi !== null && fi !== undefined ? fi : undefined;
+            const isSelected   = selectedCardIdx === idx;
+
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  bottom: 0,
+                  width: LG.w,
+                  marginLeft: -LG.w / 2,
+                  // translateX first (screen-space), then rotate around bottom-center — no y clipping
+                  transform: `translateX(${off.x * fanScale}px) rotate(${off.r}deg)${isSelected ? ' translateY(-16px) scale(1.12)' : ''}`,
+                  transformOrigin: 'bottom center',
+                  zIndex: isSelected ? 50 : displayPos + 1,
+                  transition: 'transform 0.15s ease',
+                }}
+                className={!iHaveSubmitted ? 'cursor-pointer' : ''}
+                onClick={!iHaveSubmitted ? () => handleCardClick(idx) : undefined}
+                draggable={!iHaveSubmitted && flopAssigned === undefined}
+                onDragStart={!iHaveSubmitted && flopAssigned === undefined ? e => {
+                  e.dataTransfer.setData('cardIndex', String(idx));
+                  setDraggedIdx(idx);
+                  setSelectedCardIdx(null);
+                } : undefined}
+                onDragEnd={() => setDraggedIdx(null)}
+              >
+                <div className={`transition-opacity ${flopAssigned !== undefined ? 'opacity-35' : ''} ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent rounded-xl' : ''}`}>
+                  <PlayingCard card={card} width={LG.w} height={LG.h} />
+                </div>
+                {flopAssigned !== undefined && (
+                  <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center shadow z-10">
+                    F{flopAssigned + 1}
+                  </span>
+                )}
+                {draggedIdx === idx && <div className="absolute inset-0 rounded-xl bg-black/20" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── Bottom-left: player info ───────────────────────────────────────── */}
       <div className="absolute bottom-4 left-4 z-50">
-        <div className="flex items-center gap-3 bg-white/95 backdrop-blur-xl p-2 pr-5 rounded-[2rem] shadow-[0_8px_20px_rgba(0,0,0,0.07)] border border-white/80">
+        <div className="flex items-center gap-3 bg-white/95  p-2 pr-5 rounded-[2rem] shadow-[0_8px_20px_rgba(0,0,0,0.07)] border border-white/80">
           {myPlayer?.avatarUrl
             ? <img src={myPlayer.avatarUrl} className="w-11 h-11 rounded-full border-2 border-gray-700 object-cover" alt="" />
             : <div className="w-11 h-11 rounded-full border-2 border-gray-700 bg-gray-200 flex items-center justify-center text-gray-600 font-bold">{myPlayer?.name?.[0] ?? 'Y'}</div>

@@ -5,11 +5,11 @@ const SUIT_SYMBOL: Record<string, string> = {
   spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣',
 };
 
-// Colored-deck backgrounds — dark, saturated, matching reference design
+// Colored-deck backgrounds — vivid, saturated
 const SUIT_BG: Record<string, string> = {
-  hearts:   '#8b1a1a', // dark red
-  diamonds: '#1a3a8f', // dark blue
-  clubs:    '#1e5631', // dark forest green
+  hearts:   '#cc1111', // vivid red
+  diamonds: '#1155cc', // vivid blue
+  clubs:    '#1a7a36', // vivid green
   spades:   '#1a1a2e', // very dark navy
 };
 
