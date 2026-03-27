@@ -33,9 +33,20 @@ function useCountdown(deadline: number | null): number | null {
   return seconds;
 }
 
+// ─── Design canvas (fixed resolution — CSS-scaled to fit any screen) ─────────
+
+const DESIGN_W = 1440;
+const DESIGN_H = 900;
+
+// Card sizes are computed from DESIGN_W so they're always the same pixel size
+const effectivePanelW = Math.max(240, Math.floor((DESIGN_W - 32) / 3)); // 469px
+const cardW = Math.max(40, Math.floor((effectivePanelW - 32 - 16) / 5)); // 84px
+const cardH = Math.round(cardW * (50 / 36));                              // 117px
+const fanScale = 1.0; // DESIGN_W is wide enough for all 12 fan cards
+
 // ─── Card sizes ───────────────────────────────────────────────────────────────
 
-const LG = { w: 84, h: 117 }; // fan cards
+const LG = { w: cardW, h: cardH }; // fan cards match slot cards at design res
 
 // ─── Face-down card ───────────────────────────────────────────────────────────
 
@@ -133,19 +144,15 @@ export function PazPazPage() {
   // Scoring reveal
   const [revealedFlops, setRevealedFlops] = useState(0);
 
-  // Responsive sizing
-  const [vw, setVw] = useState(window.innerWidth);
+  // CSS scale — shrink/grow the fixed 1440×900 canvas to fill any viewport
+  const [cssScale, setCssScale] = useState(
+    () => Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H)
+  );
   useEffect(() => {
-    const onResize = () => setVw(window.innerWidth);
+    const onResize = () => setCssScale(Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  // Each panel gets 1/3 of width, min 240px; cards fill 5-per-row inside
-  const effectivePanelW = Math.max(240, Math.floor((vw - 32) / 3));
-  const cardW = Math.max(40, Math.floor((effectivePanelW - 32 - 4 * 4) / 5));
-  const cardH = Math.round(cardW * (50 / 36));
-  const fanScale = Math.min(1, (vw - 32) / 620);
 
   const timerSeconds    = useCountdown(gameState?.assignDeadline  ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
@@ -344,11 +351,26 @@ export function PazPazPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
+    /* Outer shell: always fills the viewport, clips overflow, centers the canvas */
     <div
-      className="w-full h-screen relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)', fontFamily: "'Nunito', sans-serif" }}
+      className="w-screen h-screen overflow-hidden flex items-center justify-center"
+      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}
     >
       <style>{PZ_STYLES}</style>
+      {/* Fixed-size design canvas scaled to fit */}
+      <div
+        style={{
+          width: DESIGN_W,
+          height: DESIGN_H,
+          transform: `scale(${cssScale})`,
+          transformOrigin: 'center center',
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)',
+          fontFamily: "'Nunito', sans-serif",
+          flexShrink: 0,
+        }}
+      >
       <div className="pz-clouds absolute inset-0 z-0 pointer-events-none" />
 
       {/* ── Floating top-left: back to lobby ──────────────────────────────── */}
@@ -669,6 +691,7 @@ export function PazPazPage() {
           {error}
         </div>
       )}
+      </div>
     </div>
   );
 }
