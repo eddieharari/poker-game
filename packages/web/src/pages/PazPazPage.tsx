@@ -37,11 +37,13 @@ function useCountdown(deadline: number | null): number | null {
 
 const DESIGN_W = 1440;
 const DESIGN_H = 900;
+const PANEL_GAP = 5; // px gap between the 3 panels
 
-// Card sizes are computed from DESIGN_W so they're always the same pixel size
-const effectivePanelW = Math.max(240, Math.floor((DESIGN_W - 32) / 3)); // 469px
-const cardW = Math.max(40, Math.floor((effectivePanelW - 32 - 16) / 5)); // 84px
-const cardH = Math.round(cardW * (50 / 36));                              // 117px
+// 3 panels fill the full DESIGN_W with PANEL_GAP px gaps, no outer margin
+// border-4 = 8px total, p-3 = 24px total, gap-1 cards = 16px → cardW = 85px
+const effectivePanelW = Math.floor((DESIGN_W - PANEL_GAP * 2) / 3);          // 476px
+const cardW = Math.max(40, Math.floor((effectivePanelW - 8 - 24 - 16) / 5)); // 85px
+const cardH = Math.round(cardW * (50 / 36));                                   // 118px
 const fanScale = 1.0; // DESIGN_W is wide enough for all 12 fan cards
 
 // ─── Card sizes ───────────────────────────────────────────────────────────────
@@ -54,11 +56,14 @@ const LG = { w: cardW, h: cardH }; // fan cards match slot cards at design res
 
 // ─── Hand themes (one per flop) ───────────────────────────────────────────────
 
+const NEON_PURPLE_GLOW   = 'inset 0 0 24px rgba(200,0,255,0.40), 0 0 18px rgba(200,0,255,0.22)';
+const NEON_PURPLE_BORDER = 'rgba(200,0,255,0.85)';
+
 const HAND_THEMES = [
   {
     label: 'BACK HAND',
-    glow: 'inset 0 0 24px rgba(57,255,20,0.45), 0 0 20px rgba(57,255,20,0.25)',
-    border: 'rgba(57,255,20,0.75)',
+    glow: NEON_PURPLE_GLOW,
+    border: NEON_PURPLE_BORDER,
     badgeCls: 'bg-blue-200 text-blue-800 border-blue-100',
     commCls:  'border-blue-300 bg-blue-50/80',
     mySlotCls:'border-blue-300 bg-blue-50/70 text-blue-400 hover:bg-blue-100',
@@ -66,8 +71,8 @@ const HAND_THEMES = [
   },
   {
     label: 'MIDDLE HAND',
-    glow: 'inset 0 0 24px rgba(255,0,255,0.45), 0 0 20px rgba(255,0,255,0.25)',
-    border: 'rgba(255,0,255,0.75)',
+    glow: NEON_PURPLE_GLOW,
+    border: NEON_PURPLE_BORDER,
     badgeCls: 'bg-purple-200 text-purple-800 border-purple-100',
     commCls:  'border-purple-300 bg-purple-50/80',
     mySlotCls:'border-purple-300 bg-purple-50/70 text-purple-400 hover:bg-purple-100',
@@ -75,8 +80,8 @@ const HAND_THEMES = [
   },
   {
     label: 'FRONT HAND',
-    glow: 'inset 0 0 24px rgba(0,255,255,0.45), 0 0 20px rgba(0,255,255,0.25)',
-    border: 'rgba(0,255,255,0.75)',
+    glow: NEON_PURPLE_GLOW,
+    border: NEON_PURPLE_BORDER,
     badgeCls: 'bg-green-200 text-green-800 border-green-100',
     commCls:  'border-green-300 bg-green-50/80',
     mySlotCls:'border-green-300 bg-green-50/70 text-green-400 hover:bg-green-100',
@@ -431,10 +436,9 @@ export function PazPazPage() {
         ) : null}
       </div>
 
-      {/* ── Main: 3 connected panels ──────────────────────────────────────── */}
-      <main className={`absolute inset-0 flex items-center justify-center pt-20 px-2 overflow-hidden ${isScoringPhase ? 'pb-16' : 'pb-[252px]'}`}>
-        <div className="flex items-stretch h-full max-h-[520px] overflow-x-auto w-full max-w-[1400px]">
-          <div className="flex flex-row items-stretch mx-auto flex-shrink-0">
+      {/* ── Main: 3 panels — full width, 5px gaps, no outer margin ──────── */}
+      <main className={`absolute inset-0 flex items-stretch pt-20 overflow-hidden ${isScoringPhase ? 'pb-16' : 'pb-[252px]'}`}
+        style={{ gap: PANEL_GAP }}>
             {([0, 1, 2] as const).map(flopIdx => {
               const theme      = HAND_THEMES[flopIdx];
               const result     = allFlopResults[flopIdx];
@@ -466,9 +470,6 @@ export function PazPazPage() {
                 ? { cls: 'bg-yellow-400 text-white border-yellow-300', text: '🤝 DRAW' }
                 : { cls: theme.badgeCls, text: theme.label };
 
-              const rounding = flopIdx === 0 ? 'rounded-l-[2rem]' : flopIdx === 2 ? 'rounded-r-[2rem]' : '';
-              const borderSide = flopIdx === 0 ? 'border-r-0' : flopIdx === 2 ? 'border-l-0' : '';
-
               return (
                 <div
                   key={flopIdx}
@@ -479,13 +480,13 @@ export function PazPazPage() {
                     const s = e.dataTransfer.getData('cardIndex');
                     if (s !== '') handleFlopDrop(flopIdx, parseInt(s));
                   } : undefined}
-                  className={`relative flex flex-col items-center gap-3 bg-white/40 backdrop-blur-md border-4 p-4 pt-6 flex-1 transition-transform
-                    ${rounding} ${borderSide}
-                    ${isActive ? 'cursor-pointer scale-[1.02]' : 'hover:scale-[1.005]'}`}
+                  className={`relative flex flex-col items-center gap-2 bg-white/40 backdrop-blur-md border-4 p-3 pt-6 rounded-2xl transition-transform
+                    ${isActive ? 'cursor-pointer scale-[1.01]' : 'hover:scale-[1.002]'}`}
                   style={{
                     boxShadow: theme.glow,
                     borderColor: theme.border,
-                    minWidth: `${effectivePanelW}px`,
+                    width: effectivePanelW,
+                    flexShrink: 0,
                   }}
                 >
                   {/* Floating badge */}
@@ -568,8 +569,6 @@ export function PazPazPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
       </main>
 
       {/* ── Bottom-center: YOUR HAND arc fan (ASSIGNING only) ─────────────── */}

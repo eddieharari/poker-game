@@ -9,6 +9,8 @@ interface AuthState {
   loading: boolean;
   duplicateSession: boolean;
   setSession: (session: Session | null) => void;
+  /** Silently swap the session token (e.g. TOKEN_REFRESHED) without touching loading or re-fetching profile. */
+  refreshSession: (session: Session | null) => void;
   setProfile: (profile: Profile | null) => void;
   fetchProfile: (session: Session | null) => Promise<void>;
   signOut: () => Promise<void>;
@@ -27,6 +29,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setSession: (session) =>
     set({ session, user: session?.user ?? null, ...(session ? { loading: true } : {}) }),
+
+  // TOKEN_REFRESHED: just swap the token, never flash the loading screen
+  refreshSession: (session) =>
+    set({ session, user: session?.user ?? null }),
 
   setProfile: (profile) => set({ profile }),
 

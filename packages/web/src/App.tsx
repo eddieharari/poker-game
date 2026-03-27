@@ -15,19 +15,29 @@ import { CashierPage } from './pages/CashierPage.js';
 import { AgentPage } from './pages/AgentPage.js';
 
 export function App() {
-  const { session, profile, loading, setSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
+  const { session, profile, loading, setSession, refreshSession, fetchProfile, duplicateSession, setDuplicateSession } = useAuthStore();
 
   // Bootstrap auth state from Supabase.
   // onAuthStateChange fires immediately with INITIAL_SESSION (replaces getSession),
   // then again on login/logout — single source of truth for auth state.
+  //
+  // TOKEN_REFRESHED fires every ~1 hour AND whenever the tab regains focus.
+  // We must NOT call fetchProfile on it — fetchProfile sets loading:true which
+  // unmounts the whole app and flashes the "Poker5O" spinner every time the
+  // user switches back to this tab.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === 'TOKEN_REFRESHED') {
+        // Silently swap the access token; profile hasn't changed.
+        refreshSession(newSession);
+        return;
+      }
       setSession(newSession);
-      fetchProfile(newSession); // pass session directly — no store timing dependency
+      fetchProfile(newSession);
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchProfile]);
+  }, [setSession, refreshSession, fetchProfile]);
 
   // Synchronously connect so socket exists before child component effects run
   if (session && profile) {
