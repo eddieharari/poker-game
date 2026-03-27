@@ -22,7 +22,7 @@ export const settingsService = {
 };
 
 export function calculateHouseFee(pot: number, settings: HouseSettings): number {
-  if (!settings.housePlayerId) return 0;
+  if (settings.feePercent <= 0) return 0;
   const fee = Math.floor(pot * settings.feePercent / 100);
   return settings.feeCap > 0 ? Math.min(fee, settings.feeCap) : fee;
 }
