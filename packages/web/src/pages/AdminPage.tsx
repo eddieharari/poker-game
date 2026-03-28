@@ -710,7 +710,7 @@ export function AdminPage() {
                     placeholder="Supabase player UUID"
                     className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
                   />
-                  <p className="text-xs text-white/30 mt-1">Player ID that receives house fees (empty = no fee)</p>
+                  <p className="text-xs text-white/30 mt-1">Player ID that receives house fees (empty = fee is burned)</p>
                 </div>
                 {settingsSaved && (
                   <p className={`text-sm text-center ${settingsSaved.includes('saved') ? 'text-green-400' : 'text-red-400'}`}>
