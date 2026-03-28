@@ -4,6 +4,57 @@ import toast from 'react-hot-toast';
 import { supabase } from '../supabase.js';
 import { useAuthStore } from '../store/authStore.js';
 
+const AUTH_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  .auth-h { font-family: 'Space Grotesk', sans-serif !important; }
+  .glass-panel {
+    background: rgba(26, 28, 35, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
+  }
+  .auth-input {
+    width: 100%;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #E0E6ED;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .auth-input::placeholder { color: rgba(255,255,255,0.25); }
+  .auth-input:focus {
+    border-color: rgba(69,243,255,0.5);
+    box-shadow: 0 0 0 3px rgba(69,243,255,0.08);
+  }
+  .auth-stars {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 50px 160px, #fff, rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 90px 40px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 160px 120px, #fff, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 300px 300px;
+    animation: auth-twinkle 8s infinite alternate;
+  }
+  @keyframes auth-twinkle { 0% { opacity: 0.3; } 100% { opacity: 0.7; } }
+  .auth-nebula {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 15% 50%, rgba(110,86,207,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(69,243,255,0.1) 0%, transparent 50%);
+  }
+`;
+
 type Mode = 'login' | 'signup';
 
 export function AuthPage() {
@@ -41,36 +92,40 @@ export function AuthPage() {
     });
   }
 
-
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{
-        backgroundImage: 'url(/bg-poker.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }}
+      className="min-h-screen flex items-center justify-center p-4 relative"
+      style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}
     >
-      <div className="w-full max-w-sm space-y-6 animate-slide-up bg-black/60 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-2xl">
+      <style>{AUTH_STYLES}</style>
+      <div className="auth-stars" />
+      <div className="auth-nebula" />
+
+      <div className="relative z-10 w-full max-w-sm space-y-6 animate-slide-up glass-panel rounded-2xl p-8 border border-white/10 shadow-2xl">
         {/* Logo */}
-        <div className="text-center">
-          <h1 className="font-display text-5xl text-gold drop-shadow-lg">Poker5O</h1>
-          <p className="text-white/50 mt-1 text-sm">5 columns. 5 cards. Best hand wins.</p>
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
+            <h1 className="auth-h text-4xl tracking-widest text-white uppercase" style={{ textShadow: '0 0 30px rgba(69,243,255,0.3)' }}>Poker5O</h1>
+            <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
+          </div>
+          <p className="text-gray-600 text-sm tracking-wide">5 columns. 5 cards. Best hand wins.</p>
         </div>
 
-        {/* OAuth */}
-        <div>
-          <button onClick={handleGoogle} className="btn-ghost w-full flex items-center justify-center gap-3">
-            <GoogleIcon />
-            Continue with Google
-          </button>
-        </div>
+        {/* Google OAuth */}
+        <button
+          onClick={handleGoogle}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-medium text-sm transition-all border border-white/10 text-gray-300 hover:text-white hover:border-white/20"
+          style={{ background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)', boxShadow: '0 4px 15px rgba(0,0,0,0.4)' }}
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
 
-        <div className="flex items-center gap-3 text-white/30 text-sm">
-          <div className="flex-1 h-px bg-white/10" />
+        <div className="flex items-center gap-3 text-gray-700 text-sm">
+          <div className="flex-1 h-px bg-white/5" />
           or
-          <div className="flex-1 h-px bg-white/10" />
+          <div className="flex-1 h-px bg-white/5" />
         </div>
 
         {/* Email form */}
@@ -80,7 +135,7 @@ export function AuthPage() {
             placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="input"
+            className="auth-input"
             required
           />
           <input
@@ -88,20 +143,25 @@ export function AuthPage() {
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            className="input"
+            className="auth-input"
             required
             minLength={6}
           />
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 rounded-xl auth-h text-sm tracking-widest uppercase font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02]"
+            style={{ background: '#00FF9D', color: '#000', boxShadow: '0 0 25px rgba(0,255,157,0.3)', border: '1px solid #00FF9D' }}
+          >
             {loading ? 'Loading…' : mode === 'login' ? 'Log In' : 'Sign Up'}
           </button>
         </form>
 
-        <p className="text-center text-white/50 text-sm">
+        <p className="text-center text-gray-600 text-sm">
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
           <button
             onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            className="text-gold hover:underline"
+            className="text-[#45F3FF] hover:underline font-medium"
           >
             {mode === 'login' ? 'Sign Up' : 'Log In'}
           </button>
@@ -121,4 +181,3 @@ function GoogleIcon() {
     </svg>
   );
 }
-
