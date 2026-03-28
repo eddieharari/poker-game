@@ -523,7 +523,7 @@ export function PazPazPage() {
                     const s = e.dataTransfer.getData('cardIndex');
                     if (s !== '') handleFlopDrop(flopIdx, parseInt(s));
                   } : undefined}
-                  className={`relative flex flex-col items-center gap-2 glass-panel border-2 p-3 pt-6 rounded-[2rem] transition-transform overflow-hidden
+                  className={`relative flex flex-col items-center gap-2 glass-panel border-2 p-3 pt-8 rounded-[2rem] transition-transform
                     ${isActive ? 'cursor-pointer scale-[1.01]' : 'hover:scale-[1.002]'}`}
                   style={{
                     boxShadow: theme.glow,
@@ -536,7 +536,8 @@ export function PazPazPage() {
                   <div className="absolute top-0 left-0 w-full h-px pointer-events-none opacity-60"
                     style={{ background: `linear-gradient(90deg, transparent, ${theme.topLine}, transparent)` }} />
                   {/* Floating badge */}
-                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pz-h text-xs border tracking-[0.15em] uppercase shadow-sm whitespace-nowrap z-10 ${badge.cls}`}>
+                  <div className={`absolute -top-5 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full pz-h text-sm font-bold border tracking-[0.15em] uppercase shadow-lg whitespace-nowrap z-20 ${badge.cls}`}
+                    style={{ minWidth: 120, textAlign: 'center' }}>
                     {badge.text}
                   </div>
 

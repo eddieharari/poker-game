@@ -139,13 +139,20 @@ export function LobbyPage() {
           </div>
           <button
             onClick={toggleStatus}
-            className={`lby-btn text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
-              myStatus === 'busy'
-                ? 'border-[#FF3366]/50 text-[#FF3366]'
-                : 'border-[#00FF9D]/50 text-[#00FF9D]'
-            }`}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-all"
+            style={myStatus === 'busy' ? {
+              background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)',
+              border: '1px solid rgba(255,51,102,0.5)',
+              color: '#FF3366',
+              boxShadow: '0 0 10px rgba(255,51,102,0.2)',
+            } : {
+              background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)',
+              border: '1px solid rgba(0,255,157,0.5)',
+              color: '#00FF9D',
+              boxShadow: '0 0 10px rgba(0,255,157,0.2)',
+            }}
           >
-            {myStatus === 'busy' ? '● Busy' : '● Ready'}
+            {myStatus === 'busy' ? '🔴 Busy' : '🟢 Ready'}
           </button>
           {(profile?.role === 'admin' || profile?.role === 'agent') && (
             <button
