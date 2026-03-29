@@ -14,7 +14,7 @@ function compute(): CardSize {
   const HAND_LABEL_H = 16;      // hand-rank label per column
   const CENTER_H     = 120;     // center strip with draw card
   const PAD_V        = 8;       // top+bottom padding
-  const PAD_H        = 8;       // horizontal padding (both sides)
+  const PAD_H        = 12;      // horizontal padding (both sides, accounts for mx-2 border)
 
   // Vertical: two grids + center strip
   const availH = window.innerHeight
@@ -26,9 +26,9 @@ function compute(): CardSize {
   // COL_H = CARD_H * 7/3 → cardH = availH/2 * 3/7
   const cardHFromHeight = (availH / 2) * (3 / 7);
 
-  // Horizontal: 5 cards fill full width
+  // Horizontal: 5 cards with gap-2 (8px × 4 gaps = 32px) between them
   const availW = window.innerWidth - PAD_H * 2;
-  const cardWFromWidth = availW / 5;
+  const cardWFromWidth = (availW - 32) / 5;
   const cardHFromWidth = cardWFromWidth * ASPECT;
 
   const cardH = Math.max(60, Math.min(220, Math.floor(Math.min(cardHFromHeight, cardHFromWidth))));

@@ -8,7 +8,6 @@ function getHandLabel(cards: Card[]): string | null {
   if (cards.length === 0) return null;
   if (cards.length === 5) return evaluateHand(cards).label;
 
-  // Count rank occurrences
   const rankCounts = new Map<string, number>();
   const suitCounts = new Map<string, number>();
   for (const c of cards) {
@@ -47,8 +46,6 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
   const colH  = cardH + 4 * peek;
   const canPlace = isMe && isMyTurn && !!drawnCard && phase !== 'GAME_OVER';
 
-  // Opponent: row 0 at bottom (closest to center), row 4 at top
-  // Me: row 0 at top (closest to center), row 4 at bottom
   function cardTop(rowIdx: number): number {
     return isMe ? rowIdx * peek : (4 - rowIdx) * peek;
   }
@@ -57,34 +54,38 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
     const col = player.columns[colIdx] ?? [];
     const isDropTarget = canPlace && col.length === currentRow;
     const faceUp = col.filter(c => !c.faceDown);
-    // For me: show partial hand label as soon as there are cards
-    // For opponent: only show label when all 5 cards are face-up (after reveal)
     const handLabel = isMe ? getHandLabel(faceUp) : (faceUp.length === 5 ? evaluateHand(faceUp).label : null);
     return { colIdx, col, isDropTarget, handLabel };
   });
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 px-1 py-0.5">
       {/* Player header */}
-      <div className={`flex items-center gap-2 px-1 ${isMe ? '' : 'flex-row-reverse justify-end'}`}>
+      <div className={`flex items-center gap-2 ${isMe ? '' : 'flex-row-reverse justify-end'}`}>
         {avatarUrl && (
-          <img src={avatarUrl} alt={player.name} className="w-6 h-6 rounded-full border border-white/30 object-cover" />
+          <img src={avatarUrl} alt={player.name}
+            className="w-6 h-6 rounded-full object-cover"
+            style={{ border: '1px solid rgba(69,243,255,0.5)' }} />
         )}
-        <span className="text-sm font-semibold text-white">{player.name}</span>
+        <span className="text-sm font-semibold text-white/80">{player.name}</span>
         {isMyTurn && phase !== 'GAME_OVER' && (
-          <span className="text-xs bg-gold text-black px-2 py-0.5 rounded-full font-bold">Your turn</span>
+          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+            style={{ background: 'rgba(69,243,255,0.15)', color: '#45F3FF', border: '1px solid rgba(69,243,255,0.3)' }}>
+            Your turn
+          </span>
         )}
       </div>
 
-      {/* 5 columns */}
-      <div className="flex justify-around w-full">
+      {/* 5 columns — tighter gap */}
+      <div className="flex justify-center gap-2 w-full">
         {columns.map(({ colIdx, col, isDropTarget, handLabel }) => (
           <div key={colIdx} className="flex flex-col items-center gap-0.5">
-            {/* Hand label above (for me) */}
+            {/* Hand label (above for me) */}
             {isMe && (
               <div className="h-4 flex items-center justify-center">
                 {handLabel && (
-                  <span className="text-xs text-gold font-semibold whitespace-nowrap leading-none">{handLabel}</span>
+                  <span className="text-[10px] font-semibold whitespace-nowrap leading-none"
+                    style={{ color: '#45F3FF' }}>{handLabel}</span>
                 )}
               </div>
             )}
@@ -95,50 +96,49 @@ export function PlayerGrid({ player, isMe, currentRow, drawnCard, isMyTurn, phas
               style={{ width: cardW, height: colH }}
               onClick={() => isDropTarget && onPlaceCard(colIdx)}
             >
-              {/* Empty column placeholder */}
+              {/* Empty placeholder */}
               {col.length === 0 && (
                 <div
-                  className="absolute rounded-lg border border-dashed border-white/15"
-                  style={{ width: cardW, height: cardH, top: isMe ? 0 : 4 * peek, zIndex: 0 }}
+                  className="absolute rounded-lg border border-dashed"
+                  style={{ width: cardW, height: cardH, top: isMe ? 0 : 4 * peek, zIndex: 0, borderColor: 'rgba(255,255,255,0.1)' }}
                 />
               )}
 
               {/* Stacked cards */}
               {col.map((card, rowIdx) => {
-                // In revealAll mode respect the card's own faceDown flag (used for progressive reveal).
-                // Otherwise always hide opponent row-4 until the game ends.
                 const displayCard = revealAll
                   ? { ...card, faceDown: card.faceDown ?? false }
                   : (!isMe && rowIdx === 4)
                     ? { ...card, faceDown: true }
                     : { ...card, faceDown: false };
                 return (
-                  <div
-                    key={rowIdx}
-                    className="absolute"
-                    style={{ top: cardTop(rowIdx), zIndex: rowIdx + 1 }}
-                  >
+                  <div key={rowIdx} className="absolute" style={{ top: cardTop(rowIdx), zIndex: rowIdx + 1 }}>
                     <PlayingCard card={displayCard} width={cardW} height={cardH} hideFlippedCorners={!isMe} />
                   </div>
                 );
               })}
 
-              {/* Drop target indicator */}
+              {/* Drop target */}
               {isDropTarget && (
                 <div
-                  className="absolute rounded-lg border-2 border-dashed border-gold bg-gold/10 flex items-center justify-center animate-pulse"
-                  style={{ top: col.length * peek, width: cardW, height: cardH, zIndex: col.length + 1 }}
+                  className="absolute rounded-lg border-2 border-dashed flex items-center justify-center animate-pulse"
+                  style={{
+                    top: col.length * peek, width: cardW, height: cardH, zIndex: col.length + 1,
+                    borderColor: '#45F3FF',
+                    background: 'rgba(69,243,255,0.08)',
+                    boxShadow: '0 0 12px rgba(69,243,255,0.2)',
+                  }}
                 >
-                  <span className="text-gold text-xl font-bold">+</span>
+                  <span className="text-xl font-bold" style={{ color: '#45F3FF' }}>+</span>
                 </div>
               )}
             </div>
 
-            {/* Hand label below (for opponent, toward center) */}
+            {/* Hand label (below for opponent) */}
             {!isMe && (
               <div className="h-4 flex items-center justify-center">
                 {handLabel && (
-                  <span className="text-xs text-gold font-semibold whitespace-nowrap leading-none">{handLabel}</span>
+                  <span className="text-[10px] font-semibold whitespace-nowrap leading-none text-gray-500">{handLabel}</span>
                 )}
               </div>
             )}

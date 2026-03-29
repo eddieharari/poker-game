@@ -21,7 +21,6 @@ function prepareReveal(state: GameState, revealedCols: number, myPlayerIndex: 0 
       columns: p.columns.map((col, colIdx) =>
         col.map((card, rowIdx) => ({
           ...card,
-          // Only hide the opponent's row-4 card until that column is revealed
           faceDown: pIdx === opponentIndex && rowIdx === 4 && colIdx > revealedCols,
         }))
       ),
@@ -29,13 +28,54 @@ function prepareReveal(state: GameState, revealedCols: number, myPlayerIndex: 0 
   };
 }
 
-// ─── Shared PazPaz-style CSS ──────────────────────────────────────────────────
+// ─── Dark space theme CSS ─────────────────────────────────────────────────────
 
 const PZ_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap');
-  .pz-h { font-family: 'Fredoka One', cursive !important; }
-  .pz-btn { transition: all 0.1s; position: relative; top: 0; }
-  .pz-btn:active { top: 4px; box-shadow: none !important; }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  .pz-h { font-family: 'Space Grotesk', sans-serif !important; }
+  .glass-panel {
+    background: rgba(26, 28, 35, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
+  }
+  .pz-btn {
+    transition: all 0.2s ease;
+    background: linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #E0E6ED;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  .pz-btn:hover {
+    background: linear-gradient(180deg, #33334D 0%, #252538 100%);
+    border-color: rgba(69,243,255,0.5);
+    box-shadow: 0 0 15px rgba(69,243,255,0.4);
+    color: #fff;
+  }
+  .pz-btn:active { box-shadow: none; }
+  .gp-stars {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 50px 160px, #fff, rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 90px 40px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.8), rgba(0,0,0,0)),
+      radial-gradient(1px 1px at 160px 120px, #fff, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 300px 300px;
+    animation: gp-twinkle 8s infinite alternate;
+  }
+  @keyframes gp-twinkle { 0% { opacity: 0.3; } 100% { opacity: 0.7; } }
+  .gp-nebula {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 15% 50%, rgba(110,86,207,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(69,243,255,0.1) 0%, transparent 50%);
+  }
 `;
 
 // ─── GamePage ─────────────────────────────────────────────────────────────────
@@ -52,10 +92,8 @@ export function GamePage() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Reveal animation: -1 = not started, 0-4 = column index revealed so far
   const [revealedCols, setRevealedCols] = useState(-1);
 
-  // Kick off progressive reveal when score arrives
   useEffect(() => {
     if (!score) { setRevealedCols(-1); return; }
     if (revealedCols >= 4) return;
@@ -68,15 +106,11 @@ export function GamePage() {
     if (!roomId) return;
     const socket = getSocket();
     socket.emit('room:join', { roomId });
-
     const pingInterval = setInterval(() => {
       if (socket.connected) socket.emit('game:ping', { roomId });
     }, 15_000);
-
-    // Re-join the socket.io room on reconnect (room membership is lost on disconnect)
     const handleReconnect = () => socket.emit('room:join', { roomId });
     socket.on('connect', handleReconnect);
-
     return () => {
       clearInterval(pingInterval);
       socket.off('connect', handleReconnect);
@@ -84,30 +118,13 @@ export function GamePage() {
   }, [roomId]);
 
   useEffect(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     const deadline = gameState?.turnDeadline;
-    if (!deadline) {
-      setTimerSeconds(null);
-      return;
-    }
-
-    const update = () => {
-      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-      setTimerSeconds(remaining);
-    };
+    if (!deadline) { setTimerSeconds(null); return; }
+    const update = () => setTimerSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
     update();
     timerIntervalRef.current = setInterval(update, 250);
-
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    };
+    return () => { if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; } };
   }, [gameState?.turnDeadline]);
 
   if (!roomId || !profile) return <Navigate to="/lobby" replace />;
@@ -115,11 +132,12 @@ export function GamePage() {
   if (playerIndex === null || !gameState) {
     return (
       <div className="min-h-screen flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)' }}>
+        style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', color: '#E0E6ED' }}>
         <style>{PZ_STYLES}</style>
-        <div className="text-center space-y-3 bg-white/80 p-10 rounded-3xl border-2 border-white shadow-xl">
+        <div className="gp-stars" /><div className="gp-nebula" />
+        <div className="glass-panel relative z-10 text-center space-y-3 p-10 rounded-3xl border border-white/10 shadow-xl">
           <div className="text-6xl animate-bounce">🃏</div>
-          <p className="pz-h text-2xl text-blue-600">Connecting to game…</p>
+          <p className="pz-h text-2xl text-[#45F3FF]">Connecting to game…</p>
         </div>
       </div>
     );
@@ -129,7 +147,6 @@ export function GamePage() {
   const isRevealMode = !!score;
   const allRevealed  = isRevealMode && revealedCols >= 4;
 
-  // In reveal mode use the progressively-revealed state; otherwise live state
   const displayState = isRevealMode ? prepareReveal(gameState, revealedCols, playerIndex) : gameState;
   const myPlayer     = displayState.players[playerIndex];
   const themPlayer   = displayState.players[opponentIndex];
@@ -137,21 +154,9 @@ export function GamePage() {
   const isMyTurn    = gameState.currentPlayerIndex === playerIndex;
   const drawAllowed = canDrawCard(gameState, profile.id);
 
-  function handleDraw() {
-    if (!roomId) return;
-    getSocket().emit('action:draw', { roomId });
-  }
-
-  function handleForfeit() {
-    if (!roomId) return;
-    getSocket().emit('game:forfeit', { roomId });
-    setConfirmForfeit(false);
-  }
-
-  function handlePlace(columnIndex: number) {
-    if (!roomId) return;
-    getSocket().emit('action:place', { roomId, columnIndex });
-  }
+  function handleDraw() { if (roomId) getSocket().emit('action:draw', { roomId }); }
+  function handleForfeit() { if (roomId) { getSocket().emit('game:forfeit', { roomId }); setConfirmForfeit(false); } }
+  function handlePlace(columnIndex: number) { if (roomId) getSocket().emit('action:place', { roomId, columnIndex }); }
 
   function goToLobby() {
     reset();
@@ -160,63 +165,66 @@ export function GamePage() {
     navigate('/lobby', { replace: true });
   }
 
-  // Result info (available once score exists)
-  const iWon  = score ? score.winner === playerIndex : false;
+  const iWon   = score ? score.winner === playerIndex : false;
   const isDraw = score ? score.winner === 'draw' : false;
 
   const phaseLabel: Record<string, string> = {
-    SETUP_PHASE: 'Setup — dealing first row',
+    SETUP_PHASE: 'Dealing first row',
     MAIN_PHASE:  `Row ${gameState.currentRow + 1} of 5`,
     GAME_OVER:   'Game Over',
   };
 
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%)', fontFamily: "'Nunito', sans-serif" }}
+      className="h-screen flex flex-col overflow-hidden relative"
+      style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}
     >
       <style>{PZ_STYLES}</style>
+      <div className="gp-stars" />
+      <div className="gp-nebula" />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 bg-white/85 border-b-2 border-white/80 px-4 py-2 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <h1 className="pz-h text-xl text-blue-700">Poker5O</h1>
+      <header className="flex-shrink-0 relative z-10 glass-panel border-b border-white/5 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
+          <h1 className="pz-h text-lg tracking-widest text-white uppercase">Poker5O</h1>
         </div>
 
-        {/* Center: phase label OR result banner */}
-        <div className="flex items-center gap-3">
+        {/* Center: phase / result */}
+        <div className="flex items-center gap-2">
           {isRevealMode ? (
             allRevealed ? (
               <>
-                <span className="text-2xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
-                <span className="pz-h text-xl text-blue-700">
+                <span className="text-xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
+                <span className="pz-h text-lg font-bold"
+                  style={{ color: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366', textShadow: isDraw ? '0 0 15px rgba(255,215,0,0.5)' : iWon ? '0 0 15px rgba(0,255,157,0.5)' : '0 0 15px rgba(255,51,102,0.5)' }}>
                   {isDraw ? 'Draw!' : iWon ? 'You Win!' : 'You Lose!'}
                 </span>
-                <span className="text-gray-500 text-sm font-semibold">
+                <span className="text-gray-500 text-xs font-semibold glass-panel px-2 py-0.5 rounded-full border border-white/10">
                   {score!.player0Wins}–{score!.player1Wins}
                   {score!.draws > 0 ? ` (${score!.draws} tied)` : ''}
                 </span>
                 {score!.completeWinBonus && score!.isCompleteWin && (
-                  <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-2 py-0.5">
-                    🏆 Complete Win — Double Payout!
+                  <span className="text-xs font-semibold bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/30 rounded-full px-2 py-0.5">
+                    🏆 5-0 Double!
                   </span>
                 )}
               </>
             ) : (
               <>
-                <span className="text-gray-500 text-sm font-semibold animate-pulse">Revealing results…</span>
-                <button onClick={() => setRevealedCols(4)} className="text-xs text-blue-500 underline font-bold">
-                  Skip
-                </button>
+                <span className="text-gray-500 text-xs animate-pulse glass-panel px-3 py-1 rounded-full border border-white/10">Revealing…</span>
+                <button onClick={() => setRevealedCols(4)} className="text-xs text-[#45F3FF] underline font-bold">Skip</button>
               </>
             )
           ) : (
             <>
-              <span className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full">
+              <span className="text-xs text-gray-400 glass-panel px-3 py-1 rounded-full border border-white/10">
                 {phaseLabel[gameState.phase] ?? ''}
               </span>
               {stake != null && (
-                <span className="text-xs font-bold text-yellow-700 bg-yellow-100 border border-yellow-300 px-3 py-1 rounded-full">
-                  Pot: {(stake * 2).toLocaleString()} chips{completeWinBonus ? ' (2x bonus)' : ''}
+                <span className="text-xs font-bold glass-panel px-3 py-1 rounded-full border border-[#FFD700]/30"
+                  style={{ color: '#FFD700' }}>
+                  Pot: {(stake * 2).toLocaleString()}{completeWinBonus ? ' (2×)' : ''}
                 </span>
               )}
             </>
@@ -228,21 +236,20 @@ export function GamePage() {
           {isRevealMode ? (
             <button
               onClick={goToLobby}
-              className="pz-btn px-5 py-2 rounded-2xl bg-blue-500 text-white pz-h text-base shadow-[0_4px_0_#2563eb] hover:bg-blue-400 border-2 border-blue-400"
+              className="pz-h text-sm tracking-widest uppercase px-5 py-2 rounded-xl transition-all border font-medium hover:scale-105"
+              style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D', boxShadow: '0 0 20px rgba(0,255,157,0.3)' }}
             >
-              ← Back to Lobby
+              ← Lobby
             </button>
           ) : (
             <>
-              <button
-                onClick={() => setConfirmExit(true)}
-                className="pz-btn text-xs text-gray-500 hover:text-gray-700 border-2 border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-xl font-bold transition-colors shadow-sm"
-              >
-                Exit to Lobby
+              <button onClick={() => setConfirmExit(true)} className="pz-btn text-xs px-3 py-1.5 rounded-xl border border-white/10">
+                Exit
               </button>
               <button
                 onClick={() => setConfirmForfeit(true)}
-                className="pz-btn text-xs text-red-500 hover:text-red-600 border-2 border-red-200 hover:border-red-300 bg-white px-3 py-1.5 rounded-xl font-bold transition-colors shadow-sm"
+                className="text-xs px-3 py-1.5 rounded-xl border font-medium transition-all"
+                style={{ background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)', border: '1px solid rgba(255,51,102,0.4)', color: '#FF3366' }}
               >
                 Give Up
               </button>
@@ -251,9 +258,14 @@ export function GamePage() {
         </div>
       </header>
 
-      {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden px-1 py-0.5">
-
+      {/* ── Main content — neon-bordered game area ─────────────────────────── */}
+      <div
+        className="relative z-10 flex-1 flex flex-col overflow-hidden mx-2 my-2 rounded-2xl"
+        style={{
+          border: '1px solid rgba(69,243,255,0.3)',
+          boxShadow: '0 0 40px rgba(69,243,255,0.08), inset 0 0 30px rgba(69,243,255,0.02)',
+        }}
+      >
         {/* Opponent grid */}
         <PlayerGrid
           player={themPlayer}
@@ -271,38 +283,36 @@ export function GamePage() {
 
         {/* ── Center strip ──────────────────────────────────────────────── */}
         <div
-          className="flex-shrink-0 border-y-2 border-white/80 bg-white/70 relative"
-          style={{ height: isRevealMode ? 180 : 120 }}
+          className="flex-shrink-0 relative"
+          style={{
+            height: isRevealMode ? 180 : 120,
+            background: 'rgba(0,0,0,0.35)',
+            borderTop: '1px solid rgba(69,243,255,0.12)',
+            borderBottom: '1px solid rgba(69,243,255,0.12)',
+          }}
         >
           {isRevealMode ? (
-            /* ── Result row: V/X badges + hand labels per column ── */
-            <div className="h-full flex flex-col items-center justify-center gap-1 px-1">
-              {/* Column badges */}
+            <div className="h-full flex flex-col items-center justify-center px-1">
               <div className="flex justify-around w-full">
                 {score!.columnResults.map((r, i) => {
-                  if (i > revealedCols) {
-                    return <div key={i} style={{ width: cardW }} />;
-                  }
+                  if (i > revealedCols) return <div key={i} style={{ width: cardW }} />;
                   const myWon = r.winner === playerIndex;
                   const draw  = r.winner === 'draw';
                   return (
-                    <div
-                      key={i}
-                      style={{ width: cardW }}
-                      className="flex flex-col items-center gap-0.5"
-                    >
+                    <div key={i} style={{ width: cardW }} className="flex flex-col items-center gap-0.5">
                       <span
-                        className={`text-6xl font-black leading-none select-none transition-all duration-300
-                          ${myWon ? 'text-green-400' : draw ? 'text-yellow-400' : 'text-red-500'}`}
+                        className="text-6xl font-black leading-none select-none transition-all duration-300"
+                        style={{
+                          color: myWon ? '#00FF9D' : draw ? '#FFD700' : '#FF3366',
+                          textShadow: myWon ? '0 0 20px rgba(0,255,157,0.7)' : draw ? '0 0 20px rgba(255,215,0,0.7)' : '0 0 20px rgba(255,51,102,0.7)',
+                        }}
                       >
                         {myWon ? '✓' : draw ? '—' : '✗'}
                       </span>
-                      {/* My hand strength */}
-                      <span className="pz-h text-2xl text-blue-600 whitespace-nowrap leading-tight text-center">
+                      <span className="pz-h text-xl whitespace-nowrap leading-tight text-center" style={{ color: '#45F3FF' }}>
                         {r[playerIndex === 0 ? 'player0Hand' : 'player1Hand'].label}
                       </span>
-                      {/* Opponent hand strength */}
-                      <span className="pz-h text-2xl text-gray-400 whitespace-nowrap leading-tight text-center">
+                      <span className="pz-h text-xl text-gray-500 whitespace-nowrap leading-tight text-center">
                         {r[playerIndex === 0 ? 'player1Hand' : 'player0Hand'].label}
                       </span>
                     </div>
@@ -311,21 +321,21 @@ export function GamePage() {
               </div>
             </div>
           ) : (
-            /* ── Normal draw controls ── */
             <div className="h-full flex items-center justify-center gap-6">
               {/* Deck */}
               <div className="flex flex-col items-center gap-1">
                 <div
+                  className="rounded-lg flex items-center justify-center"
                   style={{
                     width: 56, height: 84,
-                    background: `repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0, rgba(255,255,255,0.07) 1px, transparent 0, transparent 50%), linear-gradient(135deg, #1e3a8a, #1e40af)`,
-                    backgroundSize: '10px 10px, 10px 10px, 100% 100%',
+                    background: 'linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%)',
+                    border: '1px solid rgba(69,243,255,0.3)',
+                    boxShadow: '0 0 12px rgba(69,243,255,0.15)',
                   }}
-                  className="rounded-lg border border-blue-700 shadow flex items-center justify-center"
                 >
-                  <span className="text-white font-bold text-lg">{gameState.deck.length}</span>
+                  <span className="pz-h font-bold text-lg" style={{ color: '#45F3FF' }}>{gameState.deck.length}</span>
                 </div>
-                <span className="text-white/30 text-xs">Deck</span>
+                <span className="text-xs tracking-widest" style={{ color: 'rgba(69,243,255,0.4)' }}>Deck</span>
               </div>
 
               {/* Draw / drawn card */}
@@ -338,22 +348,22 @@ export function GamePage() {
                 cardH={84}
               />
 
-              {/* Turn countdown timer */}
+              {/* Timer */}
               {timerSeconds !== null && (
-                <div className="absolute right-4 flex flex-col items-center gap-1">
+                <div className="absolute right-4 flex flex-col items-center">
                   {isMyTurn ? (
-                    <div className={`flex flex-col items-center font-bold tabular-nums transition-colors ${
-                      timerSeconds <= 10 ? 'text-red-400' : timerSeconds <= 20 ? 'text-yellow-400' : 'text-white/70'
-                    }`}>
-                      <span className={`text-3xl leading-none ${timerSeconds <= 10 ? 'animate-pulse' : ''}`}>
-                        {timerSeconds}
-                      </span>
-                      <span className="text-xs font-normal mt-0.5">your turn</span>
+                    <div
+                      className={`glass-panel flex flex-col items-center px-4 py-2 rounded-2xl border font-bold tabular-nums
+                        ${timerSeconds <= 10 ? 'border-red-500/50 text-red-400 animate-pulse' : 'border-[#45F3FF]/40 text-white'}`}
+                      style={{ boxShadow: timerSeconds <= 10 ? undefined : '0 0 20px rgba(69,243,255,0.15)' }}
+                    >
+                      <span className={`text-3xl leading-none ${timerSeconds <= 10 ? 'animate-pulse' : ''}`}>{timerSeconds}</span>
+                      <span className="text-[10px] font-normal mt-0.5 uppercase tracking-widest" style={{ color: 'rgba(69,243,255,0.6)' }}>your turn</span>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center text-white/30">
+                    <div className="glass-panel flex flex-col items-center px-4 py-2 rounded-2xl border border-white/10 text-gray-600">
                       <span className="text-lg leading-none tabular-nums">{timerSeconds}</span>
-                      <span className="text-xs font-normal mt-0.5">opp. turn</span>
+                      <span className="text-[10px] font-normal mt-0.5 uppercase tracking-widest">opp.</span>
                     </div>
                   )}
                 </div>
@@ -378,18 +388,22 @@ export function GamePage() {
         />
       </div>
 
-      {/* ── "Who goes first" banner ────────────────────────────────────────── */}
+      {/* ── "Who goes first" banner ─────────────────────────────────────────── */}
       {startingPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3 animate-fade-in">
             <span className="text-6xl">🃏</span>
-            <div className="text-center bg-white/95 rounded-3xl px-10 py-6 border-2 border-white shadow-2xl">
-              <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-1">First to play</p>
-              <p className={`pz-h text-4xl ${startingPlayer.index === playerIndex ? 'text-blue-600' : 'text-gray-700'}`}>
+            <div className="glass-panel border border-white/10 rounded-3xl px-10 py-6 shadow-2xl text-center">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">First to play</p>
+              <p className="pz-h text-4xl"
+                style={{
+                  color: startingPlayer.index === playerIndex ? '#45F3FF' : '#E0E6ED',
+                  textShadow: startingPlayer.index === playerIndex ? '0 0 20px rgba(69,243,255,0.5)' : 'none',
+                }}>
                 {startingPlayer.index === playerIndex ? 'You' : startingPlayer.name}
               </p>
               {startingPlayer.index === playerIndex && (
-                <p className="text-blue-400 text-sm font-semibold mt-2">Get ready…</p>
+                <p className="text-sm mt-2" style={{ color: 'rgba(69,243,255,0.6)' }}>Get ready…</p>
               )}
             </div>
           </div>
@@ -398,26 +412,17 @@ export function GamePage() {
 
       {/* ── Opponent disconnected modal ─────────────────────────────────────── */}
       {opponentLeft && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl animate-pulse">📡</p>
-              <h2 className="pz-h text-2xl text-blue-700">Opponent Disconnected</h2>
-              <p className="text-gray-500 text-sm font-semibold">
-                Your opponent lost connection. They have 10 minutes to reconnect before the game is abandoned.
-              </p>
+              <h2 className="pz-h text-2xl text-[#45F3FF]">Opponent Disconnected</h2>
+              <p className="text-gray-400 text-sm">They have 10 minutes to reconnect before the game is abandoned.</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setOpponentLeft(false)}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
-              >
-                Wait
-              </button>
-              <button
-                onClick={() => { setOpponentLeft(false); navigate('/lobby'); }}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
-              >
+              <button onClick={() => setOpponentLeft(false)} className="pz-btn flex-1 py-2 rounded-2xl font-medium border border-white/10">Wait</button>
+              <button onClick={() => { setOpponentLeft(false); navigate('/lobby'); }}
+                className="flex-1 py-2 rounded-2xl font-medium border border-[#45F3FF]/40 text-[#45F3FF] transition-all hover:bg-[#45F3FF]/10">
                 Go to Lobby
               </button>
             </div>
@@ -427,26 +432,17 @@ export function GamePage() {
 
       {/* ── Give Up confirmation ────────────────────────────────────────────── */}
       {confirmForfeit && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl">🏳️</p>
-              <h2 className="pz-h text-2xl text-blue-700">Give Up?</h2>
-              <p className="text-gray-500 text-sm font-semibold">
-                You will forfeit the game and lose your stake. This cannot be undone.
-              </p>
+              <h2 className="pz-h text-2xl text-[#FF3366]">Give Up?</h2>
+              <p className="text-gray-400 text-sm">You will forfeit the game and lose your stake. This cannot be undone.</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmForfeit(false)}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleForfeit}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-bold border-2 border-red-400 shadow-[0_4px_0_#dc2626]"
-              >
+              <button onClick={() => setConfirmForfeit(false)} className="pz-btn flex-1 py-2 rounded-2xl font-medium border border-white/10">Cancel</button>
+              <button onClick={handleForfeit}
+                className="flex-1 py-2 rounded-2xl font-medium border border-[#FF3366]/40 text-[#FF3366] transition-all hover:bg-[#FF3366]/10">
                 Yes, Give Up
               </button>
             </div>
@@ -456,26 +452,17 @@ export function GamePage() {
 
       {/* ── Exit to Lobby confirmation ──────────────────────────────────────── */}
       {confirmExit && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border-2 border-white p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="glass-panel border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <p className="text-3xl">🚪</p>
-              <h2 className="pz-h text-2xl text-blue-700">Exit the Game?</h2>
-              <p className="text-gray-500 text-sm font-semibold">
-                You'll leave the game in progress. The game will continue and you can rejoin from the lobby.
-              </p>
+              <h2 className="pz-h text-2xl text-[#45F3FF]">Exit the Game?</h2>
+              <p className="text-gray-400 text-sm">The game will continue and you can rejoin from the lobby.</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmExit(false)}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold border-2 border-gray-200 shadow-[0_4px_0_#d1d5db]"
-              >
-                Stay
-              </button>
-              <button
-                onClick={() => { setConfirmExit(false); navigate('/lobby'); }}
-                className="pz-btn flex-1 py-2 rounded-2xl bg-blue-500 hover:bg-blue-400 text-white font-bold border-2 border-blue-400 shadow-[0_4px_0_#2563eb]"
-              >
+              <button onClick={() => setConfirmExit(false)} className="pz-btn flex-1 py-2 rounded-2xl font-medium border border-white/10">Stay</button>
+              <button onClick={() => { setConfirmExit(false); navigate('/lobby'); }}
+                className="flex-1 py-2 rounded-2xl font-medium border border-[#45F3FF]/40 text-[#45F3FF] transition-all hover:bg-[#45F3FF]/10">
                 Exit to Lobby
               </button>
             </div>
