@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -87,7 +87,18 @@ export function GamePage() {
   const { gameState, score, playerIndex, stake, completeWinBonus, opponentLeft, setOpponentLeft, startingPlayer, reset } = useGameStore();
 
   useSocketEvents();
-  const { cardW, cardH } = useCardSize();
+  const { cardW, cardH, recompute } = useCardSize();
+
+  // Re-compute card sizes the moment the game layout becomes visible.
+  // useCardSize computes at mount (loading spinner), but the actual game
+  // DOM only renders after the socket responds — by then the viewport may
+  // have settled to a different size (iOS address bar, etc.).
+  // useLayoutEffect runs synchronously before the browser paints, so the
+  // user never sees a frame with wrong sizes.
+  const gameReady = playerIndex !== null && !!gameState;
+  useLayoutEffect(() => {
+    if (gameReady) recompute();
+  }, [gameReady]);
   const [confirmForfeit, setConfirmForfeit] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);

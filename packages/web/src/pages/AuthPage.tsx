@@ -94,7 +94,7 @@ export function AuthPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 relative"
+      className="h-screen overflow-hidden flex items-center justify-center p-4 relative"
       style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}
     >
       <style>{AUTH_STYLES}</style>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface CardSize {
   cardW: number;
@@ -16,8 +16,15 @@ function compute(): CardSize {
   const PAD_V        = 8;       // top+bottom padding
   const PAD_H        = 12;      // horizontal padding (both sides, accounts for mx-2 border)
 
+  // Use visualViewport when available — on iOS/Android it gives the actual
+  // visible area, excluding browser chrome (address bar, bottom bar, keyboard).
+  // window.innerHeight can lag behind or be inconsistent during SPA navigation.
+  const vv = window.visualViewport;
+  const W  = vv ? Math.round(vv.width)  : window.innerWidth;
+  const H  = vv ? Math.round(vv.height) : window.innerHeight;
+
   // Vertical: two grids + center strip
-  const availH = window.innerHeight
+  const availH = H
     - HEADER_H
     - CENTER_H
     - 2 * (ROW_LABEL_H + HAND_LABEL_H)
@@ -27,7 +34,7 @@ function compute(): CardSize {
   const cardHFromHeight = (availH / 2) * (3 / 7);
 
   // Horizontal: 5 cards with gap-2 (8px × 4 gaps = 32px) between them
-  const availW = window.innerWidth - PAD_H * 2;
+  const availW = W - PAD_H * 2;
   const cardWFromWidth = (availW - 32) / 5;
   const cardHFromWidth = cardWFromWidth * ASPECT;
 
@@ -39,14 +46,20 @@ function compute(): CardSize {
   return { cardW, cardH, peek, colH };
 }
 
-export function useCardSize(): CardSize {
+export function useCardSize(): CardSize & { recompute: () => void } {
   const [size, setSize] = useState<CardSize>(compute);
+  const recompute = useCallback(() => setSize(compute()), []);
 
   useEffect(() => {
-    const update = () => setSize(compute());
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+    window.addEventListener('resize', recompute);
+    // visualViewport fires on iOS/Android when the browser chrome
+    // (address bar, keyboard) shows or hides.
+    window.visualViewport?.addEventListener('resize', recompute);
+    return () => {
+      window.removeEventListener('resize', recompute);
+      window.visualViewport?.removeEventListener('resize', recompute);
+    };
+  }, [recompute]);
 
-  return size;
+  return { ...size, recompute };
 }

@@ -115,7 +115,7 @@ export function LobbyPage() {
   }
 
   return (
-    <div className="min-h-screen relative" style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}>
+    <div className="h-screen overflow-hidden flex flex-col relative" style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}>
       <style>{LOBBY_STYLES}</style>
       <div className="lby-stars" />
       <div className="lby-nebula" />
@@ -195,7 +195,8 @@ export function LobbyPage() {
         </div>
       </header>
 
-      <div className="relative z-10 max-w-2xl mx-auto p-6 space-y-6 min-h-[calc(100vh-73px)]">
+      <div className="relative z-10 flex-1 overflow-y-auto">
+      <div className="max-w-2xl mx-auto p-4 space-y-4">
         {/* Player list */}
         <div>
           <h2 className="lby-h text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 mb-4">
@@ -221,6 +222,7 @@ export function LobbyPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Challenge modal */}
@@ -521,7 +523,7 @@ function PlayerRow({ player, myChips, onChallenge }: {
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="glass-panel border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up"
+      <div className="glass-panel border border-white/10 rounded-2xl p-5 w-full max-w-sm shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
         {children}
       </div>
