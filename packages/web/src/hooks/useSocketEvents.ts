@@ -42,16 +42,16 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration });
+    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration, vocal }) => {
+      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration, vocal });
     });
 
-    socket.on('lobby:challenge:accepted', ({ roomId, gameType }) => {
+    socket.on('lobby:challenge:accepted', ({ roomId, gameType, vocal }) => {
       setIncomingChallenge(null);
       if (gameType === 'pazpaz') {
-        navigate(`/pazpaz/${roomId}`);
+        navigate(`/pazpaz/${roomId}`, { state: { vocal: !!vocal } });
       } else {
-        navigate(`/game/${roomId}`);
+        navigate(`/game/${roomId}`, { state: { vocal: !!vocal } });
       }
     });
 

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { getSocket } from '../socket.js';
 import { PlayingCard } from '../components/game/PlayingCard.js';
 import { playDealSound, playWinSound, playLoseSound } from '../sounds.js';
+import { useVoiceChat } from '../hooks/useVoiceChat.js';
 import type {
   PazPazGameState,
   PazPazAssignment,
@@ -173,6 +174,7 @@ const PZ_STYLES = `
 export function PazPazPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useAuthStore();
   const reset = useGameStore(s => s.reset);
 
@@ -197,8 +199,8 @@ export function PazPazPage() {
   // Drag state
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
-  // Scoring reveal
-  const [revealedFlops, setRevealedFlops] = useState(0);
+  // Scoring reveal — 22 steps total (7 per flop × 3 flops + 1 overall winner)
+  const [revealStep, setRevealStep] = useState(0);
 
   // CSS scale — shrink/grow the fixed 1440×900 canvas to fill any viewport
   const [cssScale, setCssScale] = useState(
@@ -209,6 +211,8 @@ export function PazPazPage() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  const vocal = !!(location.state as { vocal?: boolean } | null)?.vocal;
 
   const timerSeconds    = useCountdown(gameState?.assignDeadline  ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
@@ -221,6 +225,8 @@ export function PazPazPage() {
 
   const myPlayer  = playerIndex !== null && gameState ? gameState.players[playerIndex] : null;
   const oppPlayer = playerIndex !== null && gameState ? gameState.players[playerIndex === 0 ? 1 : 0] : null;
+  const opponentPlayerId = oppPlayer?.id ?? null;
+  const { connected: voiceConnected, muted, toggleMute } = useVoiceChat({ vocal, opponentPlayerId, isInitiator: playerIndex === 0 });
 
   // Init assignment array
   useEffect(() => {
@@ -266,25 +272,33 @@ export function PazPazPage() {
     return () => { socket.off('pazpaz:state'); socket.off('pazpaz:error'); };
   }, [roomId]);
 
-  // Reveal animation
+  // Reveal animation — stepped: 7 steps per flop (4 opp cards + turn + river + winner), then overall winner
+  function getStepDelay(step: number): number {
+    if (step === 21) return 1000; // pause before overall winner
+    const r = step % 7;
+    if (r === 0) return step === 0 ? 700 : 800; // before first opp card of each flop
+    if (r <= 3) return 600;  // between opp cards
+    if (r === 4) return 800; // before turn
+    if (r === 5) return 600; // before river
+    return 500;              // r === 6, before winner badge
+  }
   useEffect(() => {
-    if (gameState?.phase !== 'SCORING') { setRevealedFlops(0); return; }
-    if (revealedFlops >= 3) return;
-    const delay = revealedFlops === 0 ? 700 : 900;
-    const t = setTimeout(() => setRevealedFlops(f => f + 1), delay);
+    if (gameState?.phase !== 'SCORING') { setRevealStep(0); return; }
+    if (revealStep >= 22) return;
+    const t = setTimeout(() => setRevealStep(s => s + 1), getStepDelay(revealStep));
     return () => clearTimeout(t);
-  }, [gameState?.phase, revealedFlops]);
+  }, [gameState?.phase, revealStep]);
 
-  // Win/lose sound
+  // Win/lose sound — plays when overall winner is revealed (step 22)
   const resultSoundPlayed = useRef(false);
   useEffect(() => {
-    if (revealedFlops < 3 || resultSoundPlayed.current || !gameState) return;
+    if (revealStep < 22 || resultSoundPlayed.current || !gameState) return;
     resultSoundPlayed.current = true;
     const myIdx = gameState.players[0].id === profile?.id ? 0 : 1;
     const w = gameState.winner;
     if (w === 'draw' || w === null) return;
     if (w === myIdx) playWinSound(); else playLoseSound();
-  }, [revealedFlops]);
+  }, [revealStep]);
 
   // Partial save
   useEffect(() => {
@@ -383,16 +397,18 @@ export function PazPazPage() {
 
   // Scoring helpers
   const allFlopResults = isScoringPhase ? (gameState.flopResults ?? []) : [];
-  const allRevealed    = revealedFlops >= 3;
+  const allRevealed    = revealStep >= 22;
   const winner         = gameState.winner;
   const iWon           = winner === playerIndex;
   const isDraw         = winner === 'draw';
 
   function getOppScoringCards(flopIdx: number): Card[] {
-    if (!isScoringPhase || flopIdx >= revealedFlops) return [];
+    if (!isScoringPhase) return [];
     const result = allFlopResults[flopIdx];
     if (!result) return [];
-    return playerIndex === 0 ? result.player1Hole : result.player0Hole;
+    const allCards = playerIndex === 0 ? result.player1Hole : result.player0Hole;
+    const count = Math.min(4, Math.max(0, revealStep - flopIdx * 7));
+    return allCards.slice(0, count);
   }
 
   function getCommunityCards(flopIdx: number): Card[] {
@@ -443,14 +459,46 @@ export function PazPazPage() {
       <div className="pz-stars" />
       <div className="pz-nebula" />
 
-      {/* ── Floating top-left: back to lobby ──────────────────────────────── */}
+      {/* ── Floating top-left: back to lobby + voice ─────────────────────── */}
       {!isScoringPhase && (
-        <div className="absolute top-4 left-4 z-50">
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
           <button
             onClick={() => setConfirmExit(true)}
             className="pz-btn glass-panel flex items-center gap-3 px-5 py-2.5 rounded-xl font-medium text-sm border border-white/10 text-gray-300 hover:text-white"
           >
             ← Lobby
+          </button>
+          {vocal && (
+            <button
+              onClick={toggleMute}
+              title={muted ? 'Unmute' : 'Mute'}
+              className="relative glass-panel w-10 h-10 rounded-xl flex items-center justify-center border"
+              style={{ border: `1px solid ${muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
+            >
+              <span className="text-base">{muted ? '🔇' : '🎙'}</span>
+              <span
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
+                style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Floating top-left during scoring: voice button ───────────────── */}
+      {isScoringPhase && vocal && (
+        <div className="absolute top-4 left-4 z-50">
+          <button
+            onClick={toggleMute}
+            title={muted ? 'Unmute' : 'Mute'}
+            className="relative glass-panel w-10 h-10 rounded-xl flex items-center justify-center border"
+            style={{ border: `1px solid ${muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
+          >
+            <span className="text-base">{muted ? '🔇' : '🎙'}</span>
+            <span
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
+              style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
+            />
           </button>
         </div>
       )}
@@ -491,7 +539,7 @@ export function PazPazPage() {
         ) : isScoringPhase ? (
           <div className="glass-panel flex items-center gap-2 px-4 py-2 rounded-full border border-white/10">
             <span className="text-gray-400 text-sm font-medium animate-pulse">Revealing…</span>
-            <button onClick={() => setRevealedFlops(3)} className="text-xs text-[#45F3FF] underline font-medium">Skip</button>
+            <button onClick={() => setRevealStep(22)} className="text-xs text-[#45F3FF] underline font-medium">Skip</button>
           </div>
         ) : timerSeconds !== null ? (
           <div className={`glass-panel flex items-center gap-3 px-6 py-3 rounded-full border
@@ -511,13 +559,14 @@ export function PazPazPage() {
             {([0, 1, 2] as const).map(flopIdx => {
               const theme      = HAND_THEMES[flopIdx];
               const result     = allFlopResults[flopIdx];
-              const isRevealed = flopIdx < revealedFlops;
+              const isRevealed = revealStep >= flopIdx * 7 + 7;
+              const showTurn   = revealStep >= flopIdx * 7 + 5;
+              const showRiver  = revealStep >= flopIdx * 7 + 6;
               const oppCards   = getOppScoringCards(flopIdx);
               const myFlopCards = isScoringPhase
                 ? (playerIndex === 0 ? result?.player0Hole : result?.player1Hole) ?? assignmentByFlop[flopIdx]
                 : assignmentByFlop[flopIdx];
               const communityCards = getCommunityCards(flopIdx);
-              const hasAll = isScoringPhase && !!allFlopResults[flopIdx];
 
               const isActive = !iHaveSubmitted && !isScoringPhase && selectedCardIdx !== null && assignmentByFlop[flopIdx].length < 4;
 
@@ -600,7 +649,7 @@ export function PazPazPage() {
                     <div className="flex gap-1 justify-center">
                       {[0, 1, 2, 3, 4].map(i => {
                         const card = communityCards[i];
-                        const show = card && (i < 3 || hasAll);
+                        const show = card && (i < 3 || (i === 3 && showTurn) || (i === 4 && showRiver));
                         return show
                           ? <PlayingCard key={i} card={card} width={cardW} height={cardH} />
                           : <div key={i} className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { useParams, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
@@ -9,6 +9,7 @@ import { canDrawCard } from '@poker5o/shared';
 import type { GameState, Player } from '@poker5o/shared';
 import { PlayerGrid } from '../components/game/PlayerGrid.js';
 import { DrawnCard } from '../components/game/DrawnCard.js';
+import { useVoiceChat } from '../hooks/useVoiceChat.js';
 
 // ─── Progressive reveal helper ────────────────────────────────────────────────
 
@@ -83,11 +84,13 @@ const PZ_STYLES = `
 export function GamePage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useAuthStore();
   const { gameState, score, playerIndex, stake, completeWinBonus, opponentLeft, setOpponentLeft, startingPlayer, reset } = useGameStore();
 
   useSocketEvents();
   const { cardW, cardH, recompute } = useCardSize();
+  const vocal = !!(location.state as { vocal?: boolean } | null)?.vocal;
 
   // Re-compute card sizes the moment the game layout becomes visible.
   // useCardSize computes at mount (loading spinner), but the actual game
@@ -104,6 +107,10 @@ export function GamePage() {
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [revealedCols, setRevealedCols] = useState(-1);
+  const opponentPlayerId = gameState && playerIndex !== null
+    ? gameState.players[playerIndex === 0 ? 1 : 0].id
+    : null;
+  const { connected: voiceConnected, muted, toggleMute } = useVoiceChat({ vocal, opponentPlayerId, isInitiator: playerIndex === 0 });
 
   useEffect(() => {
     if (!score) { setRevealedCols(-1); return; }
@@ -244,6 +251,23 @@ export function GamePage() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
+          {vocal && (
+            <button
+              onClick={toggleMute}
+              title={muted ? 'Unmute' : 'Mute'}
+              className="relative w-8 h-8 rounded-xl flex items-center justify-center transition-all border"
+              style={{
+                background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)',
+                border: `1px solid ${muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}`,
+              }}
+            >
+              <span className="text-sm">{muted ? '🔇' : '🎙'}</span>
+              <span
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
+                style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
+              />
+            </button>
+          )}
           {isRevealMode ? (
             <button
               onClick={goToLobby}

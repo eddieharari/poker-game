@@ -50,6 +50,9 @@ export function createSocketServer(httpServer: HttpServer): Server {
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
+        socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
+          io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
+        });
 
         // If player has an active Poker5O game, push them back to it
         roomService.findByPlayerId(playerId).then((room) => {
@@ -79,6 +82,9 @@ export function createSocketServer(httpServer: HttpServer): Server {
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
+    socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
+      io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
+    });
 
     // If player has an active Poker5O game, push them back to it
     roomService.findByPlayerId(playerId).then((room) => {

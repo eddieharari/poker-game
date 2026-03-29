@@ -143,8 +143,9 @@ export interface ServerToClientEvents {
   'lobby:player:joined':        (player: OnlinePlayer) => void;
   'lobby:player:left':          (payload: { playerId: string }) => void;
   'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType: GameType; assignmentDuration?: 60 | 180 | 300 }) => void;
-  'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string; gameType?: GameType }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType: GameType; assignmentDuration?: 60 | 180 | 300; vocal?: boolean }) => void;
+  'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string; gameType?: GameType; vocal?: boolean }) => void;
+  'webrtc:signal':              (payload: { fromPlayerId: string; signal: unknown }) => void;
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
   'lobby:challenge:expired':    (payload: { challengeId: string }) => void;
   // PazPaz
@@ -171,7 +172,8 @@ export interface ClientToServerEvents {
   // Lobby
   'lobby:enter':            () => void;
   'lobby:leave':            () => void;
-  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType?: GameType; assignmentDuration?: 60 | 180 | 300 }) => void;
+  'lobby:challenge':        (payload: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType?: GameType; assignmentDuration?: 60 | 180 | 300; vocal?: boolean }) => void;
+  'webrtc:signal':          (payload: { toPlayerId: string; signal: unknown }) => void;
   'lobby:challenge:accept': (payload: { challengeId: string }) => void;
   'lobby:challenge:decline':(payload: { challengeId: string }) => void;
   'lobby:set_status':         (payload: { status: 'idle' | 'busy' }) => void;

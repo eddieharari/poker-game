@@ -51,6 +51,7 @@ export interface Challenge {
   timerDuration: 30 | 45 | 60 | null;
   assignmentDuration: 60 | 180 | 300;
   gameType: GameType;
+  vocal: boolean;
   createdAt: number;
 }
 

@@ -67,6 +67,7 @@ export function LobbyPage() {
   const [timerDuration, setTimerDuration] = useState<30 | 45 | 60 | null>(null);
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
+  const [vocal, setVocal] = useState(false);
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
   function toggleStatus() {
@@ -91,7 +92,7 @@ export function LobbyPage() {
 
   function sendChallenge() {
     if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, timerDuration, gameType: selectedGameType, assignmentDuration });
+    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, timerDuration, gameType: selectedGameType, assignmentDuration, vocal });
     const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : '';
     const bonusNote = completeWinBonus && selectedGameType !== 'pazpaz' ? ' (5-0 bonus active)' : '';
     const timerNote = timerDuration && selectedGameType !== 'pazpaz' ? ` (${timerDuration}s timer)` : '';
@@ -100,6 +101,7 @@ export function LobbyPage() {
     setCompleteWinBonus(false);
     setTimerDuration(null);
     setSelectedGameType('poker5o');
+    setVocal(false);
   }
 
   function acceptChallenge() {
@@ -355,9 +357,24 @@ export function LobbyPage() {
               </>
             )}
 
+            {/* Voice chat toggle */}
+            <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
+              ${vocal ? 'border-[#45F3FF]/40 bg-[#45F3FF]/5' : 'border-white/5 bg-white/2 hover:border-white/10'}`}>
+              <input
+                type="checkbox"
+                checked={vocal}
+                onChange={e => setVocal(e.target.checked)}
+                className="mt-0.5 accent-cyan-400 w-4 h-4 shrink-0"
+              />
+              <div>
+                <p className="text-sm font-semibold text-white/90">🎙 Voice Chat</p>
+                <p className="text-xs text-gray-500 mt-0.5">Both players can talk throughout the game</p>
+              </div>
+            </label>
+
             <div className="flex gap-3 pt-1">
               <button
-                onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setTimerDuration(null); setSelectedGameType('poker5o'); }}
+                onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setTimerDuration(null); setSelectedGameType('poker5o'); setVocal(false); }}
                 className="lby-btn flex-1 py-2.5 rounded-xl font-medium border border-white/10"
               >
                 Cancel
@@ -426,6 +443,15 @@ export function LobbyPage() {
                     {incomingChallenge.assignmentDuration === 60 ? '1 min' : incomingChallenge.assignmentDuration === 180 ? '3 min' : '5 min'} to assign
                   </p>
                   <p className="text-xs text-gray-500">Assignment timer</p>
+                </div>
+              </div>
+            )}
+            {incomingChallenge.vocal && (
+              <div className="flex items-center justify-center gap-2 bg-[#45F3FF]/5 border border-[#45F3FF]/20 rounded-xl px-4 py-2">
+                <span className="text-lg">🎙</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-[#45F3FF]">Voice Chat Enabled</p>
+                  <p className="text-xs text-gray-500">Microphone access required</p>
                 </div>
               </div>
             )}

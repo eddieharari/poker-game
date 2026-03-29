@@ -66,9 +66,10 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, timerDuration, assignmentDuration: rawAssignDur, gameType: rawGameType }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration?: 60 | 180 | 300; gameType?: GameType }) => {
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, timerDuration, assignmentDuration: rawAssignDur, gameType: rawGameType, vocal: rawVocal }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration?: 60 | 180 | 300; gameType?: GameType; vocal?: boolean }) => {
     const gameType: GameType = rawGameType === 'pazpaz' ? 'pazpaz' : 'poker5o';
     const assignmentDuration: 60 | 180 | 300 = ([60, 180, 300] as const).includes(rawAssignDur as 60 | 180 | 300) ? (rawAssignDur as 60 | 180 | 300) : 180;
+    const vocal = !!rawVocal;
     if (toPlayerId === playerId) {
       socket.emit('room:error', { message: 'Cannot challenge yourself' });
       return;
@@ -140,6 +141,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       timerDuration: gameType === 'pazpaz' ? null : timerDuration,
       assignmentDuration,
       gameType,
+      vocal,
       createdAt: Date.now(),
     };
 
@@ -170,6 +172,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       timerDuration: gameType === 'pazpaz' ? null : timerDuration,
       gameType,
       assignmentDuration,
+      vocal,
     });
 
     // Auto-expire after 25s
@@ -263,8 +266,8 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         gameType: 'pazpaz',
       });
 
-      socket.emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const });
-      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const });
+      socket.emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const, vocal: challenge.vocal });
+      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const, vocal: challenge.vocal });
     } else {
       // poker5o (existing flow)
       const room = await roomService.joinAsPlayer1(challenge.roomId, {
@@ -296,8 +299,8 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         gameType: 'poker5o',
       });
 
-      socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const });
-      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const });
+      socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const, vocal: challenge.vocal });
+      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const, vocal: challenge.vocal });
     }
   });
 
