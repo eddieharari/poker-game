@@ -37,6 +37,7 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
     if (!vocal || !opponentPlayerId) return;
 
     const socket = getSocket();
+    const targetPlayerId: string = opponentPlayerId; // narrowed non-null for async closures
     let destroyed = false;
     let pc: RTCPeerConnection | null = null;
 
@@ -65,8 +66,8 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
       };
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && opponentPlayerId) {
-          socket.emit('webrtc:signal', { toPlayerId: opponentPlayerId, signal: { type: 'ice', candidate: event.candidate } });
+        if (event.candidate) {
+          socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'ice', candidate: event.candidate } });
         }
       };
 
@@ -79,7 +80,7 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          socket.emit('webrtc:signal', { toPlayerId: opponentPlayerId, signal: { type: 'offer', sdp: pc.localDescription } });
+          socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'offer', sdp: pc.localDescription } });
         } catch (err) {
           console.error('[useVoiceChat] offer error:', err);
         }
@@ -93,7 +94,7 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
         pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
           .then(() => pc!.createAnswer())
           .then(answer => pc!.setLocalDescription(answer))
-          .then(() => socket.emit('webrtc:signal', { toPlayerId: opponentPlayerId!, signal: { type: 'answer', sdp: pc!.localDescription } }))
+          .then(() => socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'answer', sdp: pc!.localDescription } }))
           .catch(err => console.error('[useVoiceChat] answer error:', err));
       } else if (signal.type === 'answer' && signal.sdp) {
         pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
