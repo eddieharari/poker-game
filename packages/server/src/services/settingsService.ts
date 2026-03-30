@@ -23,6 +23,6 @@ export const settingsService = {
 
 export function calculateHouseFee(pot: number, settings: HouseSettings): number {
   if (settings.feePercent <= 0) return 0;
-  const fee = Math.floor(pot * settings.feePercent / 100);
+  const fee = Math.round(pot * settings.feePercent / 100);
   return settings.feeCap > 0 ? Math.min(fee, settings.feeCap) : fee;
 }

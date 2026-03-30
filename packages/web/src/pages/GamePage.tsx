@@ -186,6 +186,11 @@ export function GamePage() {
   const iWon   = score ? score.winner === playerIndex : false;
   const isDraw = score ? score.winner === 'draw' : false;
 
+  // Net chip change = stake ± rake share (each player contributes half the total rake)
+  const effectiveStake = stake != null && score?.completeWinBonus && score?.isCompleteWin ? stake * 2 : stake ?? 0;
+  const myRake  = score ? Math.round((score.rake ?? 0) / 2) : 0;
+  const netChips = isDraw ? -myRake : iWon ? effectiveStake - myRake : -(effectiveStake + myRake);
+
   const phaseLabel: Record<string, string> = {
     SETUP_PHASE: 'Dealing first row',
     MAIN_PHASE:  `Row ${gameState.currentRow + 1} of 5`,
@@ -227,6 +232,10 @@ export function GamePage() {
                     🏆 5-0 Double!
                   </span>
                 )}
+                <span className="text-xs font-bold glass-panel px-2 py-0.5 rounded-full border"
+                  style={{ color: netChips >= 0 ? '#00FF9D' : '#FF3366', borderColor: netChips >= 0 ? 'rgba(0,255,157,0.3)' : 'rgba(255,51,102,0.3)' }}>
+                  {netChips >= 0 ? '+' : ''}{netChips.toLocaleString()} chips
+                </span>
               </>
             ) : (
               <>

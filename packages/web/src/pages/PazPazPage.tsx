@@ -554,11 +554,16 @@ export function PazPazPage() {
             <div className={`pz-h text-2xl leading-tight ${isDraw ? 'text-[#FFD700]' : iWon ? 'text-[#00FF9D]' : 'text-[#FF3366]'}`}>
               {isDraw ? '🤝 DRAW' : iWon ? '🏆 YOU WIN!' : '😞 YOU LOSE'}
             </div>
-            {gameState.stake != null && (
-              <div className="text-sm font-medium opacity-80">
-                {isDraw ? '±0 chips' : iWon ? `+${gameState.stake} chips` : `-${gameState.stake} chips`}
-              </div>
-            )}
+            {gameState.stake != null && (() => {
+              const myRake = Math.round((gameState.rake ?? 0) / 2);
+              const net = isDraw ? -myRake : iWon ? gameState.stake - myRake : -(gameState.stake + myRake);
+              return (
+                <div className="text-sm font-medium opacity-80">
+                  {net >= 0 ? '+' : ''}{net.toLocaleString()} chips
+                  {myRake > 0 && <span className="opacity-60 text-xs ml-1">(rake: {myRake})</span>}
+                </div>
+              );
+            })()}
           </div>
         ) : isScoringPhase ? (
           <div className="glass-panel flex items-center gap-2 px-4 py-2 rounded-full border border-white/10">

@@ -108,6 +108,7 @@ export interface GameScore {
   columnResults: ColumnResult[];
   completeWinBonus: boolean;
   isCompleteWin: boolean;
+  rake: number; // total rake collected from both players combined
 }
 
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────

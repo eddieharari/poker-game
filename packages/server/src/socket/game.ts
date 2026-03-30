@@ -29,10 +29,6 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
     const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
     const effectiveStake = (room.completeWinBonus && isCompleteWin) ? room.stake * 2 : room.stake;
-    // Emit via player rooms (reliable — player always has this room even after reconnect)
-    // Also emit to the game room as a fallback for connected sockets still in it
-    io.to(`player:${room.player0.playerId}`).to(`player:${room.player1.playerId}`).emit('game:over', score);
-    await roomService.save({ ...room, gameState: newState, status: 'finished' });
 
     const winnerName =
       score.winner === 'draw' ? 'draw'
@@ -51,6 +47,18 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
     const winnerId = score.winner === 'draw'
       ? null
       : newState.players[score.winner].id;
+
+    // Calculate rake before emitting game:over so the client receives the net amounts
+    let fee = 0;
+    try {
+      const rakeSettings = await settingsService.get();
+      fee = calculateHouseFee(effectiveStake * 2, rakeSettings);
+    } catch (e) {
+      console.error('[handleGameOver] rake settings error:', e);
+    }
+    const scoreWithRake = { ...score, rake: fee };
+    io.to(`player:${room.player0.playerId}`).to(`player:${room.player1.playerId}`).emit('game:over', scoreWithRake);
+    await roomService.save({ ...room, gameState: newState, status: 'finished' });
 
     const { data: gameId, error: settleError } = await supabase.rpc('settle_game', {
       p_room_id:        room.roomId,
@@ -76,19 +84,25 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       }
     }
 
-    // House fee — deducted from winner whenever feePercent > 0, regardless of housePlayerId
+    // House fee — split equally between both players regardless of win/draw/loss
     try {
       const settings = await settingsService.get();
-      const fee = calculateHouseFee(effectiveStake * 2, settings);
+      const p0Id = room.player0.playerId;
+      const p1Id = room.player1.playerId;
       log('RAKE_CALC', { roomId: room.roomId, pot: effectiveStake * 2, feePercent: settings.feePercent, feeCap: settings.feeCap, fee, housePlayerId: settings.housePlayerId || '(none)' });
-      if (fee > 0 && winnerId) {
-        // Deduct rake from winner
-        const { error: feeE1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
-        if (feeE1) console.error('[handleGameOver] rake deduct error:', feeE1.message);
+      if (fee > 0) {
+        const p0Rake = Math.round(fee / 2);
+        const p1Rake = fee - p0Rake;
 
-        // Credit house player if configured; otherwise chips are burned
+        // Deduct each player's share
+        const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -p0Rake, p_player_id: p0Id });
+        if (feeE0) console.error('[handleGameOver] rake p0 deduct error:', feeE0.message);
+        const { error: feeE1 } = await supabase.rpc('add_chips', { p_amount: -p1Rake, p_player_id: p1Id });
+        if (feeE1) console.error('[handleGameOver] rake p1 deduct error:', feeE1.message);
+
+        // Credit house player
         if (settings.housePlayerId) {
-          const { error: feeE2 } = await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+          const { error: feeE2 } = await supabase.rpc('add_chips', { p_amount: fee, p_player_id: settings.housePlayerId });
           if (feeE2) console.error('[handleGameOver] rake house error:', feeE2.message);
         } else {
           console.warn('[handleGameOver] rake collected but housePlayerId not configured — chips burned');
@@ -99,11 +113,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
           await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
         }
 
-        // Each player contributed half the rake
-        const p0Id = room.player0.playerId;
-        const p1Id = room.player1.playerId;
-        const p0Rake = Math.floor(fee / 2);
-        const p1Rake = fee - p0Rake;
+        // Update each player's lifetime rake counter
         await Promise.all([
           supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
           supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
@@ -120,9 +130,9 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
               const { data: agent } = await supabase
                 .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
               if (agent && agent.rakeback_percent > 0) {
-                const cut = Math.floor(playerRake * agent.rakeback_percent / 100);
+                const cut = Math.round(playerRake * agent.rakeback_percent / 100);
                 if (cut > 0) {
-                  await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: -cut });
+                  await supabase.rpc('add_chips', { p_amount: -cut, p_player_id: settings.housePlayerId });
                   await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
                 }
               }

@@ -111,20 +111,26 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
     }
   }
 
-  // House fee — deducted from winner whenever feePercent > 0, regardless of housePlayerId
+  // House fee — split equally between both players regardless of win/draw/loss
+  let fee = 0;
   try {
     const settings = await settingsService.get();
-    const fee = calculateHouseFee(stake * 2, settings);
+    fee = calculateHouseFee(stake * 2, settings);
     log('RAKE_CALC', { roomId, pot: stake * 2, feePercent: settings.feePercent, feeCap: settings.feeCap, fee, winnerId: winnerId ?? 'draw', housePlayerId: settings.housePlayerId || '(none)' });
 
-    if (fee > 0 && winnerId) {
-      // Deduct rake from winner
-      const { error: feeE1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
-      if (feeE1) console.error('[handlePazPazGameOver] rake deduct error:', feeE1.message);
+    if (fee > 0) {
+      const p0Rake = Math.round(fee / 2);
+      const p1Rake = fee - p0Rake;
 
-      // Credit house player if configured; otherwise chips are burned
+      // Deduct each player's share
+      const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -p0Rake, p_player_id: p0Id });
+      if (feeE0) console.error('[handlePazPazGameOver] rake p0 deduct error:', feeE0.message);
+      const { error: feeE1 } = await supabase.rpc('add_chips', { p_amount: -p1Rake, p_player_id: p1Id });
+      if (feeE1) console.error('[handlePazPazGameOver] rake p1 deduct error:', feeE1.message);
+
+      // Credit house player
       if (settings.housePlayerId) {
-        const { error: feeE2 } = await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+        const { error: feeE2 } = await supabase.rpc('add_chips', { p_amount: fee, p_player_id: settings.housePlayerId });
         if (feeE2) console.error('[handlePazPazGameOver] rake house error:', feeE2.message);
       }
 
@@ -132,14 +138,13 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
         await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
       }
 
-      const p0Rake = Math.floor(fee / 2);
-      const p1Rake = fee - p0Rake;
+      // Update each player's lifetime rake counter
       await Promise.all([
         supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
         supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
       ]);
 
-      // Agent rakeback (only if house player configured to fund it)
+      // Agent rakeback
       if (settings.housePlayerId) {
         const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
           supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
@@ -150,9 +155,9 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
             const { data: agent } = await supabase
               .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
             if (agent && agent.rakeback_percent > 0) {
-              const cut = Math.floor(playerRake * agent.rakeback_percent / 100);
+              const cut = Math.round(playerRake * agent.rakeback_percent / 100);
               if (cut > 0) {
-                await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: -cut });
+                await supabase.rpc('add_chips', { p_amount: -cut, p_player_id: settings.housePlayerId });
                 await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
               }
             }
@@ -162,6 +167,12 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
     }
   } catch (rakeErr) {
     console.error('[handlePazPazGameOver] rake error:', rakeErr);
+  }
+
+  // Re-emit state with rake field so clients can display net chip change
+  if (fee > 0) {
+    const stateWithRake: PazPazGameState = { ...gameState, rake: fee };
+    io.to(`pazpaz:${roomId}`).emit('pazpaz:state', stateWithRake);
   }
 
   // Notify players of updated chip balances
@@ -513,6 +524,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
       phase: 'SCORING',
       winner: winnerIndex,
       flopResults: room.gameState.flopResults ?? [],
+      rake: null,
     };
 
     const updatedRoom = { ...room, gameState: forfeitState, status: 'finished' as const };
