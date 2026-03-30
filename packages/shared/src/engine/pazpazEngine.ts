@@ -124,6 +124,7 @@ export function dealPazPaz(
     partialAssignments: [null, null],
     pressureDeadline: null,
     stake: null,
+    rake: null,
   };
 }
 
