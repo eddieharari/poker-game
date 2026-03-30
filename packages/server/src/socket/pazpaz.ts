@@ -112,50 +112,56 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
   }
 
   // House fee — deducted from winner whenever feePercent > 0, regardless of housePlayerId
-  const settings = await settingsService.get();
-  const fee = calculateHouseFee(stake * 2, settings);
-  if (fee > 0 && winnerId) {
-    // Deduct rake from winner
-    const { error: feeE1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
-    if (feeE1) console.error('[handlePazPazGameOver] rake deduct error:', feeE1.message);
+  try {
+    const settings = await settingsService.get();
+    const fee = calculateHouseFee(stake * 2, settings);
+    log('RAKE_CALC', { roomId, pot: stake * 2, feePercent: settings.feePercent, feeCap: settings.feeCap, fee, winnerId: winnerId ?? 'draw', housePlayerId: settings.housePlayerId || '(none)' });
 
-    // Credit house player if configured; otherwise chips are burned
-    if (settings.housePlayerId) {
-      const { error: feeE2 } = await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
-      if (feeE2) console.error('[handlePazPazGameOver] rake house error:', feeE2.message);
-    }
+    if (fee > 0 && winnerId) {
+      // Deduct rake from winner
+      const { error: feeE1 } = await supabase.rpc('add_chips', { p_player_id: winnerId, p_amount: -fee });
+      if (feeE1) console.error('[handlePazPazGameOver] rake deduct error:', feeE1.message);
 
-    if (gameId) {
-      await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
-    }
+      // Credit house player if configured; otherwise chips are burned
+      if (settings.housePlayerId) {
+        const { error: feeE2 } = await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: fee });
+        if (feeE2) console.error('[handlePazPazGameOver] rake house error:', feeE2.message);
+      }
 
-    const p0Rake = Math.floor(fee / 2);
-    const p1Rake = fee - p0Rake;
-    await Promise.all([
-      supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
-      supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
-    ]);
+      if (gameId) {
+        await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
+      }
 
-    // Agent rakeback (only if house player configured to fund it)
-    if (settings.housePlayerId) {
-      const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
-        supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
-        supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
+      const p0Rake = Math.floor(fee / 2);
+      const p1Rake = fee - p0Rake;
+      await Promise.all([
+        supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
+        supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
       ]);
-      for (const [playerRake, prof] of [[p0Rake, p0prof], [p1Rake, p1prof]] as [number, { agent_id: string | null } | null][]) {
-        if (prof?.agent_id) {
-          const { data: agent } = await supabase
-            .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
-          if (agent && agent.rakeback_percent > 0) {
-            const cut = Math.floor(playerRake * agent.rakeback_percent / 100);
-            if (cut > 0) {
-              await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: -cut });
-              await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
+
+      // Agent rakeback (only if house player configured to fund it)
+      if (settings.housePlayerId) {
+        const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
+          supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
+          supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
+        ]);
+        for (const [playerRake, prof] of [[p0Rake, p0prof], [p1Rake, p1prof]] as [number, { agent_id: string | null } | null][]) {
+          if (prof?.agent_id) {
+            const { data: agent } = await supabase
+              .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
+            if (agent && agent.rakeback_percent > 0) {
+              const cut = Math.floor(playerRake * agent.rakeback_percent / 100);
+              if (cut > 0) {
+                await supabase.rpc('add_chips', { p_player_id: settings.housePlayerId, p_amount: -cut });
+                await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
+              }
             }
           }
         }
       }
     }
+  } catch (rakeErr) {
+    console.error('[handlePazPazGameOver] rake error:', rakeErr);
   }
 
   // Notify players of updated chip balances
@@ -478,6 +484,47 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
     const updatedState = { ...room.gameState, partialAssignments: partials };
     await pazpazRoomService.save({ ...room, gameState: updatedState });
+  });
+
+  // ─── Forfeit ──────────────────────────────────────────────────────────────
+
+  socket.on('pazpaz:forfeit', async ({ roomId }: { roomId: string }) => {
+    const room = await pazpazRoomService.get(roomId);
+    if (!room) { socket.emit('pazpaz:error', { message: 'Room not found' }); return; }
+
+    let playerIndex: 0 | 1;
+    if (room.player0.playerId === playerId) playerIndex = 0;
+    else if (room.player1.playerId === playerId) playerIndex = 1;
+    else { socket.emit('pazpaz:error', { message: 'You are not in this room' }); return; }
+
+    if (room.status === 'finished') return;
+
+    // Clear assignment and pressure timers
+    const at = assignmentTimers.get(roomId);
+    if (at) { clearTimeout(at); assignmentTimers.delete(roomId); }
+    const pt = pressureTimers.get(roomId);
+    if (pt) { clearTimeout(pt); pressureTimers.delete(roomId); }
+    timerStarted.delete(roomId);
+
+    const winnerIndex: 0 | 1 = playerIndex === 0 ? 1 : 0;
+
+    const forfeitState: PazPazGameState = {
+      ...room.gameState,
+      phase: 'SCORING',
+      winner: winnerIndex,
+      flopResults: room.gameState.flopResults ?? [],
+    };
+
+    const updatedRoom = { ...room, gameState: forfeitState, status: 'finished' as const };
+    await pazpazRoomService.save(updatedRoom);
+
+    log('PAZPAZ_FORFEIT', { roomId, playerId, nickname, playerIndex, winnerIndex });
+
+    io.to(`pazpaz:${roomId}`).emit('pazpaz:forfeited', { forfeiterIndex: playerIndex });
+
+    if (updatedRoom.stake) {
+      await handlePazPazGameOver(io, roomId, forfeitState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake);
+    }
   });
 
   // ─── Disconnect ───────────────────────────────────────────────────────────

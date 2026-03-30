@@ -18,6 +18,7 @@ type LogEvent =
   | 'PAZPAZ_PRESSURE_SUBMIT'
   | 'PAZPAZ_GAME_END'
   | 'PAZPAZ_DISCONNECT'
+  | 'PAZPAZ_FORFEIT'
   | 'RAKE_CALC';
 
 interface LogPayload {

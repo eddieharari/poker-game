@@ -184,6 +184,7 @@ export function PazPazPage() {
   const [retryCount, setRetryCount] = useState(0);
 
   const [confirmExit, setConfirmExit] = useState(false);
+  const [confirmForfeit, setConfirmForfeit] = useState(false);
 
   // Assignment state
   const [assignment, setAssignment] = useState<(0 | 1 | 2 | null)[]>([]);
@@ -268,8 +269,9 @@ export function PazPazPage() {
         setTimeout(() => socket.emit('pazpaz:join', { roomId }), 1000);
       }
     });
+    socket.on('pazpaz:forfeited', () => { goToLobby(); });
     socket.emit('pazpaz:join', { roomId });
-    return () => { socket.off('pazpaz:state'); socket.off('pazpaz:error'); };
+    return () => { socket.off('pazpaz:state'); socket.off('pazpaz:error'); socket.off('pazpaz:forfeited'); };
   }, [roomId]);
 
   // Reveal animation — stepped: 7 steps per flop (4 opp cards + turn + river + winner), then overall winner
@@ -467,6 +469,12 @@ export function PazPazPage() {
             className="pz-btn glass-panel flex items-center gap-3 px-5 py-2.5 rounded-xl font-medium text-sm border border-white/10 text-gray-300 hover:text-white"
           >
             ← Lobby
+          </button>
+          <button
+            onClick={() => setConfirmForfeit(true)}
+            className="pz-btn glass-panel flex items-center gap-3 px-5 py-2.5 rounded-xl font-medium text-sm border border-[#FF3366]/40 text-[#FF3366] hover:text-white"
+          >
+            🏳 Give Up
           </button>
           {vocal && (
             <button
@@ -812,6 +820,36 @@ export function PazPazPage() {
       {error && error !== 'Room not found' && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-6 py-2 rounded-full text-sm font-semibold shadow">
           {error}
+        </div>
+      )}
+
+      {/* ── Forfeit confirmation modal ──────────────────────────────────────── */}
+      {confirmForfeit && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
+          <div className="glass-panel rounded-3xl border border-[#FF3366]/30 p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-3xl">🏳</p>
+              <h2 className="pz-h text-2xl text-[#FF3366]">Give Up?</h2>
+              <p className="text-gray-400 text-sm font-medium">
+                You'll forfeit the game and lose your stake. Your opponent wins.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmForfeit(false)}
+                className="pz-btn flex-1 py-2 rounded-2xl font-medium border border-white/10"
+              >
+                Keep Playing
+              </button>
+              <button
+                onClick={() => { setConfirmForfeit(false); getSocket().emit('pazpaz:forfeit', { roomId: roomId! }); }}
+                className="flex-1 py-2 rounded-2xl font-medium border border-[#FF3366]/50 text-[#FF3366] transition-all hover:bg-[#FF3366]/10"
+                style={{ boxShadow: '0 0 15px rgba(255,51,102,0.15)' }}
+              >
+                Yes, Give Up
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
