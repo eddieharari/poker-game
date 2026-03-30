@@ -556,12 +556,12 @@ export function PazPazPage() {
             </div>
             {gameState.stake != null && (() => {
               const totalRake = gameState.rake ?? 0;
-              // Win: rake from winner's winnings; Loss: lose exactly stake; Draw: each pays half rake
+              // rake = fee per player; Winner: +stake-fee; Loser: -(stake+fee); Draw: -fee
               const net = isDraw
-                ? -Math.round(totalRake / 2)
+                ? -totalRake
                 : iWon
                   ? gameState.stake - totalRake
-                  : -gameState.stake;
+                  : -(gameState.stake + totalRake);
               return (
                 <div className="text-sm font-medium opacity-80">
                   {net >= 0 ? '+' : ''}{net.toLocaleString()} chips

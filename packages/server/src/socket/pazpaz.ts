@@ -111,57 +111,51 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
     }
   }
 
-  // House fee — split equally between both players regardless of win/draw/loss
+  // Rake: each player pays `fee` (feePercent% of their own stake) unconditionally.
+  // House receives fee × 2 (both players' contributions).
   let fee = 0;
   try {
     const settings = await settingsService.get();
-    fee = calculateHouseFee(stake * 2, settings);
-    log('RAKE_CALC', { roomId, pot: stake * 2, feePercent: settings.feePercent, feeCap: settings.feeCap, fee, winnerId: winnerId ?? 'draw', housePlayerId: settings.housePlayerId || '(none)' });
+    fee = calculateHouseFee(stake, settings);
+    log('RAKE_CALC', { roomId, stakePerPlayer: stake, feePercent: settings.feePercent, feeCap: settings.feeCap, feePerPlayer: fee, totalFee: fee * 2, winnerId: winnerId ?? 'draw', housePlayerId: settings.housePlayerId || '(none)' });
 
     if (fee > 0) {
-      const p0Rake = Math.round(fee / 2);
-      const p1Rake = fee - p0Rake;
+      // Deduct fee from each player
+      const { error: rakeE0 } = await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: p0Id });
+      if (rakeE0) console.error('[handlePazPazGameOver] rake p0 deduct error:', rakeE0.message);
+      const { error: rakeE1 } = await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: p1Id });
+      if (rakeE1) console.error('[handlePazPazGameOver] rake p1 deduct error:', rakeE1.message);
 
-      if (winner === 'draw' || winner === null) {
-        // Draw: no winner, each player pays their half directly
-        const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -p0Rake, p_player_id: p0Id });
-        if (feeE0) console.error('[handlePazPazGameOver] rake p0 draw deduct error:', feeE0.message);
-        const { error: feeE1 } = await supabase.rpc('add_chips', { p_amount: -p1Rake, p_player_id: p1Id });
-        if (feeE1) console.error('[handlePazPazGameOver] rake p1 draw deduct error:', feeE1.message);
-      } else if (winnerId) {
-        // Win: full rake from winner only — loser's contribution is implicit in the stake transfer
-        const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: winnerId });
-        if (feeE0) console.error('[handlePazPazGameOver] rake winner deduct error:', feeE0.message);
-      }
-
-      // Credit house player
+      // Credit house with total rake (both players combined)
       if (settings.housePlayerId) {
-        const { error: feeE2 } = await supabase.rpc('add_chips', { p_amount: fee, p_player_id: settings.housePlayerId });
-        if (feeE2) console.error('[handlePazPazGameOver] rake house error:', feeE2.message);
+        const { error: rakeE2 } = await supabase.rpc('add_chips', { p_amount: fee * 2, p_player_id: settings.housePlayerId });
+        if (rakeE2) console.error('[handlePazPazGameOver] rake house credit error:', rakeE2.message);
       }
 
       if (gameId) {
-        await supabase.from('games').update({ rake_amount: fee }).eq('id', gameId);
+        await supabase.from('games').update({ rake_amount: fee * 2 }).eq('id', gameId);
       }
 
-      // Update each player's lifetime rake counter
-      await Promise.all([
-        supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: p0Rake }),
-        supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: p1Rake }),
+      // Each player's lifetime rake counter: the full fee they paid
+      const [rakeR0, rakeR1] = await Promise.all([
+        supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: fee }),
+        supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: fee }),
       ]);
+      if (rakeR0.error) console.error('[handlePazPazGameOver] add_player_rake p0 error:', rakeR0.error.message);
+      if (rakeR1.error) console.error('[handlePazPazGameOver] add_player_rake p1 error:', rakeR1.error.message);
 
-      // Agent rakeback
+      // Agent rakeback: based on each player's individual fee paid
       if (settings.housePlayerId) {
         const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
           supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
           supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
         ]);
-        for (const [playerRake, prof] of [[p0Rake, p0prof], [p1Rake, p1prof]] as [number, { agent_id: string | null } | null][]) {
+        for (const [playerId, prof] of [[p0Id, p0prof], [p1Id, p1prof]] as [string, { agent_id: string | null } | null][]) {
           if (prof?.agent_id) {
             const { data: agent } = await supabase
               .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
             if (agent && agent.rakeback_percent > 0) {
-              const cut = Math.round(playerRake * agent.rakeback_percent / 100);
+              const cut = Math.round(fee * agent.rakeback_percent / 100);
               if (cut > 0) {
                 await supabase.rpc('add_chips', { p_amount: -cut, p_player_id: settings.housePlayerId });
                 await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
@@ -175,7 +169,7 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
     console.error('[handlePazPazGameOver] rake error:', rakeErr);
   }
 
-  // Re-emit state with rake field so clients can display net chip change
+  // Re-emit state with per-player rake so client can display net chip change
   if (fee > 0) {
     const stateWithRake: PazPazGameState = { ...gameState, rake: fee };
     io.to(`pazpaz:${roomId}`).emit('pazpaz:state', stateWithRake);
