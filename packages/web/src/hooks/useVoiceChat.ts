@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getSocket } from '../socket.js';
 
+const TURN_USER = '94464a0a496e8fdcb31287a0';
+const TURN_CRED = 'QNsEtAYzvaF9G4jp';
+
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:a.relay.metered.ca:80',                   username: TURN_USER, credential: TURN_CRED },
+  { urls: 'turn:a.relay.metered.ca:80?transport=tcp',     username: TURN_USER, credential: TURN_CRED },
+  { urls: 'turn:a.relay.metered.ca:443',                  username: TURN_USER, credential: TURN_CRED },
+  { urls: 'turns:a.relay.metered.ca:443?transport=tcp',   username: TURN_USER, credential: TURN_CRED },
 ];
 
 interface UseVoiceChatOptions {
