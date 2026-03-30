@@ -40,16 +40,23 @@ const DESIGN_W = 1440;
 const DESIGN_H = 900;
 const PANEL_GAP = 5; // px gap between the 3 panels
 
-// 3 panels fill the full DESIGN_W with PANEL_GAP px gaps, no outer margin
-// border-4 = 8px total, p-3 = 24px total, gap-1 cards = 16px → cardW = 85px
-const effectivePanelW = Math.floor((DESIGN_W - PANEL_GAP * 2) / 3);          // 476px
-const cardW = Math.max(40, Math.floor((effectivePanelW - 8 - 24 - 16) / 5)); // 85px
-const cardH = Math.round(cardW * (50 / 36));                                   // 118px
+// Inner usable width of each panel (border-2 = 8px, p-3 = 24px)
+const effectivePanelW = Math.floor((DESIGN_W - PANEL_GAP * 2) / 3);  // 476px
+const panelInnerW = effectivePanelW - 8 - 24;                          // 444px
+
+// Hole cards: 4 per row with gap-1 (3 gaps × 4px = 12px)
+const cardW = Math.max(40, Math.floor((panelInnerW - 12) / 4));        // 108px (~27% bigger)
+const cardH = Math.round(cardW * (50 / 36));                            // 150px
+
+// Community cards: 5 per row with gap-1 (4 gaps × 4px = 16px)
+const commCardW = Math.max(40, Math.floor((panelInnerW - 16) / 5));    // 85px (unchanged)
+const commCardH = Math.round(commCardW * (50 / 36));                    // 118px
+
 const fanScale = 1.0; // DESIGN_W is wide enough for all 12 fan cards
 
 // ─── Card sizes ───────────────────────────────────────────────────────────────
 
-const LG = { w: cardW, h: cardH }; // fan cards match slot cards at design res
+const LG = { w: cardW, h: cardH }; // fan cards use hole card size
 
 // ─── Face-down card ───────────────────────────────────────────────────────────
 
@@ -361,6 +368,15 @@ export function PazPazPage() {
   const iHaveSubmitted  = submitted || (myPlayer?.hasSubmitted ?? false);
   const oppHasSubmitted = oppPlayer?.hasSubmitted ?? false;
 
+  function handleUnassignCard(card: Card) {
+    if (iHaveSubmitted || isScoringPhase) return;
+    const idx = dealtCards.findIndex(c => c.rank === card.rank && c.suit === card.suit);
+    if (idx >= 0) {
+      setAssignment(prev => { const n = [...prev]; n[idx] = null; return n; });
+      setSelectedCardIdx(null);
+    }
+  }
+
   function handleCardClick(cardIdx: number) {
     if (iHaveSubmitted || isScoringPhase) return;
     if (assignment[cardIdx] !== null && assignment[cardIdx] !== undefined) {
@@ -659,8 +675,8 @@ export function PazPazPage() {
                         const card = communityCards[i];
                         const show = card && (i < 3 || (i === 3 && showTurn) || (i === 4 && showRiver));
                         return show
-                          ? <PlayingCard key={i} card={card} width={cardW} height={cardH} />
-                          : <div key={i} className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: cardW, height: cardH }} />;
+                          ? <PlayingCard key={i} card={card} width={commCardW} height={commCardH} />
+                          : <div key={i} className={`rounded-xl border-2 border-dashed flex-shrink-0 ${theme.commCls}`} style={{ width: commCardW, height: commCardH }} />;
                       })}
                     </div>
                   </div>
@@ -675,7 +691,13 @@ export function PazPazPage() {
                         const card   = myFlopCards[s];
                         const isUsed = card && myUsedHole.some(c => c.rank === card.rank && c.suit === card.suit);
                         return card ? (
-                          <div key={s} style={isUsed ? { borderRadius: 8, boxShadow: '0 0 10px 3px rgba(255,0,64,0.9)', outline: '2px solid #ff0040' } : {}}>
+                          <div
+                            key={s}
+                            style={isUsed ? { borderRadius: 8, boxShadow: '0 0 10px 3px rgba(255,0,64,0.9)', outline: '2px solid #ff0040' } : {}}
+                            onClick={!iHaveSubmitted && !isScoringPhase ? (e) => { e.stopPropagation(); handleUnassignCard(card); } : undefined}
+                            className={!iHaveSubmitted && !isScoringPhase ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}
+                            title={!iHaveSubmitted && !isScoringPhase ? 'Click to remove' : undefined}
+                          >
                             <PlayingCard card={card} width={cardW} height={cardH} />
                           </div>
                         ) : (

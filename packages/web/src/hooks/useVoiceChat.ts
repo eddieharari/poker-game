@@ -24,6 +24,8 @@ interface VoiceChatState {
   toggleMute: () => void;
 }
 
+type SignalData = { type: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+
 export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceChatOptions): VoiceChatState {
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -43,9 +45,71 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
     if (!vocal || !opponentPlayerId) return;
 
     const socket = getSocket();
-    const targetPlayerId: string = opponentPlayerId; // narrowed non-null for async closures
+    const targetPlayerId: string = opponentPlayerId;
     let destroyed = false;
     let pc: RTCPeerConnection | null = null;
+
+    // Buffer signals that arrive before the RTCPeerConnection is created
+    const pendingSignals: SignalData[] = [];
+    // Buffer ICE candidates that arrive before remote description is set
+    const pendingIce: RTCIceCandidateInit[] = [];
+    let hasRemoteDesc = false;
+
+    function processSignal(signal: SignalData) {
+      if (!pc) return;
+      if (signal.type === 'offer' && signal.sdp) {
+        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+          .then(() => {
+            hasRemoteDesc = true;
+            // Drain buffered ICE candidates
+            return Promise.all(
+              pendingIce.splice(0).map(c =>
+                pc!.addIceCandidate(new RTCIceCandidate(c))
+                  .catch(err => console.error('[useVoiceChat] buffered ice error:', err))
+              )
+            );
+          })
+          .then(() => pc!.createAnswer())
+          .then(answer => pc!.setLocalDescription(answer))
+          .then(() => socket.emit('webrtc:signal', {
+            toPlayerId: targetPlayerId,
+            signal: { type: 'answer', sdp: pc!.localDescription },
+          }))
+          .catch(err => console.error('[useVoiceChat] answer error:', err));
+      } else if (signal.type === 'answer' && signal.sdp) {
+        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+          .then(() => {
+            hasRemoteDesc = true;
+            return Promise.all(
+              pendingIce.splice(0).map(c =>
+                pc!.addIceCandidate(new RTCIceCandidate(c))
+                  .catch(err => console.error('[useVoiceChat] buffered ice error:', err))
+              )
+            );
+          })
+          .catch(err => console.error('[useVoiceChat] set answer error:', err));
+      } else if (signal.type === 'ice' && signal.candidate) {
+        if (!hasRemoteDesc) {
+          // Buffer until remote description is set
+          pendingIce.push(signal.candidate);
+        } else {
+          pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+            .catch(err => console.error('[useVoiceChat] ice error:', err));
+        }
+      }
+    }
+
+    function onSignal({ signal: rawSignal }: { fromPlayerId: string; signal: unknown }) {
+      const signal = rawSignal as SignalData;
+      if (!pc) {
+        // Buffer until pc is created (getUserMedia is still pending)
+        pendingSignals.push(signal);
+        return;
+      }
+      processSignal(signal);
+    }
+
+    socket.on('webrtc:signal', onSignal);
 
     async function start() {
       let localStream: MediaStream;
@@ -73,7 +137,10 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'ice', candidate: event.candidate } });
+          socket.emit('webrtc:signal', {
+            toPlayerId: targetPlayerId,
+            signal: { type: 'ice', candidate: event.candidate },
+          });
         }
       };
 
@@ -82,36 +149,27 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
         setConnected(pc.connectionState === 'connected');
       };
 
-      if (isInitiator) {
+      // Drain any signals that arrived while getUserMedia was pending
+      const buffered = pendingSignals.splice(0);
+      for (const s of buffered) {
+        processSignal(s);
+      }
+
+      // Only create offer if we are the initiator AND the responder hasn't already sent us one
+      if (isInitiator && buffered.length === 0) {
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'offer', sdp: pc.localDescription } });
+          socket.emit('webrtc:signal', {
+            toPlayerId: targetPlayerId,
+            signal: { type: 'offer', sdp: pc.localDescription },
+          });
         } catch (err) {
           console.error('[useVoiceChat] offer error:', err);
         }
       }
     }
 
-    function onSignal({ signal: rawSignal }: { fromPlayerId: string; signal: unknown }) {
-      if (!pc) return;
-      const signal = rawSignal as { type: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
-      if (signal.type === 'offer' && signal.sdp) {
-        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
-          .then(() => pc!.createAnswer())
-          .then(answer => pc!.setLocalDescription(answer))
-          .then(() => socket.emit('webrtc:signal', { toPlayerId: targetPlayerId, signal: { type: 'answer', sdp: pc!.localDescription } }))
-          .catch(err => console.error('[useVoiceChat] answer error:', err));
-      } else if (signal.type === 'answer' && signal.sdp) {
-        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
-          .catch(err => console.error('[useVoiceChat] set answer error:', err));
-      } else if (signal.type === 'ice' && signal.candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
-          .catch(err => console.error('[useVoiceChat] ice error:', err));
-      }
-    }
-
-    socket.on('webrtc:signal', onSignal);
     start();
 
     return () => {
