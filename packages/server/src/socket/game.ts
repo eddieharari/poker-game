@@ -342,6 +342,28 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       }
     }
 
+    // ── Reconnect detection ─────────────────────────────────────────────────────
+    // If the player's connected flag was false (they dropped and are coming back),
+    // mark them connected and tell the opponent — no manual "Wait" click needed.
+    const wasDisconnected = isPlayer0 ? !room.player0.connected : !(room.player1?.connected ?? true);
+    if (wasDisconnected && room.status === 'active' && room.gameState?.phase !== 'GAME_OVER') {
+      const updatedRoom = await roomService.setPlayerConnected(roomId, playerId, true);
+      if (updatedRoom) {
+        socket.to(roomId).emit('player:reconnected', { playerIndex });
+
+        // Resume a paused turn timer if both players are now connected
+        const bothConnected = updatedRoom.player0.connected && (updatedRoom.player1?.connected ?? false);
+        if (bothConnected && updatedRoom.timerDuration && updatedRoom.pausedTimerRemainingMs != null) {
+          const remainingMs = updatedRoom.pausedTimerRemainingMs;
+          await roomService.save({ ...updatedRoom, pausedTimerRemainingMs: null });
+          const freshRoom = (await roomService.get(roomId)) ?? updatedRoom;
+          if (freshRoom.gameState) {
+            await startTurnTimerWithMs(io, roomId, freshRoom.gameState, freshRoom, remainingMs);
+          }
+        }
+      }
+    }
+
     // If both players are now in the socket room, notify them the game is ready
     const socketsInRoom = await io.in(roomId).fetchSockets();
     if (socketsInRoom.length === 2 && room.gameState) {
