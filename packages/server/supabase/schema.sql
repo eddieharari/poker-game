@@ -222,7 +222,8 @@ create policy "chip_requests_insert_own"
 -- ─── Stored Procedure: add_chips ──────────────────────────────────────────────
 -- Safely credits chips to a player (used by admin endpoints).
 
-create or replace function add_chips(p_player_id uuid, p_amount int)
+-- Parameters in alphabetical order so PostgREST resolves the function correctly
+create or replace function add_chips(p_amount int, p_player_id uuid)
 returns void
 language plpgsql
 security definer
