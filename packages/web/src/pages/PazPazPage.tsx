@@ -555,12 +555,17 @@ export function PazPazPage() {
               {isDraw ? '🤝 DRAW' : iWon ? '🏆 YOU WIN!' : '😞 YOU LOSE'}
             </div>
             {gameState.stake != null && (() => {
-              const myRake = Math.round((gameState.rake ?? 0) / 2);
-              const net = isDraw ? -myRake : iWon ? gameState.stake - myRake : -(gameState.stake + myRake);
+              const totalRake = gameState.rake ?? 0;
+              // Win: rake from winner's winnings; Loss: lose exactly stake; Draw: each pays half rake
+              const net = isDraw
+                ? -Math.round(totalRake / 2)
+                : iWon
+                  ? gameState.stake - totalRake
+                  : -gameState.stake;
               return (
                 <div className="text-sm font-medium opacity-80">
                   {net >= 0 ? '+' : ''}{net.toLocaleString()} chips
-                  {myRake > 0 && <span className="opacity-60 text-xs ml-1">(rake: {myRake})</span>}
+                  {totalRake > 0 && <span className="opacity-60 text-xs ml-1">(rake: {totalRake})</span>}
                 </div>
               );
             })()}

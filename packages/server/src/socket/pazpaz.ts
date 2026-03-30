@@ -122,11 +122,17 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
       const p0Rake = Math.round(fee / 2);
       const p1Rake = fee - p0Rake;
 
-      // Deduct each player's share
-      const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -p0Rake, p_player_id: p0Id });
-      if (feeE0) console.error('[handlePazPazGameOver] rake p0 deduct error:', feeE0.message);
-      const { error: feeE1 } = await supabase.rpc('add_chips', { p_amount: -p1Rake, p_player_id: p1Id });
-      if (feeE1) console.error('[handlePazPazGameOver] rake p1 deduct error:', feeE1.message);
+      if (winner === 'draw' || winner === null) {
+        // Draw: no winner, each player pays their half directly
+        const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -p0Rake, p_player_id: p0Id });
+        if (feeE0) console.error('[handlePazPazGameOver] rake p0 draw deduct error:', feeE0.message);
+        const { error: feeE1 } = await supabase.rpc('add_chips', { p_amount: -p1Rake, p_player_id: p1Id });
+        if (feeE1) console.error('[handlePazPazGameOver] rake p1 draw deduct error:', feeE1.message);
+      } else if (winnerId) {
+        // Win: full rake from winner only — loser's contribution is implicit in the stake transfer
+        const { error: feeE0 } = await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: winnerId });
+        if (feeE0) console.error('[handlePazPazGameOver] rake winner deduct error:', feeE0.message);
+      }
 
       // Credit house player
       if (settings.housePlayerId) {

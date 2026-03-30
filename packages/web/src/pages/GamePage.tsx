@@ -186,10 +186,17 @@ export function GamePage() {
   const iWon   = score ? score.winner === playerIndex : false;
   const isDraw = score ? score.winner === 'draw' : false;
 
-  // Net chip change = stake ± rake share (each player contributes half the total rake)
+  // Net chip change:
+  //   Win:  winner gets stake - rake (rake taken from winnings, not added to loser's loss)
+  //   Loss: loser loses exactly their stake
+  //   Draw: each player loses their half of the rake
   const effectiveStake = stake != null && score?.completeWinBonus && score?.isCompleteWin ? stake * 2 : stake ?? 0;
-  const myRake  = score ? Math.round((score.rake ?? 0) / 2) : 0;
-  const netChips = isDraw ? -myRake : iWon ? effectiveStake - myRake : -(effectiveStake + myRake);
+  const totalRake = score?.rake ?? 0;
+  const netChips = isDraw
+    ? -Math.round(totalRake / 2)
+    : iWon
+      ? effectiveStake - totalRake
+      : -effectiveStake;
 
   const phaseLabel: Record<string, string> = {
     SETUP_PHASE: 'Dealing first row',
