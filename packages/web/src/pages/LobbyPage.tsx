@@ -5,7 +5,10 @@ import { useAuthStore } from '../store/authStore.js';
 import { useLobbyStore } from '../store/lobbyStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
 import { getSocket } from '../socket.js';
-import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus, type GameType } from '@poker5o/shared';
+import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus, type GameType, type BackgammonMatchConfig, type BackgammonMatchLength, type BackgammonPointValue } from '@poker5o/shared';
+
+const BG_POINT_VALUES: BackgammonPointValue[] = [10, 25, 50, 100, 200, 500];
+const BG_MATCH_LENGTHS: BackgammonMatchLength[] = [1, 3, 5, 7, 9, 11];
 
 // ─── Dark space theme CSS (shared with PazPaz) ────────────────────────────────
 
@@ -68,6 +71,7 @@ export function LobbyPage() {
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
   const [vocal, setVocal] = useState(false);
+  const [bgMatchConfig, setBgMatchConfig] = useState<BackgammonMatchConfig>({ mode: 'match', matchLength: 5, pointValue: 50 });
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
   function toggleStatus() {
@@ -92,11 +96,20 @@ export function LobbyPage() {
 
   function sendChallenge() {
     if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', { toPlayerId: challengeTarget.id, stake: selectedStake, completeWinBonus, timerDuration, gameType: selectedGameType, assignmentDuration, vocal });
-    const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : '';
-    const bonusNote = completeWinBonus && selectedGameType !== 'pazpaz' ? ' (5-0 bonus active)' : '';
-    const timerNote = timerDuration && selectedGameType !== 'pazpaz' ? ` (${timerDuration}s timer)` : '';
-    toast(`Challenge sent to ${challengeTarget.nickname} for ${selectedStake} chips${gameTypeNote}${bonusNote}${timerNote}!`, { icon: '🃏' });
+    getSocket().emit('lobby:challenge', {
+      toPlayerId: challengeTarget.id,
+      stake: selectedStake,
+      completeWinBonus,
+      timerDuration,
+      gameType: selectedGameType,
+      assignmentDuration,
+      vocal,
+      ...(selectedGameType === 'backgammon' ? { matchConfig: bgMatchConfig } : {}),
+    });
+    const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : selectedGameType === 'backgammon' ? ' [BACKGAMMON]' : '';
+    const bonusNote = completeWinBonus && selectedGameType === 'poker5o' ? ' (5-0 bonus active)' : '';
+    const timerNote = timerDuration && selectedGameType === 'poker5o' ? ` (${timerDuration}s timer)` : '';
+    toast(`Challenge sent to ${challengeTarget.nickname}${gameTypeNote}${bonusNote}${timerNote}!`, { icon: '🎲' });
     setChallengeTarget(null);
     setCompleteWinBonus(false);
     setTimerDuration(null);
@@ -262,7 +275,70 @@ export function LobbyPage() {
                 >
                   PAZPAZ
                 </button>
+                <button
+                  onClick={() => { setSelectedGameType('backgammon'); setCompleteWinBonus(false); setTimerDuration(null); }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border
+                    ${selectedGameType === 'backgammon'
+                      ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10'
+                      : 'lby-btn border-white/10 text-gray-400'}`}
+                  style={selectedGameType === 'backgammon' ? { boxShadow: '0 0 15px rgba(255,215,0,0.2)' } : {}}
+                >
+                  🎲 BG
+                </button>
               </div>
+              {selectedGameType === 'backgammon' && (
+                <div className="space-y-3 mt-3">
+                  <p className="text-xs text-gray-600 text-center">Backgammon with doubling cube</p>
+                  {/* Mode */}
+                  <div>
+                    <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Mode</p>
+                    <div className="flex gap-2">
+                      {(['match', 'per-point'] as const).map(m => (
+                        <button key={m}
+                          onClick={() => setBgMatchConfig(c => ({ ...c, mode: m, matchLength: m === 'match' ? (c.matchLength ?? 5) : null }))}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all border
+                            ${bgMatchConfig.mode === m ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400'}`}
+                        >
+                          {m === 'match' ? 'Match' : 'Per Point'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Match length (only for match mode) */}
+                  {bgMatchConfig.mode === 'match' && (
+                    <div>
+                      <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">To</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {BG_MATCH_LENGTHS.map(l => (
+                          <button key={l}
+                            onClick={() => setBgMatchConfig(c => ({ ...c, matchLength: l }))}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                              ${bgMatchConfig.matchLength === l ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400'}`}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Point value */}
+                  <div>
+                    <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Chips per point</p>
+                    <div className="flex gap-1 flex-wrap">
+                      {BG_POINT_VALUES.map(v => (
+                        <button key={v}
+                          onClick={() => setBgMatchConfig(c => ({ ...c, pointValue: v }))}
+                          disabled={(profile?.chips ?? 0) < v}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                            ${bgMatchConfig.pointValue === v ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               {selectedGameType === 'pazpaz' && (
                 <>
                   <p className="text-xs text-gray-600 text-center mt-1">
@@ -381,7 +457,10 @@ export function LobbyPage() {
               </button>
               <button
                 onClick={sendChallenge}
-                disabled={selectedGameType === 'poker5o' && completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2}
+                disabled={
+                  (selectedGameType === 'poker5o' && completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2) ||
+                  (selectedGameType === 'backgammon' && (profile?.chips ?? 0) < bgMatchConfig.pointValue)
+                }
                 className="flex-1 py-2.5 rounded-xl lby-h text-sm tracking-widest uppercase font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105"
                 style={{ background: '#00FF9D', color: '#000', boxShadow: '0 0 25px rgba(0,255,157,0.3)', border: '1px solid #00FF9D' }}
               >
@@ -407,6 +486,20 @@ export function LobbyPage() {
                 <div className="text-left">
                   <p className="text-sm font-semibold text-[#45F3FF]">PAZPAZ</p>
                   <p className="text-xs text-gray-500">3-flop Omaha game</p>
+                </div>
+              </div>
+            )}
+            {incomingChallenge.gameType === 'backgammon' && incomingChallenge.matchConfig && (
+              <div className="flex items-center justify-center gap-2 bg-[#FFD700]/5 border border-[#FFD700]/20 rounded-xl px-4 py-2">
+                <span className="text-lg">🎲</span>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-[#FFD700]">BACKGAMMON</p>
+                  <p className="text-xs text-gray-500">
+                    {incomingChallenge.matchConfig.mode === 'match'
+                      ? `Match to ${incomingChallenge.matchConfig.matchLength} · ${incomingChallenge.matchConfig.pointValue} chips/pt`
+                      : `Per point · ${incomingChallenge.matchConfig.pointValue} chips/pt`}
+                    {' · Doubling cube'}
+                  </p>
                 </div>
               </div>
             )}

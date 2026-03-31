@@ -21,7 +21,7 @@ agentRouter.get('/dashboard', async (req: any, res) => {
   if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { data: agentProfile } = await supabase
-    .from('profiles').select('agent_chip_pool, chips').eq('id', agentId).single();
+    .from('profiles').select('agent_chip_pool, chips, total_rake').eq('id', agentId).single();
 
   const { data: players, error } = await supabase
     .from('profiles')
@@ -34,6 +34,7 @@ agentRouter.get('/dashboard', async (req: any, res) => {
   res.json({
     pool: agentProfile?.agent_chip_pool ?? 0,
     agentChips: agentProfile?.chips ?? 0,
+    agentTotalRake: agentProfile?.total_rake ?? 0,
     players: players ?? [],
   });
 });

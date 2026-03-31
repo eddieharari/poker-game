@@ -17,6 +17,7 @@ interface AgentPlayer {
 interface Dashboard {
   pool: number;
   agentChips: number;
+  agentTotalRake: number;
   players: AgentPlayer[];
 }
 
@@ -93,7 +94,7 @@ export function AgentPage() {
       wins: profile.wins ?? 0,
       losses: profile.losses ?? 0,
       draws: profile.draws ?? 0,
-      total_rake: 0,
+      total_rake: dashboard.agentTotalRake,
       isSelf: true,
     });
     // Add assigned players (excluding self if they appear)
@@ -200,7 +201,7 @@ export function AgentPage() {
                       <span>{player.draws}</span>
                     </td>
                     <td className="px-5 py-3 text-right text-xs text-purple-400 hidden sm:table-cell">
-                      {player.isSelf ? '—' : (player.total_rake ?? 0).toLocaleString()}
+                      {(player.total_rake ?? 0).toLocaleString()}
                     </td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex gap-2 justify-end">

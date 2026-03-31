@@ -1,5 +1,5 @@
-import type { GameState, OnlinePlayer, PlayerStatus, StakeAmount, GameType } from '@poker5o/shared';
-export type { StakeAmount, GameType };
+import type { GameState, OnlinePlayer, PlayerStatus, StakeAmount, GameType, BackgammonMatchConfig } from '@poker5o/shared';
+export type { StakeAmount, GameType, BackgammonMatchConfig };
 
 export type { OnlinePlayer, PlayerStatus };
 
@@ -52,6 +52,7 @@ export interface Challenge {
   assignmentDuration: 60 | 180 | 300;
   gameType: GameType;
   vocal: boolean;
+  matchConfig: BackgammonMatchConfig | null;
   createdAt: number;
 }
 

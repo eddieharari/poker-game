@@ -4,11 +4,14 @@ import { lobbyService } from '../services/lobbyService.js';
 import { challengeService } from '../services/challengeService.js';
 import { roomService } from '../services/roomService.js';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
+import { backgammonRoomService } from '../services/backgammonRoomService.js';
 import { supabase } from '../supabase.js';
-import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
-import type { StakeAmount, GameType } from '@poker5o/shared';
+import { STAKE_OPTIONS, dealPazPaz, createBackgammonGame } from '@poker5o/shared';
+import type { StakeAmount, GameType, BackgammonMatchConfig } from '@poker5o/shared';
 import type { Challenge } from '../types.js';
 import { log } from '../logger.js';
+
+const BG_POINT_VALUES = [10, 25, 50, 100, 200, 500] as const;
 
 // Grace-period timers: playerId → timeout handle
 const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -66,8 +69,8 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
   // ─── Send Challenge ──────────────────────────────────────────────────────────
 
-  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, timerDuration, assignmentDuration: rawAssignDur, gameType: rawGameType, vocal: rawVocal }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration?: 60 | 180 | 300; gameType?: GameType; vocal?: boolean }) => {
-    const gameType: GameType = rawGameType === 'pazpaz' ? 'pazpaz' : 'poker5o';
+  socket.on('lobby:challenge', async ({ toPlayerId, stake, completeWinBonus, timerDuration, assignmentDuration: rawAssignDur, gameType: rawGameType, vocal: rawVocal, matchConfig: rawMatchConfig }: { toPlayerId: string; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration?: 60 | 180 | 300; gameType?: GameType; vocal?: boolean; matchConfig?: BackgammonMatchConfig }) => {
+    const gameType: GameType = rawGameType === 'pazpaz' ? 'pazpaz' : rawGameType === 'backgammon' ? 'backgammon' : 'poker5o';
     const assignmentDuration: 60 | 180 | 300 = ([60, 180, 300] as const).includes(rawAssignDur as 60 | 180 | 300) ? (rawAssignDur as 60 | 180 | 300) : 180;
     const vocal = !!rawVocal;
     if (toPlayerId === playerId) {
@@ -75,8 +78,26 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    // Validate stake is a legal option
-    if (!(STAKE_OPTIONS as readonly number[]).includes(stake)) {
+    // Validate backgammon-specific config
+    let matchConfig: BackgammonMatchConfig | null = null;
+    if (gameType === 'backgammon') {
+      if (!rawMatchConfig) {
+        socket.emit('room:error', { message: 'Backgammon requires match config' });
+        return;
+      }
+      if (!(BG_POINT_VALUES as readonly number[]).includes(rawMatchConfig.pointValue)) {
+        socket.emit('room:error', { message: 'Invalid point value' });
+        return;
+      }
+      if (rawMatchConfig.mode === 'match' && (rawMatchConfig.matchLength === null || ![1,3,5,7,9,11].includes(rawMatchConfig.matchLength))) {
+        socket.emit('room:error', { message: 'Invalid match length' });
+        return;
+      }
+      matchConfig = rawMatchConfig;
+    }
+
+    // Validate stake is a legal option (skip for backgammon — uses pointValue instead)
+    if (gameType !== 'backgammon' && !(STAKE_OPTIONS as readonly number[]).includes(stake)) {
       socket.emit('room:error', { message: 'Invalid stake amount' });
       return;
     }
@@ -102,23 +123,29 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     const challenger = profiles?.find(p => p.id === playerId);
     const opponent   = profiles?.find(p => p.id === toPlayerId);
 
-    const required = completeWinBonus ? stake * 2 : stake;
+    const required = gameType === 'backgammon'
+      ? (matchConfig?.pointValue ?? 0)
+      : (completeWinBonus ? stake * 2 : stake);
     if (!challenger || challenger.chips < required) {
-      socket.emit('room:error', { message: completeWinBonus
-        ? `You need at least ${required} chips for a complete-win bonus game`
-        : `You need at least ${stake} chips to set this stake` });
+      socket.emit('room:error', { message: gameType === 'backgammon'
+        ? `You need at least ${required} chips to play at this point value`
+        : completeWinBonus
+          ? `You need at least ${required} chips for a complete-win bonus game`
+          : `You need at least ${stake} chips to set this stake` });
       return;
     }
     if (!opponent || opponent.chips < required) {
-      socket.emit('room:error', { message: completeWinBonus
-        ? `Opponent needs at least ${required} chips for a complete-win bonus game`
-        : 'Opponent does not have enough chips for this stake' });
+      socket.emit('room:error', { message: gameType === 'backgammon'
+        ? `Opponent needs at least ${required} chips for this point value`
+        : completeWinBonus
+          ? `Opponent needs at least ${required} chips for a complete-win bonus game`
+          : 'Opponent does not have enough chips for this stake' });
       return;
     }
 
     // Pre-create the room so roomId is ready on accept (only for poker5o)
     const roomId = uuidv4().slice(0, 6).toUpperCase();
-    if (gameType !== 'pazpaz') {
+    if (gameType !== 'pazpaz' && gameType !== 'backgammon') {
       await roomService.create(roomId, {
         socketId: socket.id,
         playerId,
@@ -138,10 +165,11 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       roomId,
       stake,
       completeWinBonus,
-      timerDuration: gameType === 'pazpaz' ? null : timerDuration,
+      timerDuration: (gameType === 'pazpaz' || gameType === 'backgammon') ? null : timerDuration,
       assignmentDuration,
       gameType,
       vocal,
+      matchConfig,
       createdAt: Date.now(),
     };
 
@@ -169,10 +197,11 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       from: fromPlayer ?? { id: playerId, nickname, avatarUrl, status: 'invited' as const, wins: 0, losses: 0, draws: 0 },
       stake,
       completeWinBonus,
-      timerDuration: gameType === 'pazpaz' ? null : timerDuration,
+      timerDuration: (gameType === 'pazpaz' || gameType === 'backgammon') ? null : timerDuration,
       gameType,
       assignmentDuration,
       vocal,
+      matchConfig: matchConfig ?? undefined,
     });
 
     // Auto-expire after 25s
@@ -180,7 +209,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       const still = await challengeService.exists(challengeId);
       if (still) {
         await challengeService.delete(challengeId);
-        if (gameType !== 'pazpaz') await roomService.delete(roomId);
+        if (gameType !== 'pazpaz' && gameType !== 'backgammon') await roomService.delete(roomId);
         await lobbyService.setStatus(playerId, 'idle');
         await lobbyService.setStatus(toPlayerId, 'idle');
         socket.emit('lobby:challenge:expired', { challengeId });
@@ -225,7 +254,43 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
 
     const roomId = challenge.roomId;
 
-    if (challenge.gameType === 'pazpaz') {
+    if (challenge.gameType === 'backgammon') {
+      if (!challenge.matchConfig) {
+        socket.emit('room:error', { message: 'Missing backgammon config' });
+        return;
+      }
+      const fromPlayer = await lobbyService.getPlayer(challenge.fromId);
+      const gameState = createBackgammonGame(
+        challenge.fromId, challenge.fromNickname, challenge.fromAvatarUrl,
+        playerId, nickname, avatarUrl,
+        challenge.matchConfig,
+      );
+      await backgammonRoomService.create({
+        roomId,
+        player0: { playerId: challenge.fromId, playerName: challenge.fromNickname, avatarUrl: challenge.fromAvatarUrl, connected: true },
+        player1: { playerId, playerName: nickname, avatarUrl, connected: true },
+        gameState,
+        status: 'active',
+        matchConfig: challenge.matchConfig,
+        createdAt: Date.now(),
+      });
+      await lobbyService.setStatus(playerId, 'in-game');
+      await lobbyService.setStatus(challenge.fromId, 'in-game');
+      io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
+      io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
+      log('INVITE_ACCEPTED', {
+        challengeId,
+        roomId,
+        fromId: challenge.fromId,
+        fromNick: challenge.fromNickname,
+        toId: playerId,
+        toNick: nickname,
+        stake: challenge.matchConfig.pointValue,
+        gameType: 'backgammon',
+      });
+      socket.emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'backgammon' as const, vocal: challenge.vocal });
+      io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'backgammon' as const, vocal: challenge.vocal });
+    } else if (challenge.gameType === 'pazpaz') {
       // Find the challenger's socket auth info from lobbyService
       const fromPlayer = await lobbyService.getPlayer(challenge.fromId);
 
@@ -311,7 +376,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     if (!challenge || challenge.toId !== playerId) return;
 
     await challengeService.delete(challengeId);
-    if (challenge.gameType !== 'pazpaz') await roomService.delete(challenge.roomId);
+    if (challenge.gameType !== 'pazpaz' && challenge.gameType !== 'backgammon') await roomService.delete(challenge.roomId);
     await lobbyService.setStatus(playerId, 'idle');
     await lobbyService.setStatus(challenge.fromId, 'idle');
 

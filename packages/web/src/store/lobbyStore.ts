@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { OnlinePlayer, StakeAmount, GameType } from '@poker5o/shared';
+import type { OnlinePlayer, StakeAmount, GameType, BackgammonMatchConfig } from '@poker5o/shared';
 
 interface IncomingChallenge {
   challengeId: string;
@@ -10,6 +10,7 @@ interface IncomingChallenge {
   gameType?: GameType;
   assignmentDuration?: 60 | 180 | 300;
   vocal?: boolean;
+  matchConfig?: BackgammonMatchConfig;
 }
 
 interface LobbyState {

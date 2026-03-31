@@ -318,3 +318,26 @@ begin
   update profiles set agent_chip_pool = agent_chip_pool + p_amount where id = p_agent_id;
 end;
 $$;
+
+-- ─── Backgammon games table ───────────────────────────────────────────────────
+
+create table if not exists backgammon_games (
+  id             uuid primary key default gen_random_uuid(),
+  room_id        text not null unique,
+  player0_id     uuid not null references profiles(id),
+  player1_id     uuid not null references profiles(id),
+  winner_id      uuid references profiles(id),
+  win_type       text check (win_type in ('normal', 'gammon', 'backgammon', 'forfeit')),
+  cube_value     int not null default 1,
+  points_won     int not null default 0,
+  chips_wagered  int not null default 0,
+  rake_amount    int not null default 0,
+  match_mode     text not null default 'per-point' check (match_mode in ('match', 'per-point')),
+  match_length   int,
+  final_state    jsonb,
+  created_at     timestamptz not null default now(),
+  completed_at   timestamptz
+);
+
+create index if not exists backgammon_games_player0 on backgammon_games (player0_id);
+create index if not exists backgammon_games_player1 on backgammon_games (player1_id);
