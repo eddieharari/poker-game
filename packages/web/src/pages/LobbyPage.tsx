@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useLobbyStore } from '../store/lobbyStore.js';
@@ -43,15 +43,179 @@ const LOBBY_STYLES = `
       radial-gradient(circle at 15% 50%, rgba(110,86,207,0.15) 0%, transparent 50%),
       radial-gradient(circle at 85% 30%, rgba(69,243,255,0.1) 0%, transparent 50%);
   }
-  .room-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
-  .room-card:hover { transform: translateY(-2px); }
+  .room-row { transition: background 0.12s ease, border-color 0.12s ease; }
+  .room-row:hover { background: rgba(255,255,255,0.04) !important; }
 `;
 
-// ─── Room card colours ─────────────────────────────────────────────────────────
+// ─── Colours ───────────────────────────────────────────────────────────────────
 function roomColors(status: LobbyRoomView['status'], isMyRoom: boolean) {
-  if (status === 'playing')  return { border: '#FF3366', glow: 'rgba(255,51,102,0.25)', bg: 'rgba(255,51,102,0.06)', dot: '#FF3366', label: '🔴 In Game' };
-  if (status === 'waiting')  return { border: isMyRoom ? '#45F3FF' : '#00FF9D', glow: isMyRoom ? 'rgba(69,243,255,0.25)' : 'rgba(0,255,157,0.25)', bg: isMyRoom ? 'rgba(69,243,255,0.06)' : 'rgba(0,255,157,0.06)', dot: isMyRoom ? '#45F3FF' : '#00FF9D', label: '🟢 Waiting' };
-  return { border: 'rgba(255,255,255,0.12)', glow: 'transparent', bg: 'rgba(255,255,255,0.02)', dot: '#555', label: '⚫ Open' };
+  if (status === 'playing')
+    return { border: '#FF3366', glow: 'rgba(255,51,102,0.2)', dot: '#FF3366', label: 'In Game',  badge: 'rgba(255,51,102,0.15)',  badgeText: '#FF3366' };
+  if (status === 'waiting')
+    return isMyRoom
+      ? { border: '#45F3FF', glow: 'rgba(69,243,255,0.2)',  dot: '#45F3FF', label: 'Waiting',   badge: 'rgba(69,243,255,0.15)',   badgeText: '#45F3FF' }
+      : { border: '#00FF9D', glow: 'rgba(0,255,157,0.2)',   dot: '#00FF9D', label: 'Waiting',   badge: 'rgba(0,255,157,0.15)',    badgeText: '#00FF9D' };
+  return { border: 'rgba(255,255,255,0.1)', glow: 'transparent', dot: '#444', label: 'Open', badge: 'rgba(255,255,255,0.06)', badgeText: 'rgba(255,255,255,0.4)' };
+}
+
+// ─── Room Detail Modal ─────────────────────────────────────────────────────────
+interface RoomDetailModalProps {
+  room: LobbyRoomView;
+  isMyRoom: boolean;
+  myChips: number;
+  onJoin: (password?: string) => void;
+  onLeave: () => void;
+  onClose: () => void;
+}
+
+function RoomDetailModal({ room, isMyRoom, myChips, onJoin, onLeave, onClose }: RoomDetailModalProps) {
+  const [password, setPassword] = useState('');
+  const colors   = roomColors(room.status, isMyRoom);
+  const isPlaying = room.status === 'playing';
+  const required  = room.completeWinBonus ? room.stake * 2 : room.stake;
+  const canJoin   = myChips >= required && !isPlaying;
+  const needsPw   = room.isPrivate && !isMyRoom && !isPlaying;
+
+  function handleSitIn() {
+    if (needsPw && !password) return;
+    onJoin(needsPw ? password : undefined);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="glass-panel rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4"
+        style={{ border: `1px solid ${colors.border}`, boxShadow: `0 0 40px ${colors.glow}` }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colors.dot, boxShadow: `0 0 8px ${colors.dot}` }} />
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: colors.dot }}>{colors.label}</span>
+            {room.isPrivate  && <span className="text-[#FFD700] text-sm">🔒</span>}
+            {room.isRecurring && <span className="text-gray-500 text-xs">↺</span>}
+          </div>
+          <button onClick={onClose} className="text-gray-600 hover:text-white transition-colors text-lg leading-none">✕</button>
+        </div>
+
+        <div>
+          <h2 className="lby-h text-xl font-bold text-white">{room.name}</h2>
+        </div>
+
+        {/* Details table */}
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Game</span>
+            <span className="text-white font-medium">{room.gameType === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Stake</span>
+            <span className="font-semibold" style={{ color: '#00FF9D' }}>💰 {room.stake.toLocaleString()}</span>
+          </div>
+          {room.completeWinBonus && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Bonus</span>
+              <span className="text-[#FFD700] font-medium">2× Complete Win</span>
+            </div>
+          )}
+          {room.timerDuration && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Move Timer</span>
+              <span className="text-white">{room.timerDuration}s</span>
+            </div>
+          )}
+          {room.gameType === 'pazpaz' && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Assignment</span>
+              <span className="text-white">
+                {room.assignmentDuration === 60 ? '1 min' : room.assignmentDuration === 180 ? '3 min' : '5 min'}
+              </span>
+            </div>
+          )}
+          {room.vocal && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Voice</span>
+              <span className="text-white">🎙 Enabled</span>
+            </div>
+          )}
+        </div>
+
+        {/* Waiting player */}
+        {room.status === 'waiting' && room.waitingPlayerName && (
+          <div className="flex items-center gap-2 py-2 border-t border-white/5">
+            {room.waitingPlayerAvatar
+              ? <img src={room.waitingPlayerAvatar} className="w-7 h-7 rounded-full border border-[#00FF9D]/40 object-cover" alt="" />
+              : <div className="w-7 h-7 rounded-full bg-[#00FF9D]/20 flex items-center justify-center text-[#00FF9D] text-[10px] font-bold">{room.waitingPlayerName[0]}</div>
+            }
+            <p className="text-sm text-gray-300">
+              {isMyRoom ? 'You are waiting for an opponent…' : `${room.waitingPlayerName} is waiting`}
+            </p>
+          </div>
+        )}
+
+        {/* Required chips warning */}
+        {!canJoin && !isPlaying && !isMyRoom && (
+          <p className="text-[#FF3366] text-xs text-center">You need {required.toLocaleString()} chips to join</p>
+        )}
+
+        {/* Password input */}
+        {needsPw && (
+          <input
+            autoFocus
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSitIn()}
+            placeholder="Enter room password"
+            type="password"
+            className="w-full bg-black/30 border border-[#FFD700]/30 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-[#FFD700]/60"
+          />
+        )}
+
+        {/* Actions */}
+        {isMyRoom ? (
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-2xl text-sm font-medium border border-white/10 text-gray-400 hover:border-white/20 transition-all"
+            >
+              Stay
+            </button>
+            <button
+              onClick={onLeave}
+              className="flex-1 py-2.5 rounded-2xl text-sm font-bold border border-[#FF3366]/50 text-[#FF3366] hover:bg-[#FF3366]/10 transition-all"
+            >
+              Leave Room
+            </button>
+          </div>
+        ) : isPlaying ? (
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-2xl text-sm font-medium border border-white/10 text-gray-400 hover:border-white/20 transition-all"
+          >
+            Close
+          </button>
+        ) : (
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-2xl text-sm font-medium border border-white/10 text-gray-400 hover:border-white/20 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSitIn}
+              disabled={!canJoin || (needsPw && !password)}
+              className="flex-1 py-2.5 rounded-2xl text-sm font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D' }}
+            >
+              Sit In
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── Create Room Modal ─────────────────────────────────────────────────────────
@@ -61,15 +225,15 @@ interface CreateRoomModalProps {
 }
 
 function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
-  const [name, setName]                       = useState('');
-  const [gameType, setGameType]               = useState<GameType>('poker5o');
-  const [stake, setStake]                     = useState<StakeAmount>(STAKE_OPTIONS[2]);
-  const [completeWinBonus, setCompleteWinBonus] = useState(false);
-  const [timerDuration, setTimerDuration]     = useState<30 | 45 | 60 | null>(null);
+  const [name, setName]                           = useState('');
+  const [gameType, setGameType]                   = useState<GameType>('poker5o');
+  const [stake, setStake]                         = useState<StakeAmount>(STAKE_OPTIONS[2]);
+  const [completeWinBonus, setCompleteWinBonus]   = useState(false);
+  const [timerDuration, setTimerDuration]         = useState<30 | 45 | 60 | null>(null);
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
-  const [vocal, setVocal]                     = useState(false);
-  const [isPrivate, setIsPrivate]             = useState(false);
-  const [password, setPassword]               = useState('');
+  const [vocal, setVocal]                         = useState(false);
+  const [isPrivate, setIsPrivate]                 = useState(false);
+  const [password, setPassword]                   = useState('');
 
   const required = completeWinBonus ? stake * 2 : stake;
   const canCreate = profile.chips >= required;
@@ -98,7 +262,6 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
           <p className="text-gray-400 text-sm mt-1">Set up a private room for your friends</p>
         </div>
 
-        {/* Room name */}
         <div>
           <label className="text-xs text-gray-400 uppercase tracking-widest mb-1 block">Room Name (optional)</label>
           <input
@@ -110,7 +273,6 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
           />
         </div>
 
-        {/* Game type */}
         <div>
           <label className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Game</label>
           <div className="flex gap-2">
@@ -126,7 +288,6 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
           </div>
         </div>
 
-        {/* Stake */}
         <div>
           <label className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Stake</label>
           <div className="flex flex-wrap gap-1.5">
@@ -142,7 +303,6 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
           </div>
         </div>
 
-        {/* Game-specific options */}
         {gameType === 'poker5o' && (
           <div className="space-y-2">
             <label className="flex items-center gap-3 cursor-pointer">
@@ -177,13 +337,11 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
           </div>
         )}
 
-        {/* Voice */}
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={vocal} onChange={e => setVocal(e.target.checked)} className="w-4 h-4 accent-[#6E56CF]" />
           <span className="text-sm text-gray-300">🎙 Voice Chat</span>
         </label>
 
-        {/* Private */}
         <div className="space-y-2">
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} className="w-4 h-4 accent-[#FFD700]" />
@@ -222,44 +380,92 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
   );
 }
 
-// ─── Password prompt modal ─────────────────────────────────────────────────────
-interface PasswordModalProps {
-  roomName: string;
-  onConfirm: (password: string) => void;
+// ─── Filter Dropdown ───────────────────────────────────────────────────────────
+type Filter = 'all' | 'low' | 'mid' | 'high' | 'pazpaz' | 'poker5o' | 'free' | 'waiting' | 'ingame';
+
+interface FilterDropdownProps {
+  activeFilters: Set<Filter>;
+  onToggle: (f: Filter) => void;
+  stakeMidMin: number;
+  stakeHighMin: number;
   onClose: () => void;
 }
 
-function PasswordModal({ roomName, onConfirm, onClose }: PasswordModalProps) {
-  const [password, setPassword] = useState('');
+function FilterDropdown({ activeFilters, onToggle, stakeMidMin, stakeHighMin, onClose }: FilterDropdownProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const groups: { label: string; items: { id: Filter; label: string }[] }[] = [
+    {
+      label: 'Status',
+      items: [
+        { id: 'free',    label: '⚫ Free' },
+        { id: 'waiting', label: '🟢 Waiting' },
+        { id: 'ingame',  label: '🔴 In Game' },
+      ],
+    },
+    {
+      label: 'Stake',
+      items: [
+        { id: 'low',  label: `Low  < ${stakeMidMin}` },
+        { id: 'mid',  label: `Mid  ${stakeMidMin}–${stakeHighMin - 1}` },
+        { id: 'high', label: `High ${stakeHighMin}+` },
+      ],
+    },
+    {
+      label: 'Game',
+      items: [
+        { id: 'poker5o', label: '🃏 Poker5O' },
+        { id: 'pazpaz',  label: '🎴 PazPaz' },
+      ],
+    },
+  ];
+
+  const hasActive = !activeFilters.has('all');
+
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="glass-panel rounded-3xl border border-[#FFD700]/30 p-6 w-full max-w-sm shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="text-center">
-          <p className="text-3xl mb-1">🔒</p>
-          <h2 className="lby-h text-xl text-[#FFD700] font-bold">{roomName}</h2>
-          <p className="text-gray-400 text-sm mt-1">This room is password protected</p>
-        </div>
-        <input
-          autoFocus
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && password && onConfirm(password)}
-          placeholder="Enter password"
-          type="password"
-          className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-[#FFD700]/50"
-        />
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl border border-white/10 text-gray-400 text-sm font-medium hover:border-white/20 transition-all">Cancel</button>
-          <button
-            onClick={() => password && onConfirm(password)}
-            disabled={!password}
-            className="flex-1 py-2.5 rounded-2xl text-sm font-bold border transition-all disabled:opacity-40"
-            style={{ background: '#FFD700', color: '#000', borderColor: '#FFD700' }}
-          >
-            Enter Room
-          </button>
-        </div>
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-2 glass-panel rounded-2xl border border-white/10 p-4 w-56 z-30 shadow-2xl space-y-4"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Filter</span>
+        {hasActive && (
+          <button onClick={() => onToggle('all')} className="text-[10px] text-[#45F3FF] hover:underline">Clear all</button>
+        )}
       </div>
+      {groups.map(group => (
+        <div key={group.label}>
+          <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1.5">{group.label}</p>
+          <div className="flex flex-col gap-1">
+            {group.items.map(({ id, label }) => {
+              const active = activeFilters.has(id);
+              return (
+                <button
+                  key={id}
+                  onClick={() => onToggle(id)}
+                  className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left"
+                  style={{
+                    background: active ? 'rgba(69,243,255,0.12)' : 'rgba(255,255,255,0.03)',
+                    color: active ? '#45F3FF' : 'rgba(255,255,255,0.5)',
+                    border: `1px solid ${active ? 'rgba(69,243,255,0.4)' : 'rgba(255,255,255,0.06)'}`,
+                  }}
+                >
+                  {label}
+                  {active && <span className="text-[#45F3FF]">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -273,12 +479,12 @@ export function LobbyPage() {
 
   const [myWaitingRoomId, setMyWaitingRoomId] = useState<string | null>(null);
   const [showCreate, setShowCreate]           = useState(false);
-  const [passwordPrompt, setPasswordPrompt]   = useState<{ roomId: string; name: string } | null>(null);
+  const [selectedRoom, setSelectedRoom]       = useState<LobbyRoomView | null>(null);
+  const [showFilter, setShowFilter]           = useState(false);
 
-  type Filter = 'all' | 'low' | 'mid' | 'high' | 'pazpaz' | 'poker5o';
-  const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set(['all']));
-  const [stakeMidMin, setStakeMidMin]     = useState(101);
-  const [stakeHighMin, setStakeHighMin]   = useState(601);
+  const [activeFilters, setActiveFilters]     = useState<Set<Filter>>(new Set(['all']));
+  const [stakeMidMin, setStakeMidMin]         = useState(101);
+  const [stakeHighMin, setStakeHighMin]       = useState(601);
 
   function toggleFilter(f: Filter) {
     setActiveFilters(prev => {
@@ -297,8 +503,23 @@ export function LobbyPage() {
 
   const filteredRooms = lobbyRooms.filter(room => {
     if (activeFilters.has('all')) return true;
+
+    // Status filters
+    const statusFilters = (['free', 'waiting', 'ingame'] as Filter[]).filter(f => activeFilters.has(f));
+    if (statusFilters.length > 0) {
+      const passStatus = statusFilters.some(f =>
+        (f === 'free'    && room.status === 'empty') ||
+        (f === 'waiting' && room.status === 'waiting') ||
+        (f === 'ingame'  && room.status === 'playing')
+      );
+      if (!passStatus) return false;
+    }
+
+    // Game type filters
     if (activeFilters.has('poker5o') && room.gameType !== 'poker5o') return false;
     if (activeFilters.has('pazpaz')  && room.gameType !== 'pazpaz')  return false;
+
+    // Stake filters
     const stakeFilters = (['low', 'mid', 'high'] as Filter[]).filter(f => activeFilters.has(f));
     if (stakeFilters.length > 0) {
       const inLow  = room.stake < stakeMidMin;
@@ -309,6 +530,7 @@ export function LobbyPage() {
       );
       if (!passStake) return false;
     }
+
     return true;
   });
 
@@ -325,46 +547,44 @@ export function LobbyPage() {
     return () => { socket.emit('lobby:leave'); };
   }, []);
 
-  // Sync my waiting room state from socket events
   useEffect(() => {
     const socket = getSocket();
-
-    function onGameStarted() {
-      setMyWaitingRoomId(null);
-    }
-
+    function onGameStarted() { setMyWaitingRoomId(null); setSelectedRoom(null); }
     socket.on('lobbyRoom:game_started', onGameStarted);
     return () => { socket.off('lobbyRoom:game_started', onGameStarted); };
   }, []);
 
+  // Keep selectedRoom in sync when lobbyRooms update
+  useEffect(() => {
+    if (!selectedRoom) return;
+    const updated = lobbyRooms.find(r => r.id === selectedRoom.id);
+    if (updated) setSelectedRoom(updated);
+    else setSelectedRoom(null);
+  }, [lobbyRooms]);
+
   function joinRoom(room: LobbyRoomView, password?: string) {
     if (room.status === 'playing') return;
-
-    if (room.isPrivate && !password) {
-      setPasswordPrompt({ roomId: room.id, name: room.name });
-      return;
-    }
-
-    // If already waiting in this room, do nothing
     if (myWaitingRoomId === room.id) return;
-
-    const socket = getSocket();
-    socket.emit('lobbyRoom:join', { roomId: room.id, password });
+    getSocket().emit('lobbyRoom:join', { roomId: room.id, password });
     setMyWaitingRoomId(room.id);
+    setSelectedRoom(null);
   }
 
   function leaveRoom() {
     if (!myWaitingRoomId) return;
     getSocket().emit('lobbyRoom:leave', { roomId: myWaitingRoomId });
     setMyWaitingRoomId(null);
+    setSelectedRoom(null);
   }
 
   function deleteRoom(roomId: string) {
     getSocket().emit('lobbyRoom:delete', { roomId });
     if (myWaitingRoomId === roomId) setMyWaitingRoomId(null);
+    setSelectedRoom(null);
   }
 
-  const onlinePlayers = players.length + 1; // +1 for self
+  const onlinePlayers = players.length + 1;
+  const hasActiveFilters = !activeFilters.has('all');
 
   return (
     <div className="min-h-screen overflow-auto relative" style={{ background: 'radial-gradient(circle at 50% 30%, #12141D 0%, #0B0C10 100%)' }}>
@@ -393,7 +613,6 @@ export function LobbyPage() {
             Settings
           </button>
 
-          {/* Profile chip */}
           <div className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded-full border border-white/10">
             {profile?.avatar_url
               ? <img src={profile.avatar_url} className="w-7 h-7 rounded-full border border-[#45F3FF]/40 object-cover" alt="" />
@@ -413,17 +632,40 @@ export function LobbyPage() {
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div>
           <h1 className="lby-h text-xl font-bold text-white">Game Rooms</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Enter a room to play · Gray = open · Green = waiting · Red = in game</p>
+          <p className="text-gray-500 text-xs mt-0.5">Click a room to view details and sit in</p>
         </div>
         <div className="flex items-center gap-2">
-          {myWaitingRoomId && (
+          {/* Filter icon button */}
+          <div className="relative">
             <button
-              onClick={leaveRoom}
-              className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#FF3366]/50 text-[#FF3366] hover:bg-[#FF3366]/10 transition-all"
+              onClick={() => setShowFilter(v => !v)}
+              title="Filter"
+              className="p-2 rounded-xl border transition-all"
+              style={{
+                borderColor: hasActiveFilters ? '#45F3FF' : 'rgba(255,255,255,0.1)',
+                background:  hasActiveFilters ? 'rgba(69,243,255,0.12)' : 'rgba(255,255,255,0.04)',
+                color:       hasActiveFilters ? '#45F3FF' : 'rgba(255,255,255,0.5)',
+              }}
             >
-              ← Leave Room
+              {/* Filter icon (SVG) */}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#45F3FF]" />
+              )}
             </button>
-          )}
+            {showFilter && (
+              <FilterDropdown
+                activeFilters={activeFilters}
+                onToggle={toggleFilter}
+                stakeMidMin={stakeMidMin}
+                stakeHighMin={stakeHighMin}
+                onClose={() => setShowFilter(false)}
+              />
+            )}
+          </div>
+
           <button
             onClick={() => setShowCreate(true)}
             className="px-4 py-2 rounded-xl text-sm font-bold border transition-all"
@@ -434,36 +676,7 @@ export function LobbyPage() {
         </div>
       </div>
 
-      {/* ── Filters ───────────────────────────────────────────────────────── */}
-      <div className="relative z-10 px-6 pb-3 flex flex-wrap gap-2">
-        {([
-          { id: 'all',     label: 'All Rooms' },
-          { id: 'low',     label: `🟢 Low <${stakeMidMin}` },
-          { id: 'mid',     label: `🟡 Mid ${stakeMidMin}–${stakeHighMin - 1}` },
-          { id: 'high',    label: `🔴 High ${stakeHighMin}+` },
-          { id: 'pazpaz',  label: '🎴 PazPaz' },
-          { id: 'poker5o', label: '🃏 Poker5O' },
-        ] as { id: Filter; label: string }[]).map(({ id, label }) => {
-          const active = activeFilters.has(id);
-          return (
-            <button
-              key={id}
-              onClick={() => toggleFilter(id)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
-              style={{
-                background: active ? 'rgba(69,243,255,0.15)' : 'rgba(255,255,255,0.04)',
-                borderColor: active ? '#45F3FF' : 'rgba(255,255,255,0.1)',
-                color: active ? '#45F3FF' : 'rgba(255,255,255,0.45)',
-                boxShadow: active ? '0 0 10px rgba(69,243,255,0.2)' : 'none',
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Rooms Grid ────────────────────────────────────────────────────── */}
+      {/* ── Rooms List ────────────────────────────────────────────────────── */}
       <main className="relative z-10 px-6 pb-10">
         {filteredRooms.length === 0 && lobbyRooms.length > 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -485,113 +698,75 @@ export function LobbyPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="flex flex-col gap-2">
             {filteredRooms.map(room => {
-              const isMyRoom  = myWaitingRoomId === room.id;
-              const colors    = roomColors(room.status, isMyRoom);
-              const isLocked  = room.status === 'playing';
-              const isMyOwn   = room.createdBy === profile?.id;
+              const isMyRoom = myWaitingRoomId === room.id;
+              const colors   = roomColors(room.status, isMyRoom);
+              const isMyOwn  = room.createdBy === profile?.id;
 
               return (
                 <div
                   key={room.id}
-                  className={`room-card glass-panel rounded-2xl p-4 border-2 flex flex-col gap-3 ${isLocked ? 'opacity-70' : 'cursor-pointer'}`}
+                  className="room-row rounded-xl px-4 py-3 border cursor-pointer flex items-center gap-4"
                   style={{
                     borderColor: colors.border,
-                    boxShadow: `0 0 20px ${colors.glow}`,
-                    background: colors.bg,
+                    background: 'rgba(26,28,35,0.5)',
+                    boxShadow: room.status !== 'empty' ? `0 0 16px ${colors.glow}` : 'none',
                   }}
-                  onClick={() => !isLocked && !isMyRoom && joinRoom(room)}
+                  onClick={() => setSelectedRoom(room)}
                 >
-                  {/* Status dot + label */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colors.dot, boxShadow: `0 0 6px ${colors.dot}` }} />
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{colors.label}</span>
+                  {/* Status dot */}
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: colors.dot, boxShadow: room.status !== 'empty' ? `0 0 6px ${colors.dot}` : 'none' }}
+                  />
+
+                  {/* Room name + game type */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="lby-h text-sm font-bold text-white truncate">{room.name}</span>
+                      {room.isPrivate   && <span className="text-[#FFD700] text-[11px]">🔒</span>}
+                      {room.isRecurring && <span className="text-gray-600 text-[11px]" title="Recurring">↺</span>}
                     </div>
-                    <div className="flex items-center gap-1">
-                      {room.isPrivate && <span className="text-[10px] text-[#FFD700]">🔒</span>}
-                      {room.isRecurring && <span title="Recurring" className="text-[10px] text-gray-500">↺</span>}
-                      {isMyOwn && room.createdBy && (
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteRoom(room.id); }}
-                          className="text-[10px] text-gray-600 hover:text-[#FF3366] transition-colors ml-1"
-                          title="Delete room"
-                        >
-                          ✕
-                        </button>
-                      )}
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-[11px] text-gray-500">{room.gameType === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}</span>
+                      <span className="text-[11px] text-[#00FF9D] font-semibold">💰 {room.stake.toLocaleString()}</span>
+                      {room.completeWinBonus && <span className="text-[11px] text-[#FFD700]">2×</span>}
+                      {room.timerDuration    && <span className="text-[11px] text-gray-600">⏱{room.timerDuration}s</span>}
+                      {room.vocal            && <span className="text-[11px] text-gray-600">🎙</span>}
                     </div>
                   </div>
 
-                  {/* Room name */}
-                  <div>
-                    <p className="lby-h text-base font-bold text-white leading-tight truncate">{room.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {room.gameType === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}
-                      {room.vocal && ' · 🎙 Voice'}
-                    </p>
-                  </div>
-
-                  {/* Stake + rules */}
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#00FF9D]/40 text-[#00FF9D]">
-                      💰 {room.stake.toLocaleString()}
-                    </span>
-                    {room.completeWinBonus && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#FFD700]/40 text-[#FFD700]">2× bonus</span>
-                    )}
-                    {room.timerDuration && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/20 text-gray-400">⏱ {room.timerDuration}s</span>
-                    )}
-                    {room.gameType === 'pazpaz' && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/20 text-gray-400">
-                        {room.assignmentDuration === 60 ? '1 min' : room.assignmentDuration === 180 ? '3 min' : '5 min'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Waiting player info */}
+                  {/* Waiting player avatar */}
                   {room.status === 'waiting' && room.waitingPlayerName && (
-                    <div className="flex items-center gap-2 mt-auto pt-2 border-t border-white/5">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       {room.waitingPlayerAvatar
-                        ? <img src={room.waitingPlayerAvatar} className="w-6 h-6 rounded-full object-cover border border-[#00FF9D]/40" alt="" />
+                        ? <img src={room.waitingPlayerAvatar} className="w-6 h-6 rounded-full border border-[#00FF9D]/40 object-cover" alt="" />
                         : <div className="w-6 h-6 rounded-full bg-[#00FF9D]/20 flex items-center justify-center text-[#00FF9D] text-[9px] font-bold">{room.waitingPlayerName[0]}</div>
                       }
-                      <p className="text-xs text-gray-300 truncate">{isMyRoom ? 'You are waiting…' : `${room.waitingPlayerName} is waiting`}</p>
+                      <span className="text-[11px] text-gray-400 hidden sm:block max-w-[80px] truncate">
+                        {isMyRoom ? 'You' : room.waitingPlayerName}
+                      </span>
                     </div>
                   )}
 
-                  {/* Action area */}
-                  {!isLocked && (
-                    <div className="mt-auto pt-2">
-                      {isMyRoom ? (
-                        <div className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-[#45F3FF]/40 text-[#45F3FF]">
-                          Waiting for opponent…
-                        </div>
-                      ) : room.status === 'waiting' ? (
-                        <div
-                          className="w-full py-1.5 rounded-xl text-xs font-bold text-center cursor-pointer transition-all hover:opacity-90"
-                          style={{ background: '#00FF9D', color: '#000' }}
-                        >
-                          Join & Play!
-                        </div>
-                      ) : (
-                        <div
-                          className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-white/10 text-gray-400 group-hover:border-white/20"
-                        >
-                          Enter Room
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Status badge */}
+                  <span
+                    className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    style={{ background: colors.badge, color: colors.badgeText }}
+                  >
+                    {colors.label}
+                  </span>
 
-                  {isLocked && (
-                    <div className="mt-auto pt-2">
-                      <div className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-[#FF3366]/30 text-[#FF3366]/70">
-                        Game in progress
-                      </div>
-                    </div>
+                  {/* Owner delete button */}
+                  {isMyOwn && room.createdBy && (
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteRoom(room.id); }}
+                      className="flex-shrink-0 text-gray-600 hover:text-[#FF3366] transition-colors text-sm leading-none"
+                      title="Delete room"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
               );
@@ -600,22 +775,21 @@ export function LobbyPage() {
         )}
       </main>
 
+      {/* ── Room Detail Modal ──────────────────────────────────────────────── */}
+      {selectedRoom && profile && (
+        <RoomDetailModal
+          room={selectedRoom}
+          isMyRoom={myWaitingRoomId === selectedRoom.id}
+          myChips={profile.chips}
+          onJoin={(pw) => joinRoom(selectedRoom, pw)}
+          onLeave={leaveRoom}
+          onClose={() => setSelectedRoom(null)}
+        />
+      )}
+
       {/* ── Create Room Modal ──────────────────────────────────────────────── */}
       {showCreate && profile && (
         <CreateRoomModal profile={{ chips: profile.chips }} onClose={() => setShowCreate(false)} />
-      )}
-
-      {/* ── Password Prompt ────────────────────────────────────────────────── */}
-      {passwordPrompt && (
-        <PasswordModal
-          roomName={passwordPrompt.name}
-          onClose={() => setPasswordPrompt(null)}
-          onConfirm={(pw) => {
-            const room = lobbyRooms.find(r => r.id === passwordPrompt.roomId);
-            if (room) joinRoom(room, pw);
-            setPasswordPrompt(null);
-          }}
-        />
       )}
     </div>
   );
