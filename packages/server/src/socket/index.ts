@@ -84,6 +84,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
+    registerLobbyRoomHandlers(io, socket);
     socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
       io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
     });
