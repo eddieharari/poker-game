@@ -6,10 +6,8 @@ import { authenticateSocket } from '../middleware/auth.js';
 import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
 import { registerPazPazHandlers } from './pazpaz.js';
-import { registerBackgammonHandlers } from './backgammon.js';
 import { roomService } from '../services/roomService.js';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
-import { backgammonRoomService } from '../services/backgammonRoomService.js';
 import { log } from '../logger.js';
 
 // Changes on every server restart — clients detect a new bootId and re-authenticate
@@ -52,7 +50,6 @@ export function createSocketServer(httpServer: HttpServer): Server {
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
-        registerBackgammonHandlers(io, socket);
         socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
           io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
         });
@@ -71,13 +68,6 @@ export function createSocketServer(httpServer: HttpServer): Server {
           }
         });
 
-        // If player has an active Backgammon game, push them back to it
-        backgammonRoomService.findByPlayerId(playerId).then((bgRoom) => {
-          if (bgRoom && bgRoom.status === 'active') {
-            socket.emit('backgammon:rejoin_required', { roomId: bgRoom.roomId });
-          }
-        });
-
         socket.on('disconnect', (reason) => {
           log('PLAYER_LOGOUT', { playerId, nickname, reason });
         });
@@ -92,7 +82,6 @@ export function createSocketServer(httpServer: HttpServer): Server {
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
-    registerBackgammonHandlers(io, socket);
     socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
       io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
     });
@@ -108,13 +97,6 @@ export function createSocketServer(httpServer: HttpServer): Server {
     pazpazRoomService.findByPlayerId(playerId).then((pazpazRoom) => {
       if (pazpazRoom && pazpazRoom.status === 'active') {
         socket.emit('pazpaz:rejoin_required', { roomId: pazpazRoom.roomId });
-      }
-    });
-
-    // If player has an active Backgammon game, push them back to it
-    backgammonRoomService.findByPlayerId(playerId).then((bgRoom) => {
-      if (bgRoom && bgRoom.status === 'active') {
-        socket.emit('backgammon:rejoin_required', { roomId: bgRoom.roomId });
       }
     });
 

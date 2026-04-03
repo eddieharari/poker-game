@@ -42,16 +42,14 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration, vocal, matchConfig }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration, vocal, matchConfig });
+    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration, vocal }) => {
+      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration, vocal });
     });
 
     socket.on('lobby:challenge:accepted', ({ roomId, gameType, vocal }) => {
       setIncomingChallenge(null);
       if (gameType === 'pazpaz') {
         navigate(`/pazpaz/${roomId}`, { state: { vocal: !!vocal } });
-      } else if (gameType === 'backgammon') {
-        navigate(`/backgammon/${roomId}`);
       } else {
         navigate(`/game/${roomId}`, { state: { vocal: !!vocal } });
       }
@@ -118,12 +116,6 @@ export function useSocketEvents() {
       }
     });
 
-    socket.on('backgammon:rejoin_required', ({ roomId }) => {
-      if (!window.location.pathname.startsWith('/backgammon/')) {
-        navigate(`/backgammon/${roomId}`);
-      }
-    });
-
     socket.on('game:forfeited', ({ forfeiterIndex }) => {
       const { playerIndex } = useGameStore.getState();
       const forfeiterIsMe = forfeiterIndex === playerIndex;
@@ -162,7 +154,6 @@ export function useSocketEvents() {
       socket.off('game:forfeited');
       socket.off('game:rejoin_required');
       socket.off('pazpaz:rejoin_required');
-      socket.off('backgammon:rejoin_required');
       socket.off('room:error');
       socket.off('profile:chips_updated');
     };

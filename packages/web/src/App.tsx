@@ -9,7 +9,6 @@ import { OnboardingPage } from './pages/OnboardingPage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { GamePage } from './pages/GamePage.js';
 import { PazPazPage } from './pages/PazPazPage.js';
-import { BackgammonPage } from './pages/BackgammonPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
 import { CashierPage } from './pages/CashierPage.js';
@@ -110,11 +109,6 @@ export function App() {
           !session ? <Navigate to="/auth" replace />
           : !profile ? <Navigate to="/onboarding" replace />
           : <PazPazPage />
-        } />
-        <Route path="/backgammon/:roomId" element={
-          !session ? <Navigate to="/auth" replace />
-          : !profile ? <Navigate to="/onboarding" replace />
-          : <BackgammonPage />
         } />
 
         {/* Cashier — requires auth */}

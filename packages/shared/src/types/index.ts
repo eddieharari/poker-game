@@ -113,7 +113,7 @@ export interface GameScore {
 
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────
 
-export type GameType = 'poker5o' | 'pazpaz' | 'backgammon';
+export type GameType = 'poker5o' | 'pazpaz';
 
 export type PlayerStatus = 'idle' | 'busy' | 'in-game' | 'invited';
 
@@ -144,7 +144,7 @@ export interface ServerToClientEvents {
   'lobby:player:joined':        (player: OnlinePlayer) => void;
   'lobby:player:left':          (payload: { playerId: string }) => void;
   'lobby:player:status':        (payload: { playerId: string; status: PlayerStatus }) => void;
-  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType: GameType; assignmentDuration?: 60 | 180 | 300; vocal?: boolean; matchConfig?: import('./backgammon.js').BackgammonMatchConfig }) => void;
+  'lobby:challenge:incoming':   (payload: { challengeId: string; from: OnlinePlayer; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; gameType: GameType; assignmentDuration?: 60 | 180 | 300; vocal?: boolean }) => void;
   'lobby:challenge:accepted':   (payload: { challengeId: string; roomId: string; gameType?: GameType; vocal?: boolean }) => void;
   'webrtc:signal':              (payload: { fromPlayerId: string; signal: unknown }) => void;
   'lobby:challenge:declined':   (payload: { challengeId: string }) => void;
@@ -154,11 +154,6 @@ export interface ServerToClientEvents {
   'pazpaz:error':              (payload: { message: string }) => void;
   'pazpaz:rejoin_required':    (payload: { roomId: string }) => void;
   'pazpaz:forfeited':          (payload: { forfeiterIndex: 0 | 1 }) => void;
-  // Backgammon
-  'backgammon:state':          (state: import('./backgammon.js').BackgammonGameState) => void;
-  'backgammon:error':          (payload: { message: string }) => void;
-  'backgammon:rejoin_required':(payload: { roomId: string }) => void;
-  'backgammon:forfeited':      (payload: { forfeiterIndex: 0 | 1 }) => void;
   // Keepalive
   'game:pong':                  (payload: { roomId: string }) => void;
   // Session
@@ -189,15 +184,6 @@ export interface ClientToServerEvents {
   'pazpaz:submit':      (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   'pazpaz:partial_save':(payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   'pazpaz:forfeit':     (payload: { roomId: string }) => void;
-  // Backgammon
-  'backgammon:join':          (payload: { roomId: string }) => void;
-  'backgammon:roll':          (payload: { roomId: string }) => void;
-  'backgammon:move':          (payload: { roomId: string; move: import('./backgammon.js').BackgammonMove }) => void;
-  'backgammon:offer_double':  (payload: { roomId: string }) => void;
-  'backgammon:accept_double': (payload: { roomId: string }) => void;
-  'backgammon:drop_double':   (payload: { roomId: string }) => void;
-  'backgammon:forfeit':       (payload: { roomId: string }) => void;
-  'backgammon:submit_turn':   (payload: { roomId: string; moves: import('./backgammon.js').BackgammonMove[] }) => void;
   // Session
   'session:confirm_takeover': () => void;
 }
