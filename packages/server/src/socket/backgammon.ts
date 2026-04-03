@@ -10,6 +10,7 @@ import {
   checkWin,
   canOfferDouble,
   validateMove,
+  getLegalMoves,
 } from '@poker5o/shared';
 import type { BackgammonGameState, BackgammonMove } from '@poker5o/shared';
 import { backgammonRoomService } from '../services/backgammonRoomService.js';
@@ -71,41 +72,44 @@ async function handleBackgammonGameOver(
   });
 
   // Chip settlement
-  const chipsWon = result.pointsWon * pointValue;
-  let fee = 0;
+  // Match mode: settle fixed matchStake at match end only.
+  // Per-point mode: settle pointsWon * pointValue every game.
+  // Rake is taken from the winning amount (deducted from winner), but tracked as paid by both players.
+  const isMatchMode = matchConfig.mode === 'match';
+  const chipsTransfer = isMatchEnd
+    ? (isMatchMode ? (matchConfig.matchStake ?? result.pointsWon * pointValue) : result.pointsWon * pointValue)
+    : 0;
+  let totalFee = 0;
 
   try {
     const settings = await settingsService.get();
-    fee = calculateHouseFee(pointValue, settings); // rake on point value
+    if (chipsTransfer > 0) {
+      totalFee = calculateHouseFee(chipsTransfer, settings);
+      const feePerPlayer = Math.round(totalFee / 2);
 
-    if (isMatchEnd && chipsWon > 0) {
-      // Winner gains, loser loses
-      await supabase.rpc('add_chips', { p_amount:  chipsWon, p_player_id: winnerId });
-      await supabase.rpc('add_chips', { p_amount: -chipsWon, p_player_id: loserId });
-    }
-
-    // Rake
-    if (fee > 0) {
-      await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: p0Id });
-      await supabase.rpc('add_chips', { p_amount: -fee, p_player_id: p1Id });
-      if (settings.housePlayerId) {
-        await supabase.rpc('add_chips', { p_amount: fee * 2, p_player_id: settings.housePlayerId });
+      // Loser pays full transfer; winner receives transfer minus rake
+      await supabase.rpc('add_chips', { p_amount: chipsTransfer - totalFee, p_player_id: winnerId });
+      await supabase.rpc('add_chips', { p_amount: -chipsTransfer,           p_player_id: loserId });
+      if (settings.housePlayerId && totalFee > 0) {
+        await supabase.rpc('add_chips', { p_amount: totalFee, p_player_id: settings.housePlayerId });
       }
-      await supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: fee });
-      await supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: fee });
+      if (feePerPlayer > 0) {
+        await supabase.rpc('add_player_rake', { p_player_id: p0Id, p_rake: feePerPlayer });
+        await supabase.rpc('add_player_rake', { p_player_id: p1Id, p_rake: feePerPlayer });
+      }
 
       log('RAKE_CALC', {
         roomId,
-        stakePerPlayer: pointValue,
+        chipsTransfer,
         feePercent: settings.feePercent,
-        feePerPlayer: fee,
-        totalFee: fee * 2,
+        totalFee,
+        feePerPlayer,
         winnerId,
         housePlayerId: settings.housePlayerId || '(none)',
       });
 
-      // Agent rakeback
-      if (settings.housePlayerId) {
+      // Agent rakeback (based on each player's share of the rake)
+      if (settings.housePlayerId && feePerPlayer > 0) {
         const [{ data: p0prof }, { data: p1prof }] = await Promise.all([
           supabase.from('profiles').select('agent_id').eq('id', p0Id).single(),
           supabase.from('profiles').select('agent_id').eq('id', p1Id).single(),
@@ -115,7 +119,7 @@ async function handleBackgammonGameOver(
             const { data: agent } = await supabase
               .from('profiles').select('rakeback_percent').eq('id', prof.agent_id).single();
             if (agent && agent.rakeback_percent > 0) {
-              const cut = Math.round(fee * agent.rakeback_percent / 100);
+              const cut = Math.round(feePerPlayer * agent.rakeback_percent / 100);
               if (cut > 0) {
                 await supabase.rpc('add_chips', { p_amount: -cut, p_player_id: settings.housePlayerId });
                 await supabase.rpc('add_agent_pool', { p_agent_id: prof.agent_id, p_amount: cut });
@@ -135,8 +139,8 @@ async function handleBackgammonGameOver(
       win_type:      result.winType,
       cube_value:    result.cubeValue,
       points_won:    result.pointsWon,
-      chips_wagered: pointValue,
-      rake_amount:   fee * 2,
+      chips_wagered: chipsTransfer,
+      rake_amount:   totalFee,
       match_mode:    matchConfig.mode,
       match_length:  matchConfig.matchLength ?? null,
       final_state:   gameState,
@@ -146,8 +150,8 @@ async function handleBackgammonGameOver(
     console.error('[handleBackgammonGameOver] error:', err);
   }
 
-  // Emit updated state with rake
-  const finalState: BackgammonGameState = { ...gameState, rake: fee };
+  // Emit updated state with total rake so UI can display it
+  const finalState: BackgammonGameState = { ...gameState, rake: totalFee };
   io.to(`backgammon:${roomId}`).emit('backgammon:state', finalState);
 
   // Notify chip balance updates
@@ -397,6 +401,60 @@ export function registerBackgammonHandlers(io: Server, socket: Socket): void {
     io.to(`backgammon:${roomId}`).emit('backgammon:forfeited', { forfeiterIndex: pi });
     io.to(`backgammon:${roomId}`).emit('backgammon:state', newState);
     await handleBackgammonGameOver(io, room);
+  });
+
+  // ─── Submit Turn (batch confirm) ─────────────────────────────────────────────
+
+  socket.on('backgammon:submit_turn', async ({ roomId, moves }: { roomId: string; moves: BackgammonMove[] }) => {
+    const room = await backgammonRoomService.get(roomId);
+    if (!room || room.status !== 'active') return;
+
+    const pi: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
+    let state = room.gameState;
+
+    if (state.currentPlayerIndex !== pi) {
+      socket.emit('backgammon:error', { message: 'Not your turn' });
+      return;
+    }
+    if (state.phase !== 'MOVING') {
+      socket.emit('backgammon:error', { message: 'Not in moving phase' });
+      return;
+    }
+    if (!moves || moves.length === 0) {
+      socket.emit('backgammon:error', { message: 'No moves submitted' });
+      return;
+    }
+
+    for (const move of moves) {
+      const { valid, reason } = validateMove(state, move);
+      if (!valid) {
+        socket.emit('backgammon:error', { message: reason ?? 'Illegal move in turn' });
+        return;
+      }
+      state = applyMove(state, move);
+      const win = checkWin(state);
+      if (win) {
+        state = { ...state, phase: 'GAME_OVER', gameResult: win };
+        break;
+      }
+    }
+
+    // Reject if the player left legal moves on the table
+    if (state.phase === 'MOVING' && state.currentPlayerIndex === pi && getLegalMoves(state).length > 0) {
+      socket.emit('backgammon:error', { message: 'You must use all available dice' });
+      return;
+    }
+
+    room.gameState = state;
+    await backgammonRoomService.save(room);
+    io.to(`backgammon:${roomId}`).emit('backgammon:state', state);
+
+    if (state.phase === 'GAME_OVER') {
+      clearTurnTimer(roomId);
+      await handleBackgammonGameOver(io, room);
+    } else if (state.currentPlayerIndex !== pi) {
+      startTurnTimer(io, roomId, state.currentPlayerIndex, room.player0.playerId, room.player1.playerId);
+    }
   });
 
   // ─── Disconnect ───────────────────────────────────────────────────────────

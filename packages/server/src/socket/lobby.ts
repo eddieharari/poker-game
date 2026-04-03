@@ -124,7 +124,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     const opponent   = profiles?.find(p => p.id === toPlayerId);
 
     const required = gameType === 'backgammon'
-      ? (matchConfig?.pointValue ?? 0)
+      ? (matchConfig?.mode === 'match' ? (matchConfig?.matchStake ?? 0) : (matchConfig?.pointValue ?? 0))
       : (completeWinBonus ? stake * 2 : stake);
     if (!challenger || challenger.chips < required) {
       socket.emit('room:error', { message: gameType === 'backgammon'

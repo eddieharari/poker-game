@@ -9,6 +9,7 @@ import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus, 
 
 const BG_POINT_VALUES: BackgammonPointValue[] = [10, 25, 50, 100, 200, 500];
 const BG_MATCH_LENGTHS: BackgammonMatchLength[] = [1, 3, 5, 7, 9, 11];
+const BG_MATCH_STAKES = [100, 250, 500, 1000, 2500, 5000] as const;
 
 // ─── Dark space theme CSS (shared with PazPaz) ────────────────────────────────
 
@@ -71,7 +72,7 @@ export function LobbyPage() {
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
   const [vocal, setVocal] = useState(false);
-  const [bgMatchConfig, setBgMatchConfig] = useState<BackgammonMatchConfig>({ mode: 'match', matchLength: 5, pointValue: 50 });
+  const [bgMatchConfig, setBgMatchConfig] = useState<BackgammonMatchConfig>({ mode: 'match', matchLength: 5, pointValue: 50, matchStake: 500 });
   const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
 
   function toggleStatus() {
@@ -295,7 +296,12 @@ export function LobbyPage() {
                     <div className="flex gap-2">
                       {(['match', 'per-point'] as const).map(m => (
                         <button key={m}
-                          onClick={() => setBgMatchConfig(c => ({ ...c, mode: m, matchLength: m === 'match' ? (c.matchLength ?? 5) : null }))}
+                          onClick={() => setBgMatchConfig(c => ({
+                            ...c,
+                            mode: m,
+                            matchLength: m === 'match' ? (c.matchLength ?? 5) : null,
+                            matchStake: m === 'match' ? (c.matchStake ?? 500) : null,
+                          }))}
                           className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all border
                             ${bgMatchConfig.mode === m ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400'}`}
                         >
@@ -307,7 +313,7 @@ export function LobbyPage() {
                   {/* Match length (only for match mode) */}
                   {bgMatchConfig.mode === 'match' && (
                     <div>
-                      <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">To</p>
+                      <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Match to</p>
                       <div className="flex gap-1 flex-wrap">
                         {BG_MATCH_LENGTHS.map(l => (
                           <button key={l}
@@ -321,22 +327,42 @@ export function LobbyPage() {
                       </div>
                     </div>
                   )}
-                  {/* Point value */}
-                  <div>
-                    <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Chips per point</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {BG_POINT_VALUES.map(v => (
-                        <button key={v}
-                          onClick={() => setBgMatchConfig(c => ({ ...c, pointValue: v }))}
-                          disabled={(profile?.chips ?? 0) < v}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
-                            ${bgMatchConfig.pointValue === v ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed'}`}
-                        >
-                          {v}
-                        </button>
-                      ))}
+                  {/* Match stake (only for match mode) */}
+                  {bgMatchConfig.mode === 'match' && (
+                    <div>
+                      <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Match stake (chips)</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {BG_MATCH_STAKES.map(s => (
+                          <button key={s}
+                            onClick={() => setBgMatchConfig(c => ({ ...c, matchStake: s }))}
+                            disabled={(profile?.chips ?? 0) < s}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                              ${bgMatchConfig.matchStake === s ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+                          >
+                            {s >= 1000 ? `${s / 1000}k` : s}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {/* Point value (per-point mode only) */}
+                  {bgMatchConfig.mode === 'per-point' && (
+                    <div>
+                      <p className="text-xs text-gray-500 text-center uppercase tracking-widest mb-1">Chips per point</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {BG_POINT_VALUES.map(v => (
+                          <button key={v}
+                            onClick={() => setBgMatchConfig(c => ({ ...c, pointValue: v }))}
+                            disabled={(profile?.chips ?? 0) < v}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                              ${bgMatchConfig.pointValue === v ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10' : 'lby-btn border-white/10 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {selectedGameType === 'pazpaz' && (

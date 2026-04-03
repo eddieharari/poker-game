@@ -45,7 +45,8 @@ export type BackgammonGameMode    = 'match' | 'per-point';
 export interface BackgammonMatchConfig {
   mode: BackgammonGameMode;
   matchLength: BackgammonMatchLength | null; // null when mode === 'per-point'
-  pointValue: BackgammonPointValue;          // chips per point
+  pointValue: BackgammonPointValue;          // chips per point (per-point mode)
+  matchStake: number | null;                 // total chips wagered on match outcome (match mode)
 }
 
 // ─── Win ──────────────────────────────────────────────────────────────────────

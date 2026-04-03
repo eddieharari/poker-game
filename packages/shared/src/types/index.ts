@@ -197,6 +197,7 @@ export interface ClientToServerEvents {
   'backgammon:accept_double': (payload: { roomId: string }) => void;
   'backgammon:drop_double':   (payload: { roomId: string }) => void;
   'backgammon:forfeit':       (payload: { roomId: string }) => void;
+  'backgammon:submit_turn':   (payload: { roomId: string; moves: import('./backgammon.js').BackgammonMove[] }) => void;
   // Session
   'session:confirm_takeover': () => void;
 }
