@@ -16,7 +16,7 @@ create table if not exists profiles (
   losses           int         not null default 0,
   draws            int         not null default 0,
   created_at       timestamptz not null default now(),
-  role             text        not null default 'user' check (role in ('admin', 'agent', 'user')),
+  role             text        not null default 'user' check (role in ('admin', 'agent', 'user', 'bot')),
   agent_id         uuid        references profiles(id),
   agent_chip_pool  int         not null default 0 check (agent_chip_pool >= 0)
 );

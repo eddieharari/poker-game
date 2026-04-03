@@ -66,7 +66,7 @@ function buildCompleteAssignment(partial: PazPazAssignment | null, allCards: Car
 
 // ─── Chip settlement ──────────────────────────────────────────────────────────
 
-async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPazGameState, p0Id: string, p1Id: string, stake: number, lobbyRoomId: string | null = null): Promise<void> {
+export async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPazGameState, p0Id: string, p1Id: string, stake: number, lobbyRoomId: string | null = null): Promise<void> {
   const winner = gameState.winner; // 0 | 1 | 'draw' | null
 
   const winnerId = winner === 'draw' || winner === null

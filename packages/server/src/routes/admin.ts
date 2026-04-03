@@ -186,7 +186,7 @@ adminRouter.post('/agent-pool', async (req, res) => {
 adminRouter.post('/set-role', async (req, res) => {
   if (!checkAuth(req, res)) return;
   const { playerId, role } = req.body;
-  if (!playerId || !['admin', 'agent', 'user'].includes(role)) {
+  if (!playerId || !['admin', 'agent', 'user', 'bot'].includes(role)) {
     return res.status(400).json({ error: 'Invalid params' });
   }
   const { error } = await supabase.from('profiles').update({ role }).eq('id', playerId);

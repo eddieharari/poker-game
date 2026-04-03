@@ -7,6 +7,8 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
 import type { StakeAmount } from '@poker5o/shared';
 import { log } from '../logger.js';
+import { triggerBotIfNeeded } from '../services/pazpazBotRunner.js';
+import { handlePazPazGameOver } from './pazpaz.js';
 
 // Track pending rematch offers: gameRoomId → { requesterId, gameType, stake, ... }
 interface RematchInfo {
@@ -182,6 +184,12 @@ export function registerRematchHandlers(io: Server, socket: Socket): void {
     io.to(`player:${info.opponentId}`).emit('rematch:starting', payload);
 
     log('GAME_END', { note: 'rematch_started', oldRoomId: roomId, newRoomId, gameType: info.gameType });
+
+    if (info.gameType === 'pazpaz') {
+      triggerBotIfNeeded(io, newRoomId, handlePazPazGameOver).catch(err =>
+        console.error('[rematch] bot trigger error:', err)
+      );
+    }
   });
 
   socket.on('rematch:decline', async ({ roomId }: { roomId: string }) => {

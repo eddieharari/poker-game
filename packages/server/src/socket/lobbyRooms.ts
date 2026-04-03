@@ -8,6 +8,8 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
 import type { StakeAmount, GameType } from '@poker5o/shared';
 import { log } from '../logger.js';
+import { triggerBotIfNeeded } from '../services/pazpazBotRunner.js';
+import { handlePazPazGameOver } from './pazpaz.js';
 
 // Track: playerId → lobbyRoomId they are currently waiting in
 const waitingIn = new Map<string, string>();
@@ -151,6 +153,13 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
     io.to(`player:${playerId}`).emit('lobbyRoom:game_started', payload);
 
     broadcastRoomUpdate(io, roomId);
+
+    // Trigger bot if one player is a bot
+    if (def.gameType === 'pazpaz') {
+      triggerBotIfNeeded(io, gameRoomId, handlePazPazGameOver).catch(err =>
+        console.error('[lobbyRooms] bot trigger error:', err)
+      );
+    }
   });
 
   // ─── Leave a room ─────────────────────────────────────────────────────────────
