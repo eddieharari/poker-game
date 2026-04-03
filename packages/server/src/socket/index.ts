@@ -7,6 +7,7 @@ import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
 import { registerPazPazHandlers } from './pazpaz.js';
 import { registerLobbyRoomHandlers } from './lobbyRooms.js';
+import { registerRematchHandlers } from './rematch.js';
 import { roomService } from '../services/roomService.js';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { log } from '../logger.js';
@@ -52,6 +53,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
         registerLobbyRoomHandlers(io, socket);
+        registerRematchHandlers(io, socket);
         socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
           io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
         });
@@ -85,6 +87,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
     registerLobbyRoomHandlers(io, socket);
+    registerRematchHandlers(io, socket);
     socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
       io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
     });

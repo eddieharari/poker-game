@@ -197,6 +197,11 @@ export interface ServerToClientEvents {
   'lobbyRoom:removed':      (payload: { roomId: string }) => void;
   'lobbyRoom:game_started': (payload: { roomId: string; gameType: GameType; vocal: boolean }) => void;
   'lobbyRoom:error':        (payload: { message: string }) => void;
+  'lobbyRoom:auto_joined':  (payload: { roomId: string }) => void;
+  // Rematch
+  'rematch:offer':          (payload: { fromName: string }) => void;
+  'rematch:declined':       () => void;
+  'rematch:starting':       (payload: { roomId: string; gameType: GameType; vocal: boolean }) => void;
   // Keepalive
   'game:pong':                  (payload: { roomId: string }) => void;
   // Session
@@ -233,6 +238,10 @@ export interface ClientToServerEvents {
   'pazpaz:submit':      (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   'pazpaz:partial_save':(payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;
   'pazpaz:forfeit':     (payload: { roomId: string }) => void;
+  // Rematch
+  'rematch:request':    (payload: { roomId: string }) => void;
+  'rematch:accept':     (payload: { roomId: string }) => void;
+  'rematch:decline':    (payload: { roomId: string }) => void;
   // Session
   'session:confirm_takeover': () => void;
 }

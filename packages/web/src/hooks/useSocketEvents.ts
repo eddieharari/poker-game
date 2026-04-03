@@ -126,6 +126,15 @@ export function useSocketEvents() {
       navigate('/lobby');
     });
 
+    // ─── Rematch ──────────────────────────────────────────────────────────────
+    socket.on('rematch:starting', ({ roomId, gameType, vocal }) => {
+      if (gameType === 'pazpaz') {
+        navigate(`/pazpaz/${roomId}`, { state: { vocal: !!vocal }, replace: true });
+      } else {
+        navigate(`/game/${roomId}`, { state: { vocal: !!vocal }, replace: true });
+      }
+    });
+
     socket.on('room:error', ({ message }) => toast.error(message));
 
     socket.on('profile:chips_updated', ({ chips }) => {
@@ -156,6 +165,7 @@ export function useSocketEvents() {
       socket.off('game:forfeited');
       socket.off('game:rejoin_required');
       socket.off('pazpaz:rejoin_required');
+      socket.off('rematch:starting');
       socket.off('room:error');
       socket.off('profile:chips_updated');
     };

@@ -107,18 +107,29 @@ export function GamePage() {
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [revealedCols, setRevealedCols] = useState(-1);
+  const [rematchState, setRematchState] = useState<'idle' | 'sent' | 'received' | 'declined'>('idle');
   const opponentPlayerId = gameState && playerIndex !== null
     ? gameState.players[playerIndex === 0 ? 1 : 0].id
     : null;
   const { connected: voiceConnected, muted, toggleMute } = useVoiceChat({ vocal, opponentPlayerId, isInitiator: playerIndex === 0 });
 
   useEffect(() => {
-    if (!score) { setRevealedCols(-1); return; }
+    if (!score) { setRevealedCols(-1); setRematchState('idle'); return; }
     if (revealedCols >= 4) return;
     const delay = revealedCols === -1 ? 600 : 750;
     const t = setTimeout(() => setRevealedCols(c => c + 1), delay);
     return () => clearTimeout(t);
   }, [score, revealedCols]);
+
+  // Rematch socket events
+  useEffect(() => {
+    const socket = getSocket();
+    const onOffer = () => setRematchState('received');
+    const onDeclined = () => setRematchState('declined');
+    socket.on('rematch:offer', onOffer);
+    socket.on('rematch:declined', onDeclined);
+    return () => { socket.off('rematch:offer', onOffer); socket.off('rematch:declined', onDeclined); };
+  }, []);
 
   useEffect(() => {
     if (!roomId) return;
@@ -287,13 +298,47 @@ export function GamePage() {
             </button>
           )}
           {isRevealMode ? (
-            <button
-              onClick={goToLobby}
-              className="pz-h text-sm tracking-widest uppercase px-5 py-2 rounded-xl transition-all border font-medium hover:scale-105"
-              style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D', boxShadow: '0 0 20px rgba(0,255,157,0.3)' }}
-            >
-              ← Lobby
-            </button>
+            <div className="flex items-center gap-2">
+              {allRevealed && rematchState === 'idle' && (
+                <button
+                  onClick={() => { if (roomId) { getSocket().emit('rematch:request', { roomId }); setRematchState('sent'); } }}
+                  className="pz-h text-sm tracking-widest uppercase px-5 py-2 rounded-xl transition-all border font-medium hover:scale-105"
+                  style={{ background: '#F97316', color: '#000', borderColor: '#F97316', boxShadow: '0 0 20px rgba(249,115,22,0.3)' }}
+                >
+                  Rematch
+                </button>
+              )}
+              {allRevealed && rematchState === 'sent' && (
+                <span className="text-xs text-gray-400 px-3 py-2 border border-white/10 rounded-xl">Waiting for opponent…</span>
+              )}
+              {allRevealed && rematchState === 'declined' && (
+                <span className="text-xs text-[#FF3366] px-3 py-2 border border-[#FF3366]/30 rounded-xl">Rematch declined</span>
+              )}
+              {allRevealed && rematchState === 'received' && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { if (roomId) { getSocket().emit('rematch:accept', { roomId }); } }}
+                    className="pz-h text-xs uppercase px-3 py-2 rounded-xl transition-all border font-medium hover:scale-105"
+                    style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D' }}
+                  >
+                    Accept Rematch
+                  </button>
+                  <button
+                    onClick={() => { if (roomId) { getSocket().emit('rematch:decline', { roomId }); setRematchState('declined'); } }}
+                    className="text-xs px-3 py-2 rounded-xl border border-[#FF3366]/40 text-[#FF3366]"
+                  >
+                    Decline
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={goToLobby}
+                className="pz-h text-sm tracking-widest uppercase px-5 py-2 rounded-xl transition-all border font-medium hover:scale-105"
+                style={{ background: '#00FF9D', color: '#000', borderColor: '#00FF9D', boxShadow: '0 0 20px rgba(0,255,157,0.3)' }}
+              >
+                ← Lobby
+              </button>
+            </div>
           ) : (
             <>
               <button onClick={() => setConfirmExit(true)} className="pz-btn text-xs px-3 py-1.5 rounded-xl border border-white/10">

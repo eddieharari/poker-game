@@ -48,14 +48,27 @@ const LOBBY_STYLES = `
 `;
 
 // ─── Colours ───────────────────────────────────────────────────────────────────
-function roomColors(status: LobbyRoomView['status'], isMyRoom: boolean) {
+// Game-type accent: PazPaz = purple, Poker5O = orange
+const GAME_COLORS = {
+  pazpaz:  { border: '#A855F7', glow: 'rgba(168,85,247,0.2)',  borderDim: 'rgba(168,85,247,0.35)' },
+  poker5o: { border: '#F97316', glow: 'rgba(249,115,22,0.2)',  borderDim: 'rgba(249,115,22,0.35)' },
+};
+
+function roomColors(status: LobbyRoomView['status'], isMyRoom: boolean, gameType: GameType) {
+  const gc = GAME_COLORS[gameType] ?? GAME_COLORS.poker5o;
+
   if (status === 'playing')
-    return { border: '#FF3366', glow: 'rgba(255,51,102,0.2)', dot: '#FF3366', label: 'In Game',  badge: 'rgba(255,51,102,0.15)',  badgeText: '#FF3366' };
+    return { border: gc.border, glow: gc.glow, dot: '#FF3366', label: 'In Game',  badge: 'rgba(255,51,102,0.15)',  badgeText: '#FF3366' };
   if (status === 'waiting')
-    return isMyRoom
-      ? { border: '#45F3FF', glow: 'rgba(69,243,255,0.2)',  dot: '#45F3FF', label: 'Waiting',   badge: 'rgba(69,243,255,0.15)',   badgeText: '#45F3FF' }
-      : { border: '#00FF9D', glow: 'rgba(0,255,157,0.2)',   dot: '#00FF9D', label: 'Waiting',   badge: 'rgba(0,255,157,0.15)',    badgeText: '#00FF9D' };
-  return { border: 'rgba(255,255,255,0.1)', glow: 'transparent', dot: '#444', label: 'Open', badge: 'rgba(255,255,255,0.06)', badgeText: 'rgba(255,255,255,0.4)' };
+    return {
+      border: gc.border,
+      glow: gc.glow,
+      dot: isMyRoom ? '#45F3FF' : '#00FF9D',
+      label: 'Waiting',
+      badge: isMyRoom ? 'rgba(69,243,255,0.15)' : 'rgba(0,255,157,0.15)',
+      badgeText: isMyRoom ? '#45F3FF' : '#00FF9D',
+    };
+  return { border: gc.borderDim, glow: 'transparent', dot: '#444', label: 'Open', badge: 'rgba(255,255,255,0.06)', badgeText: 'rgba(255,255,255,0.4)' };
 }
 
 // ─── Room Detail Modal ─────────────────────────────────────────────────────────
@@ -70,7 +83,7 @@ interface RoomDetailModalProps {
 
 function RoomDetailModal({ room, isMyRoom, myChips, onJoin, onLeave, onClose }: RoomDetailModalProps) {
   const [password, setPassword] = useState('');
-  const colors   = roomColors(room.status, isMyRoom);
+  const colors   = roomColors(room.status, isMyRoom, room.gameType);
   const isPlaying = room.status === 'playing';
   const required  = room.completeWinBonus ? room.stake * 2 : room.stake;
   const canJoin   = myChips >= required && !isPlaying;
@@ -576,8 +589,13 @@ export function LobbyPage() {
   useEffect(() => {
     const socket = getSocket();
     function onGameStarted() { setMyWaitingRoomId(null); setSelectedRoom(null); }
+    function onAutoJoined({ roomId }: { roomId: string }) { setMyWaitingRoomId(roomId); }
     socket.on('lobbyRoom:game_started', onGameStarted);
-    return () => { socket.off('lobbyRoom:game_started', onGameStarted); };
+    socket.on('lobbyRoom:auto_joined', onAutoJoined);
+    return () => {
+      socket.off('lobbyRoom:game_started', onGameStarted);
+      socket.off('lobbyRoom:auto_joined', onAutoJoined);
+    };
   }, []);
 
   // Keep selectedRoom in sync when lobbyRooms update
@@ -727,7 +745,7 @@ export function LobbyPage() {
           <div className="flex flex-col gap-2">
             {filteredRooms.map(room => {
               const isMyRoom = myWaitingRoomId === room.id;
-              const colors   = roomColors(room.status, isMyRoom);
+              const colors   = roomColors(room.status, isMyRoom, room.gameType);
               const isMyOwn  = room.createdBy === profile?.id;
 
               return (

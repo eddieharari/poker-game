@@ -209,6 +209,7 @@ export function PazPazPage() {
 
   // Scoring reveal — 22 steps total (7 per flop × 3 flops + 1 overall winner)
   const [revealStep, setRevealStep] = useState(0);
+  const [rematchState, setRematchState] = useState<'idle' | 'sent' | 'received' | 'declined'>('idle');
 
   // CSS scale — shrink/grow the fixed 1440×900 canvas to fill any viewport
   const [cssScale, setCssScale] = useState(
@@ -277,8 +278,13 @@ export function PazPazPage() {
       }
     });
     socket.on('pazpaz:forfeited', () => { goToLobby(); });
+    socket.on('rematch:offer', () => setRematchState('received'));
+    socket.on('rematch:declined', () => setRematchState('declined'));
     socket.emit('pazpaz:join', { roomId });
-    return () => { socket.off('pazpaz:state'); socket.off('pazpaz:error'); socket.off('pazpaz:forfeited'); };
+    return () => {
+      socket.off('pazpaz:state'); socket.off('pazpaz:error'); socket.off('pazpaz:forfeited');
+      socket.off('rematch:offer'); socket.off('rematch:declined');
+    };
   }, [roomId]);
 
   // Reveal animation — stepped: 7 steps per flop (4 opp cards + turn + river + winner), then overall winner
@@ -824,13 +830,46 @@ export function PazPazPage() {
       {/* ── Bottom-right: confirm / back ───────────────────────────────────── */}
       <div className="absolute bottom-4 right-4 z-50">
         {isScoringPhase ? (
-          <button
-            onClick={goToLobby}
-            className="pz-btn glass-panel px-6 py-3 rounded-2xl pz-h text-lg border border-[#45F3FF]/40 text-[#45F3FF] flex items-center gap-2"
-            style={{ boxShadow: '0 0 20px rgba(69,243,255,0.15)' }}
-          >
-            ← Back to Lobby
-          </button>
+          <div className="flex items-center gap-2">
+            {allRevealed && rematchState === 'idle' && (
+              <button
+                onClick={() => { if (roomId) { getSocket().emit('rematch:request', { roomId }); setRematchState('sent'); } }}
+                className="pz-btn glass-panel px-5 py-3 rounded-2xl pz-h text-base border border-[#A855F7]/50 text-[#A855F7] hover:scale-105 transition-all"
+                style={{ boxShadow: '0 0 20px rgba(168,85,247,0.2)' }}
+              >
+                Rematch
+              </button>
+            )}
+            {allRevealed && rematchState === 'sent' && (
+              <span className="glass-panel px-4 py-3 rounded-2xl text-sm text-gray-400 border border-white/10">Waiting…</span>
+            )}
+            {allRevealed && rematchState === 'declined' && (
+              <span className="glass-panel px-4 py-3 rounded-2xl text-sm text-[#FF3366] border border-[#FF3366]/30">Declined</span>
+            )}
+            {allRevealed && rematchState === 'received' && (
+              <>
+                <button
+                  onClick={() => { if (roomId) getSocket().emit('rematch:accept', { roomId }); }}
+                  className="pz-btn glass-panel px-4 py-3 rounded-2xl pz-h text-sm border border-[#00FF9D]/50 text-[#00FF9D] hover:scale-105 transition-all"
+                >
+                  Accept Rematch
+                </button>
+                <button
+                  onClick={() => { if (roomId) { getSocket().emit('rematch:decline', { roomId }); setRematchState('declined'); } }}
+                  className="glass-panel px-4 py-3 rounded-2xl text-sm text-[#FF3366] border border-[#FF3366]/30"
+                >
+                  Decline
+                </button>
+              </>
+            )}
+            <button
+              onClick={goToLobby}
+              className="pz-btn glass-panel px-6 py-3 rounded-2xl pz-h text-lg border border-[#45F3FF]/40 text-[#45F3FF] flex items-center gap-2"
+              style={{ boxShadow: '0 0 20px rgba(69,243,255,0.15)' }}
+            >
+              ← Back to Lobby
+            </button>
+          </div>
         ) : iHaveSubmitted ? (
           <div className="glass-panel px-5 py-3 rounded-2xl pz-h text-lg border border-[#00FF9D]/30 text-[#00FF9D]">
             {oppHasSubmitted ? '🎯 Revealing…' : '⏳ Waiting…'}

@@ -161,7 +161,15 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       waitingIn.delete(playerId);
       await lobbyService.setStatus(playerId, 'idle');
       io.to('lobby').emit('lobby:player:status', { playerId, status: 'idle' });
-      broadcastRoomUpdate(io, roomId);
+
+      // If it's a user-created room, delete it on leave
+      const def = await stableLobbyRoomService.getDef(roomId);
+      if (def && def.createdBy) {
+        await stableLobbyRoomService.deleteFromRedis(roomId);
+        io.to('lobby').emit('lobbyRoom:removed', { roomId });
+      } else {
+        broadcastRoomUpdate(io, roomId);
+      }
     }
   });
 
@@ -188,7 +196,19 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       settings,
     );
 
-    io.to('lobby').emit('lobbyRoom:added', room);
+    // Auto-sit the creator in the room
+    await stableLobbyRoomService.joinRoom(
+      room.id,
+      { id: playerId, name: nickname, avatar: avatarUrl, socketId: socket.id },
+    );
+    waitingIn.set(playerId, room.id);
+    await lobbyService.setStatus(playerId, 'invited');
+    io.to('lobby').emit('lobby:player:status', { playerId, status: 'invited' });
+
+    // Broadcast the room (already in waiting state)
+    const view = await stableLobbyRoomService.getView(room.id);
+    io.to('lobby').emit('lobbyRoom:added', view ?? room);
+    socket.emit('lobbyRoom:auto_joined', { roomId: room.id });
     log('ROOM_CREATED', { roomId: room.id, createdBy: nickname, gameType: room.gameType, stake: room.stake });
   });
 
@@ -214,7 +234,14 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       if (stillWaiting === roomId) {
         await stableLobbyRoomService.leaveRoom(roomId, playerId);
         waitingIn.delete(playerId);
-        broadcastRoomUpdate(io, roomId);
+        // User-created rooms get deleted when the creator disconnects
+        const def = await stableLobbyRoomService.getDef(roomId);
+        if (def && def.createdBy) {
+          await stableLobbyRoomService.deleteFromRedis(roomId);
+          io.to('lobby').emit('lobbyRoom:removed', { roomId });
+        } else {
+          broadcastRoomUpdate(io, roomId);
+        }
       }
     }, 15_000);
     waitingDisconnectTimers.set(playerId, timer);
