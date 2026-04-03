@@ -9,7 +9,7 @@ function key(roomId: string): string {
 }
 
 export const roomService = {
-  async create(roomId: string, player0: RoomPlayer): Promise<Room> {
+  async create(roomId: string, player0: RoomPlayer, lobbyRoomId: string | null = null): Promise<Room> {
     const room: Room = {
       roomId,
       player0,
@@ -20,6 +20,7 @@ export const roomService = {
       completeWinBonus: false,
       timerDuration: null,
       pausedTimerRemainingMs: null,
+      lobbyRoomId,
       createdAt: Date.now(),
     };
     await redis.set(key(roomId), JSON.stringify(room), 'EX', config.roomTtl);

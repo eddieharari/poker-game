@@ -6,6 +6,7 @@ import { lobbyService } from '../services/lobbyService.js';
 import { supabase } from '../supabase.js';
 import { settingsService, calculateHouseFee } from '../services/settingsService.js';
 import { log } from '../logger.js';
+import { onGameEnd } from './lobbyRooms.js';
 
 // assignment deadline timers: roomId → timeout handle
 const assignmentTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -65,7 +66,7 @@ function buildCompleteAssignment(partial: PazPazAssignment | null, allCards: Car
 
 // ─── Chip settlement ──────────────────────────────────────────────────────────
 
-async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPazGameState, p0Id: string, p1Id: string, stake: number): Promise<void> {
+async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPazGameState, p0Id: string, p1Id: string, stake: number, lobbyRoomId: string | null = null): Promise<void> {
   const winner = gameState.winner; // 0 | 1 | 'draw' | null
 
   const winnerId = winner === 'draw' || winner === null
@@ -188,6 +189,8 @@ async function handlePazPazGameOver(io: Server, roomId: string, gameState: PazPa
   await lobbyService.setStatus(p1Id, 'idle');
   io.to('lobby').emit('lobby:player:status', { playerId: p0Id, status: 'idle' });
   io.to('lobby').emit('lobby:player:status', { playerId: p1Id, status: 'idle' });
+
+  await onGameEnd(io, lobbyRoomId);
 }
 
 // ─── Register handlers ────────────────────────────────────────────────────────
@@ -293,7 +296,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
         // Settle chips
         if (updated.stake) {
-          await handlePazPazGameOver(io, roomId, scored, updated.player0.playerId, updated.player1.playerId, updated.stake);
+          await handlePazPazGameOver(io, roomId, scored, updated.player0.playerId, updated.player1.playerId, updated.stake, updated.lobbyRoomId ?? null);
         }
       }, durationMs);
 
@@ -408,7 +411,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
       // Settle chips
       if (updatedRoom.stake) {
-        await handlePazPazGameOver(io, roomId, updatedGameState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake);
+        await handlePazPazGameOver(io, roomId, updatedGameState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake, updatedRoom.lobbyRoomId ?? null);
       }
     } else {
       // Tell everyone about submission status (still hide cards)
@@ -467,7 +470,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
         io.to(`pazpaz:${roomId}`).emit('pazpaz:state', scored);
 
         if (updatedRoomP.stake) {
-          await handlePazPazGameOver(io, roomId, scored, updatedRoomP.player0.playerId, updatedRoomP.player1.playerId, updatedRoomP.stake);
+          await handlePazPazGameOver(io, roomId, scored, updatedRoomP.player0.playerId, updatedRoomP.player1.playerId, updatedRoomP.stake, updatedRoomP.lobbyRoomId ?? null);
         }
       }, pressureMs);
 
@@ -535,7 +538,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     io.to(`pazpaz:${roomId}`).emit('pazpaz:forfeited', { forfeiterIndex: playerIndex });
 
     if (updatedRoom.stake) {
-      await handlePazPazGameOver(io, roomId, forfeitState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake);
+      await handlePazPazGameOver(io, roomId, forfeitState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake, updatedRoom.lobbyRoomId ?? null);
     }
   });
 

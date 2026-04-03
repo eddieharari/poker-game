@@ -111,6 +111,42 @@ export interface GameScore {
   rake?: number; // total rake collected from both players; set by server after settlement
 }
 
+// ─── Lobby Rooms ──────────────────────────────────────────────────────────────
+
+export type LobbyRoomStatus = 'empty' | 'waiting' | 'playing';
+
+export interface LobbyRoomView {
+  id: string;
+  name: string;
+  gameType: GameType;
+  stake: StakeAmount;
+  completeWinBonus: boolean;
+  timerDuration: 30 | 45 | 60 | null;
+  assignmentDuration: 60 | 180 | 300;
+  vocal: boolean;
+  isRecurring: boolean;
+  isPrivate: boolean;
+  createdBy: string | null;  // null = admin-created
+  displayOrder: number;
+  status: LobbyRoomStatus;
+  waitingPlayerName: string | null;
+  waitingPlayerAvatar: string | null;
+}
+
+export interface LobbyRoomTemplate {
+  id: string;
+  name: string;
+  gameType: GameType;
+  stake: StakeAmount;
+  completeWinBonus: boolean;
+  timerDuration: 30 | 45 | 60 | null;
+  assignmentDuration: 60 | 180 | 300;
+  vocal: boolean;
+  isRecurring: boolean;
+  isPrivate: boolean;
+  displayOrder: number;
+}
+
 // ─── Socket.io Typed Events ───────────────────────────────────────────────────
 
 export type GameType = 'poker5o' | 'pazpaz';
@@ -154,6 +190,13 @@ export interface ServerToClientEvents {
   'pazpaz:error':              (payload: { message: string }) => void;
   'pazpaz:rejoin_required':    (payload: { roomId: string }) => void;
   'pazpaz:forfeited':          (payload: { forfeiterIndex: 0 | 1 }) => void;
+  // Lobby Rooms
+  'lobbyRoom:list':         (rooms: LobbyRoomView[]) => void;
+  'lobbyRoom:update':       (room: LobbyRoomView) => void;
+  'lobbyRoom:added':        (room: LobbyRoomView) => void;
+  'lobbyRoom:removed':      (payload: { roomId: string }) => void;
+  'lobbyRoom:game_started': (payload: { roomId: string; gameType: GameType; vocal: boolean }) => void;
+  'lobbyRoom:error':        (payload: { message: string }) => void;
   // Keepalive
   'game:pong':                  (payload: { roomId: string }) => void;
   // Session
@@ -179,6 +222,12 @@ export interface ClientToServerEvents {
   'lobby:challenge:accept': (payload: { challengeId: string }) => void;
   'lobby:challenge:decline':(payload: { challengeId: string }) => void;
   'lobby:set_status':         (payload: { status: 'idle' | 'busy' }) => void;
+  // Lobby Rooms
+  'lobbyRoom:list':   () => void;
+  'lobbyRoom:join':   (payload: { roomId: string; password?: string }) => void;
+  'lobbyRoom:leave':  (payload: { roomId: string }) => void;
+  'lobbyRoom:create': (payload: { name: string; gameType: GameType; stake: StakeAmount; completeWinBonus: boolean; timerDuration: 30 | 45 | 60 | null; assignmentDuration: 60 | 180 | 300; vocal: boolean; isPrivate: boolean; password?: string }) => void;
+  'lobbyRoom:delete': (payload: { roomId: string }) => void;
   // PazPaz
   'pazpaz:join':        (payload: { roomId: string }) => void;
   'pazpaz:submit':      (payload: { roomId: string; assignment: import('./pazpaz.js').PazPazAssignment }) => void;

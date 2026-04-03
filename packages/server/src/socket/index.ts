@@ -6,6 +6,7 @@ import { authenticateSocket } from '../middleware/auth.js';
 import { registerLobbyHandlers } from './lobby.js';
 import { registerGameHandlers } from './game.js';
 import { registerPazPazHandlers } from './pazpaz.js';
+import { registerLobbyRoomHandlers } from './lobbyRooms.js';
 import { roomService } from '../services/roomService.js';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { log } from '../logger.js';
@@ -50,6 +51,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
+        registerLobbyRoomHandlers(io, socket);
         socket.on('webrtc:signal', ({ toPlayerId, signal }: { toPlayerId: string; signal: unknown }) => {
           io.to(`player:${toPlayerId}`).emit('webrtc:signal', { fromPlayerId: playerId, signal });
         });

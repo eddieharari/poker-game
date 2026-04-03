@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { STAKE_OPTIONS, type StakeAmount, type GameType, type LobbyRoomView, type LobbyRoomTemplate } from '@poker5o/shared';
 
 interface PlayerRow {
   id: string;
@@ -54,7 +55,7 @@ export function AdminPage() {
   const [password, setPassword] = useState('');
   const [authedPassword, setAuthedPassword] = useState<string | null>(null);
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState<'players' | 'agents' | 'requests' | 'settings' | 'logs'>('players');
+  const [activeTab, setActiveTab] = useState<'players' | 'agents' | 'requests' | 'settings' | 'logs' | 'rooms'>('players');
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -74,6 +75,26 @@ export function AdminPage() {
   const [playerSearch, setPlayerSearch] = useState('');
   const [agentSearch, setAgentSearch] = useState('');
   const [rakebackEdits, setRakebackEdits] = useState<Record<string, string>>({});
+
+  // ─── Rooms tab state ──────────────────────────────────────────────────────────
+  const [lobbyRooms, setLobbyRooms]           = useState<LobbyRoomView[]>([]);
+  const [lobbyTemplates, setLobbyTemplates]   = useState<LobbyRoomTemplate[]>([]);
+  const [roomsSubTab, setRoomsSubTab]         = useState<'rooms' | 'templates'>('rooms');
+  const [showRoomForm, setShowRoomForm]       = useState(false);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [roomForm, setRoomForm] = useState({
+    name: '', gameType: 'poker5o' as GameType, stake: 100 as StakeAmount,
+    completeWinBonus: false, timerDuration: null as null | 30 | 45 | 60,
+    assignmentDuration: 180 as 60 | 180 | 300,
+    vocal: false, isRecurring: false, isPrivate: false, password: '', displayOrder: 0,
+  });
+  const [templateForm, setTemplateForm] = useState({
+    name: '', gameType: 'poker5o' as GameType, stake: 100 as StakeAmount,
+    completeWinBonus: false, timerDuration: null as null | 30 | 45 | 60,
+    assignmentDuration: 180 as 60 | 180 | 300,
+    vocal: false, isRecurring: false, isPrivate: false, displayOrder: 0,
+  });
+  const [roomsMsg, setRoomsMsg] = useState('');
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -159,13 +180,87 @@ export function AdminPage() {
     }
   }
 
-  async function handleTabChange(tab: 'players' | 'agents' | 'requests' | 'settings' | 'logs') {
+  async function fetchLobbyRooms() {
+    const res = await fetch('/api/admin/lobby-rooms', { headers: { 'x-admin-password': authedPassword! } });
+    if (res.ok) setLobbyRooms(await res.json());
+  }
+
+  async function fetchLobbyTemplates() {
+    const res = await fetch('/api/admin/lobby-room-templates', { headers: { 'x-admin-password': authedPassword! } });
+    if (res.ok) setLobbyTemplates(await res.json());
+  }
+
+  async function createRoom(e: React.FormEvent) {
+    e.preventDefault();
+    const body = { ...roomForm, password: roomForm.isPrivate && roomForm.password ? roomForm.password : undefined };
+    const res = await fetch('/api/admin/lobby-rooms', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      setRoomsMsg('Room created!');
+      setShowRoomForm(false);
+      await fetchLobbyRooms();
+    } else { setRoomsMsg('Error creating room'); }
+    setTimeout(() => setRoomsMsg(''), 3000);
+  }
+
+  async function deleteRoom(roomId: string) {
+    const res = await fetch(`/api/admin/lobby-rooms/${roomId}`, {
+      method: 'DELETE', headers: { 'x-admin-password': authedPassword! },
+    });
+    if (res.ok) { setLobbyRooms(prev => prev.filter(r => r.id !== roomId)); setRoomsMsg('Room deleted'); }
+    else { setRoomsMsg('Error deleting room'); }
+    setTimeout(() => setRoomsMsg(''), 3000);
+  }
+
+  async function resetRoom(roomId: string) {
+    const res = await fetch(`/api/admin/lobby-rooms/${roomId}/reset`, {
+      method: 'POST', headers: { 'x-admin-password': authedPassword! },
+    });
+    if (res.ok) { setRoomsMsg('Room reset'); await fetchLobbyRooms(); }
+    setTimeout(() => setRoomsMsg(''), 2000);
+  }
+
+  async function createTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch('/api/admin/lobby-room-templates', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
+      body: JSON.stringify(templateForm),
+    });
+    if (res.ok) {
+      setRoomsMsg('Template saved!');
+      setShowTemplateForm(false);
+      await fetchLobbyTemplates();
+    } else { setRoomsMsg('Error saving template'); }
+    setTimeout(() => setRoomsMsg(''), 3000);
+  }
+
+  async function deleteTemplate(id: string) {
+    const res = await fetch(`/api/admin/lobby-room-templates/${id}`, {
+      method: 'DELETE', headers: { 'x-admin-password': authedPassword! },
+    });
+    if (res.ok) { setLobbyTemplates(prev => prev.filter(t => t.id !== id)); }
+  }
+
+  async function createRoomFromTemplate(t: LobbyRoomTemplate) {
+    const body = { name: t.name, gameType: t.gameType, stake: t.stake, completeWinBonus: t.completeWinBonus, timerDuration: t.timerDuration, assignmentDuration: t.assignmentDuration, vocal: t.vocal, isRecurring: t.isRecurring, isPrivate: t.isPrivate, displayOrder: t.displayOrder };
+    const res = await fetch('/api/admin/lobby-rooms', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) { setRoomsMsg('Room created from template!'); await fetchLobbyRooms(); setRoomsSubTab('rooms'); }
+    setTimeout(() => setRoomsMsg(''), 3000);
+  }
+
+  async function handleTabChange(tab: 'players' | 'agents' | 'requests' | 'settings' | 'logs' | 'rooms') {
     setActiveTab(tab);
     if (tab === 'logs') fetchLogs();
     if (tab === 'players') { fetchPlayers(); fetchAgents(); } // agents needed for assign dropdown
     if (tab === 'requests') fetchRequests();
     if (tab === 'settings') fetchSettings();
     if (tab === 'agents') fetchAgents();
+    if (tab === 'rooms') { fetchLobbyRooms(); fetchLobbyTemplates(); }
   }
 
   async function handleAddChips(e: React.FormEvent) {
@@ -349,7 +444,7 @@ export function AdminPage() {
     );
   }
 
-  const allTabs = ['players', 'agents', 'requests', 'settings', 'logs'] as const;
+  const allTabs = ['players', 'agents', 'requests', 'settings', 'logs', 'rooms'] as const;
 
   return (
     <div
@@ -393,6 +488,7 @@ export function AdminPage() {
               else if (activeTab === 'logs') fetchLogs();
               else if (activeTab === 'requests') fetchRequests();
               else if (activeTab === 'settings') fetchSettings();
+              else if (activeTab === 'rooms') { fetchLobbyRooms(); fetchLobbyTemplates(); }
             }}
             className="ml-auto px-3 py-2 rounded-lg text-xs border border-white/20 text-white/50 hover:text-white hover:border-white/40 transition-colors"
           >
@@ -752,6 +848,209 @@ export function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ── Rooms Tab ─────────────────────────────────────────────────────── */}
+        {activeTab === 'rooms' && (
+          <div className="space-y-4">
+            {roomsMsg && <div className="bg-gold/20 border border-gold/40 rounded-xl px-4 py-2 text-gold text-sm text-center">{roomsMsg}</div>}
+
+            {/* Sub-tabs */}
+            <div className="flex gap-2">
+              {(['rooms', 'templates'] as const).map(st => (
+                <button key={st} onClick={() => setRoomsSubTab(st)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${roomsSubTab === st ? 'bg-gold text-black border-gold' : 'bg-black/40 border-white/20 text-white/70 hover:text-white'}`}>
+                  {st.charAt(0).toUpperCase() + st.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* ─ Rooms list ─────────────────────────────────────────────── */}
+            {roomsSubTab === 'rooms' && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-white/50 text-sm">{lobbyRooms.length} room{lobbyRooms.length !== 1 ? 's' : ''}</p>
+                  <button onClick={() => setShowRoomForm(v => !v)} className="px-4 py-1.5 rounded-lg bg-gold text-black text-sm font-semibold">
+                    {showRoomForm ? 'Cancel' : '+ New Room'}
+                  </button>
+                </div>
+
+                {showRoomForm && (
+                  <form onSubmit={createRoom} className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
+                    <h3 className="font-display text-gold">New Room</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Name</label>
+                        <input value={roomForm.name} onChange={e => setRoomForm(f => ({ ...f, name: e.target.value }))} placeholder="Table 1" className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Game</label>
+                        <select value={roomForm.gameType} onChange={e => setRoomForm(f => ({ ...f, gameType: e.target.value as GameType }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm">
+                          <option value="poker5o">Poker5O</option>
+                          <option value="pazpaz">PazPaz</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Stake</label>
+                        <select value={roomForm.stake} onChange={e => setRoomForm(f => ({ ...f, stake: Number(e.target.value) as StakeAmount }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm">
+                          {STAKE_OPTIONS.map(s => <option key={s} value={s}>{s.toLocaleString()}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Display Order</label>
+                        <input type="number" value={roomForm.displayOrder} onChange={e => setRoomForm(f => ({ ...f, displayOrder: Number(e.target.value) }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
+                      </div>
+                    </div>
+
+                    {roomForm.gameType === 'poker5o' && (
+                      <div className="flex flex-wrap gap-3">
+                        <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                          <input type="checkbox" checked={roomForm.completeWinBonus} onChange={e => setRoomForm(f => ({ ...f, completeWinBonus: e.target.checked }))} className="accent-gold" />
+                          Complete Win Bonus
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/50 text-xs">Timer:</span>
+                          {([null, 30, 45, 60] as const).map(t => (
+                            <button type="button" key={String(t)} onClick={() => setRoomForm(f => ({ ...f, timerDuration: t }))}
+                              className={`px-2 py-0.5 rounded text-xs border ${roomForm.timerDuration === t ? 'bg-gold text-black border-gold' : 'border-white/20 text-white/50'}`}>
+                              {t === null ? 'Off' : `${t}s`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {roomForm.gameType === 'pazpaz' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/50 text-xs">Assignment:</span>
+                        {([60, 180, 300] as const).map(d => (
+                          <button type="button" key={d} onClick={() => setRoomForm(f => ({ ...f, assignmentDuration: d }))}
+                            className={`px-2 py-0.5 rounded text-xs border ${roomForm.assignmentDuration === d ? 'bg-gold text-black border-gold' : 'border-white/20 text-white/50'}`}>
+                            {d === 60 ? '1min' : d === 180 ? '3min' : '5min'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={roomForm.vocal} onChange={e => setRoomForm(f => ({ ...f, vocal: e.target.checked }))} className="accent-gold" />
+                        Voice Chat
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={roomForm.isRecurring} onChange={e => setRoomForm(f => ({ ...f, isRecurring: e.target.checked }))} className="accent-gold" />
+                        Recurring (auto-reset)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={roomForm.isPrivate} onChange={e => setRoomForm(f => ({ ...f, isPrivate: e.target.checked }))} className="accent-gold" />
+                        Password Protected
+                      </label>
+                    </div>
+
+                    {roomForm.isPrivate && (
+                      <input value={roomForm.password} onChange={e => setRoomForm(f => ({ ...f, password: e.target.value }))} placeholder="Room password" className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
+                    )}
+
+                    <button type="submit" className="px-6 py-2 bg-gold text-black rounded-xl font-semibold text-sm">Create Room</button>
+                  </form>
+                )}
+
+                <div className="space-y-2">
+                  {lobbyRooms.map(room => {
+                    const statusColor = room.status === 'playing' ? '#FF3366' : room.status === 'waiting' ? '#00FF9D' : '#555';
+                    return (
+                      <div key={room.id} className="bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: statusColor, boxShadow: `0 0 6px ${statusColor}` }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-semibold text-sm truncate">{room.name}</p>
+                          <p className="text-white/40 text-xs">
+                            {room.gameType} · {room.stake.toLocaleString()} chips
+                            {room.completeWinBonus && ' · 2× bonus'}
+                            {room.timerDuration && ` · ${room.timerDuration}s timer`}
+                            {room.isRecurring && ' · recurring'}
+                            {room.isPrivate && ' · 🔒'}
+                            {room.vocal && ' · 🎙'}
+                          </p>
+                          {room.status === 'waiting' && <p className="text-[#00FF9D] text-xs mt-0.5">Waiting: {room.waitingPlayerName}</p>}
+                          {room.status === 'playing' && <p className="text-[#FF3366] text-xs mt-0.5">Game in progress</p>}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {room.status !== 'empty' && (
+                            <button onClick={() => resetRoom(room.id)} className="text-xs border border-white/20 text-white/50 hover:text-white px-2 py-1 rounded transition-colors">Reset</button>
+                          )}
+                          <button onClick={() => deleteRoom(room.id)} className="text-xs border border-red-500/30 text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors">Delete</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {lobbyRooms.length === 0 && <p className="text-white/30 text-sm text-center py-6">No rooms. Create one above.</p>}
+                </div>
+              </div>
+            )}
+
+            {/* ─ Templates ──────────────────────────────────────────────── */}
+            {roomsSubTab === 'templates' && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-white/50 text-sm">{lobbyTemplates.length} template{lobbyTemplates.length !== 1 ? 's' : ''}</p>
+                  <button onClick={() => setShowTemplateForm(v => !v)} className="px-4 py-1.5 rounded-lg bg-gold text-black text-sm font-semibold">
+                    {showTemplateForm ? 'Cancel' : '+ New Template'}
+                  </button>
+                </div>
+
+                {showTemplateForm && (
+                  <form onSubmit={createTemplate} className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
+                    <h3 className="font-display text-gold">New Template</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Name</label>
+                        <input value={templateForm.name} onChange={e => setTemplateForm(f => ({ ...f, name: e.target.value }))} required placeholder="Template name" className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Game</label>
+                        <select value={templateForm.gameType} onChange={e => setTemplateForm(f => ({ ...f, gameType: e.target.value as GameType }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm">
+                          <option value="poker5o">Poker5O</option>
+                          <option value="pazpaz">PazPaz</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1">Stake</label>
+                        <select value={templateForm.stake} onChange={e => setTemplateForm(f => ({ ...f, stake: Number(e.target.value) as StakeAmount }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm">
+                          {STAKE_OPTIONS.map(s => <option key={s} value={s}>{s.toLocaleString()}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={templateForm.isRecurring} onChange={e => setTemplateForm(f => ({ ...f, isRecurring: e.target.checked }))} className="accent-gold" />
+                        Recurring
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={templateForm.vocal} onChange={e => setTemplateForm(f => ({ ...f, vocal: e.target.checked }))} className="accent-gold" />
+                        Voice Chat
+                      </label>
+                    </div>
+                    <button type="submit" className="px-6 py-2 bg-gold text-black rounded-xl font-semibold text-sm">Save Template</button>
+                  </form>
+                )}
+
+                <div className="space-y-2">
+                  {lobbyTemplates.map(t => (
+                    <div key={t.id} className="bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-sm">{t.name}</p>
+                        <p className="text-white/40 text-xs">{t.gameType} · {t.stake.toLocaleString()} chips{t.isRecurring ? ' · recurring' : ''}{t.vocal ? ' · 🎙' : ''}</p>
+                      </div>
+                      <button onClick={() => createRoomFromTemplate(t)} className="text-xs border border-gold/40 text-gold hover:bg-gold/10 px-3 py-1 rounded transition-colors">Use</button>
+                      <button onClick={() => deleteTemplate(t.id)} className="text-xs border border-red-500/30 text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors">Delete</button>
+                    </div>
+                  ))}
+                  {lobbyTemplates.length === 0 && <p className="text-white/30 text-sm text-center py-6">No templates yet.</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* Add Chips Modal */}

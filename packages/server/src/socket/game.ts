@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import { roomService } from '../services/roomService.js';
 import { lobbyService } from '../services/lobbyService.js';
+import { onGameEnd } from './lobbyRooms.js';
 import { supabase } from '../supabase.js';
 import { redis } from '../redis.js';
 import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
@@ -158,6 +159,8 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
     await lobbyService.setStatus(room.player1.playerId, 'idle');
     io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
     io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
+
+    await onGameEnd(io, room.lobbyRoomId);
   }
 }
 

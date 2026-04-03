@@ -34,6 +34,8 @@ export interface Room {
   timerDuration: 30 | 45 | 60 | null;
   /** Remaining ms saved when timer was paused due to a disconnect; cleared on resume */
   pausedTimerRemainingMs: number | null;
+  /** Lobby room that spawned this game — used to reset the room on game end */
+  lobbyRoomId: string | null;
   createdAt: number;
 }
 

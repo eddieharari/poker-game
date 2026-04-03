@@ -19,7 +19,10 @@ type LogEvent =
   | 'PAZPAZ_GAME_END'
   | 'PAZPAZ_DISCONNECT'
   | 'PAZPAZ_FORFEIT'
-  | 'RAKE_CALC';
+  | 'RAKE_CALC'
+  | 'ROOM_WAITING'
+  | 'ROOM_GAME_STARTED'
+  | 'ROOM_CREATED';
 
 interface LogPayload {
   playerId?:   string;

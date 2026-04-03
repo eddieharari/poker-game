@@ -10,6 +10,7 @@ export interface PazPazRoom {
   status: 'active' | 'finished';
   stake: number | null;
   assignmentDuration: 60 | 180 | 300;
+  lobbyRoomId: string | null;
   createdAt: number;
 }
 

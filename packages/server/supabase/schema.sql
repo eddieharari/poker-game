@@ -341,3 +341,49 @@ create table if not exists backgammon_games (
 
 create index if not exists backgammon_games_player0 on backgammon_games (player0_id);
 create index if not exists backgammon_games_player1 on backgammon_games (player1_id);
+
+-- ─── Lobby Room Templates ─────────────────────────────────────────────────────
+
+create table if not exists lobby_room_templates (
+  id                   uuid        primary key default gen_random_uuid(),
+  name                 text        not null,
+  game_type            text        not null check (game_type in ('poker5o', 'pazpaz')),
+  stake                int         not null references stake_options(amount),
+  complete_win_bonus   boolean     not null default false,
+  timer_duration       int         check (timer_duration in (30, 45, 60)),
+  assignment_duration  int         not null default 180 check (assignment_duration in (60, 180, 300)),
+  vocal                boolean     not null default false,
+  is_recurring         boolean     not null default false,
+  is_private           boolean     not null default false,
+  display_order        int         not null default 0,
+  created_at           timestamptz not null default now()
+);
+
+-- ─── Persistent Lobby Rooms ───────────────────────────────────────────────────
+-- Admin-defined rooms. Real-time state (who's waiting, who's playing) lives in Redis.
+
+create table if not exists lobby_rooms (
+  id                   uuid        primary key default gen_random_uuid(),
+  name                 text        not null,
+  game_type            text        not null check (game_type in ('poker5o', 'pazpaz')),
+  stake                int         not null references stake_options(amount),
+  complete_win_bonus   boolean     not null default false,
+  timer_duration       int         check (timer_duration in (30, 45, 60)),
+  assignment_duration  int         not null default 180 check (assignment_duration in (60, 180, 300)),
+  vocal                boolean     not null default false,
+  is_recurring         boolean     not null default false,
+  is_private           boolean     not null default false,
+  password_hash        text,
+  template_id          uuid        references lobby_room_templates(id) on delete set null,
+  display_order        int         not null default 0,
+  created_at           timestamptz not null default now()
+);
+
+create index if not exists lobby_rooms_order on lobby_rooms (display_order);
+
+alter table lobby_rooms     enable row level security;
+alter table lobby_room_templates enable row level security;
+
+-- Only server (service role) can read/write these tables; no client access
+create policy "lobby_rooms_deny_client" on lobby_rooms using (false);
+create policy "lobby_room_templates_deny_client" on lobby_room_templates using (false);

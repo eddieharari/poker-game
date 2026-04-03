@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore.js';
 import { useLobbyStore } from '../store/lobbyStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
 import { getSocket } from '../socket.js';
-import { STAKE_OPTIONS, type StakeAmount, type OnlinePlayer, type PlayerStatus, type GameType } from '@poker5o/shared';
-
-// ─── Dark space theme CSS (shared with PazPaz) ────────────────────────────────
+import {
+  STAKE_OPTIONS,
+  type StakeAmount,
+  type GameType,
+  type LobbyRoomView,
+} from '@poker5o/shared';
 
 const LOBBY_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
@@ -19,20 +21,6 @@ const LOBBY_STYLES = `
     border: 1px solid rgba(255,255,255,0.05);
     box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
   }
-  .lby-btn {
-    transition: all 0.2s ease;
-    background: linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #E0E6ED;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-  }
-  .lby-btn:hover {
-    background: linear-gradient(180deg, #33334D 0%, #252538 100%);
-    border-color: rgba(69,243,255,0.5);
-    box-shadow: 0 0 15px rgba(69,243,255,0.4);
-    color: #fff;
-  }
-  .lby-btn:active { box-shadow: none; }
   .lby-stars {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     z-index: 0; pointer-events: none;
@@ -55,514 +43,505 @@ const LOBBY_STYLES = `
       radial-gradient(circle at 15% 50%, rgba(110,86,207,0.15) 0%, transparent 50%),
       radial-gradient(circle at 85% 30%, rgba(69,243,255,0.1) 0%, transparent 50%);
   }
+  .room-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .room-card:hover { transform: translateY(-2px); }
 `;
 
-export function LobbyPage() {
-  const { profile, signOut } = useAuthStore();
-  const navigate = useNavigate();
-  const { players, incomingChallenge, setIncomingChallenge, setPlayers } = useLobbyStore();
-  const [challengeTarget, setChallengeTarget] = useState<OnlinePlayer | null>(null);
-  const [selectedStake, setSelectedStake] = useState<StakeAmount>(STAKE_OPTIONS[0]);
+// ─── Room card colours ─────────────────────────────────────────────────────────
+function roomColors(status: LobbyRoomView['status'], isMyRoom: boolean) {
+  if (status === 'playing')  return { border: '#FF3366', glow: 'rgba(255,51,102,0.25)', bg: 'rgba(255,51,102,0.06)', dot: '#FF3366', label: '🔴 In Game' };
+  if (status === 'waiting')  return { border: isMyRoom ? '#45F3FF' : '#00FF9D', glow: isMyRoom ? 'rgba(69,243,255,0.25)' : 'rgba(0,255,157,0.25)', bg: isMyRoom ? 'rgba(69,243,255,0.06)' : 'rgba(0,255,157,0.06)', dot: isMyRoom ? '#45F3FF' : '#00FF9D', label: '🟢 Waiting' };
+  return { border: 'rgba(255,255,255,0.12)', glow: 'transparent', bg: 'rgba(255,255,255,0.02)', dot: '#555', label: '⚫ Open' };
+}
+
+// ─── Create Room Modal ─────────────────────────────────────────────────────────
+interface CreateRoomModalProps {
+  onClose: () => void;
+  profile: { chips: number };
+}
+
+function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
+  const [name, setName]                       = useState('');
+  const [gameType, setGameType]               = useState<GameType>('poker5o');
+  const [stake, setStake]                     = useState<StakeAmount>(STAKE_OPTIONS[2]);
   const [completeWinBonus, setCompleteWinBonus] = useState(false);
-  const [timerDuration, setTimerDuration] = useState<30 | 45 | 60 | null>(null);
+  const [timerDuration, setTimerDuration]     = useState<30 | 45 | 60 | null>(null);
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
-  const [selectedGameType, setSelectedGameType] = useState<GameType>('poker5o');
-  const [vocal, setVocal] = useState(false);
-  const [myStatus, setMyStatus] = useState<'idle' | 'busy'>('idle');
+  const [vocal, setVocal]                     = useState(false);
+  const [isPrivate, setIsPrivate]             = useState(false);
+  const [password, setPassword]               = useState('');
 
-  function toggleStatus() {
-    const next: 'idle' | 'busy' = myStatus === 'idle' ? 'busy' : 'idle';
-    setMyStatus(next);
-    getSocket().emit('lobby:set_status', { status: next });
-  }
+  const required = completeWinBonus ? stake * 2 : stake;
+  const canCreate = profile.chips >= required;
 
-  useSocketEvents();
-
-  useEffect(() => {
-    setPlayers([]);
-    const sock = getSocket();
-    const enter = () => sock.emit('lobby:enter');
-    sock.on('connect', enter);
-    if (sock.connected) enter();
-    return () => {
-      sock.off('connect', enter);
-      if (sock.connected) sock.emit('lobby:leave');
-    };
-  }, [setPlayers]);
-
-  function sendChallenge() {
-    if (!challengeTarget) return;
-    getSocket().emit('lobby:challenge', {
-      toPlayerId: challengeTarget.id,
-      stake: selectedStake,
-      completeWinBonus,
-      timerDuration,
-      gameType: selectedGameType,
+  function handleCreate() {
+    if (!canCreate) return;
+    getSocket().emit('lobbyRoom:create', {
+      name: name.trim() || undefined,
+      gameType,
+      stake,
+      completeWinBonus: gameType === 'poker5o' ? completeWinBonus : false,
+      timerDuration: gameType === 'poker5o' ? timerDuration : null,
       assignmentDuration,
       vocal,
-    });
-    const gameTypeNote = selectedGameType === 'pazpaz' ? ' [PAZPAZ]' : '';
-    const bonusNote = completeWinBonus && selectedGameType === 'poker5o' ? ' (5-0 bonus active)' : '';
-    const timerNote = timerDuration && selectedGameType === 'poker5o' ? ` (${timerDuration}s timer)` : '';
-    toast(`Challenge sent to ${challengeTarget.nickname}${gameTypeNote}${bonusNote}${timerNote}!`, { icon: '🎲' });
-    setChallengeTarget(null);
-    setCompleteWinBonus(false);
-    setTimerDuration(null);
-    setSelectedGameType('poker5o');
-    setVocal(false);
-  }
-
-  function acceptChallenge() {
-    if (!incomingChallenge) return;
-    getSocket().emit('lobby:challenge:accept', { challengeId: incomingChallenge.challengeId });
-    setIncomingChallenge(null);
-  }
-
-  function declineChallenge() {
-    if (!incomingChallenge) return;
-    getSocket().emit('lobby:challenge:decline', { challengeId: incomingChallenge.challengeId });
-    setIncomingChallenge(null);
+      isPrivate,
+      password: isPrivate && password ? password : undefined,
+    } as any);
+    onClose();
   }
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col relative" style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}>
-      <style>{LOBBY_STYLES}</style>
-      <div className="lby-stars" />
-      <div className="lby-nebula" />
-
-      {/* Header */}
-      <header className="relative z-10 glass-panel border-b border-white/5 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
-          <h1 className="lby-h text-xl tracking-widest text-white uppercase">Poker5O</h1>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="glass-panel rounded-3xl border border-[#45F3FF]/30 p-6 w-full max-w-md shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
+        <div className="text-center">
+          <h2 className="lby-h text-2xl text-[#45F3FF] font-bold">Create Room</h2>
+          <p className="text-gray-400 text-sm mt-1">Set up a private room for your friends</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3 glass-panel px-4 py-2 rounded-full border border-white/10">
-            <div className="relative">
-              <img src={profile?.avatar_url} alt="me" className="w-8 h-8 rounded-full border-2 border-[#45F3FF] object-cover" />
-              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0B0C10] ${myStatus === 'busy' ? 'bg-[#FF3366]' : 'bg-[#00FF9D]'}`} />
-            </div>
-            <div>
-              <p className="lby-h text-sm text-white tracking-wide">{profile?.nickname}</p>
-              <p className="text-xs text-[#45F3FF] font-medium">{profile?.chips.toLocaleString()} chips</p>
-            </div>
-          </div>
-          <button
-            onClick={toggleStatus}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-all"
-            style={myStatus === 'busy' ? {
-              background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)',
-              border: '1px solid rgba(255,51,102,0.5)',
-              color: '#FF3366',
-              boxShadow: '0 0 10px rgba(255,51,102,0.2)',
-            } : {
-              background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)',
-              border: '1px solid rgba(0,255,157,0.5)',
-              color: '#00FF9D',
-              boxShadow: '0 0 10px rgba(0,255,157,0.2)',
-            }}
-          >
-            {myStatus === 'busy' ? '🔴 Busy' : '🟢 Ready'}
-          </button>
-          {(profile?.role === 'admin' || profile?.role === 'agent') && (
-            <button
-              onClick={() => navigate(profile.role === 'admin' ? '/admin' : '/agent')}
-              className="lby-btn w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white border border-white/10"
-              aria-label={profile.role === 'admin' ? 'Admin Panel' : 'Agent Panel'}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={() => navigate('/cashier')}
-            className="lby-btn w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white border border-white/10"
-            aria-label="Cashier"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => navigate('/settings')}
-            className="lby-btn w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white border border-white/10"
-            aria-label="Settings"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-          <button
-            onClick={signOut}
-            className="lby-btn text-sm px-3 py-1.5 rounded-xl border border-white/10 font-medium"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
 
-      <div className="relative z-10 flex-1 overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-4 space-y-4">
-        {/* Player list */}
+        {/* Room name */}
         <div>
-          <h2 className="lby-h text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 mb-4">
-            {players.length === 0
-              ? 'No other players online yet'
-              : `${players.length} player${players.length === 1 ? '' : 's'} online`}
-          </h2>
-          {players.length === 0 ? (
-            <div className="glass-panel text-center text-gray-600 py-20 rounded-2xl border border-white/5">
-              <p className="text-4xl mb-3">🃏</p>
-              <p className="text-sm font-medium tracking-wide">Waiting for others to join…</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {players.map(player => (
-                <PlayerRow
-                  key={player.id}
-                  player={player}
-                  myChips={profile?.chips ?? 0}
-                  onChallenge={() => setChallengeTarget(player)}
-                />
-              ))}
-            </div>
-          )}
+          <label className="text-xs text-gray-400 uppercase tracking-widest mb-1 block">Room Name (optional)</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="My Room"
+            maxLength={30}
+            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-[#45F3FF]/50"
+          />
         </div>
-      </div>
-      </div>
 
-      {/* Challenge modal */}
-      {challengeTarget && (
-        <Modal onClose={() => setChallengeTarget(null)}>
-          <div className="space-y-5">
-            <h3 className="lby-h text-xl text-[#45F3FF] text-center tracking-wide">
-              Challenge {challengeTarget.nickname}
-            </h3>
-            <div className="flex justify-center">
-              <img src={challengeTarget.avatarUrl} alt="" className="w-16 h-16 rounded-full border-2 border-[#45F3FF]/50 object-cover" />
-            </div>
+        {/* Game type */}
+        <div>
+          <label className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Game</label>
+          <div className="flex gap-2">
+            {(['poker5o', 'pazpaz'] as GameType[]).map(g => (
+              <button
+                key={g}
+                onClick={() => setGameType(g)}
+                className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${gameType === g ? 'bg-[#45F3FF]/15 border-[#45F3FF]/60 text-[#45F3FF]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}
+              >
+                {g === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {/* Game type toggle */}
+        {/* Stake */}
+        <div>
+          <label className="text-xs text-gray-400 uppercase tracking-widest mb-2 block">Stake</label>
+          <div className="flex flex-wrap gap-1.5">
+            {STAKE_OPTIONS.map(s => (
+              <button
+                key={s}
+                onClick={() => setStake(s)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${stake === s ? 'bg-[#00FF9D]/15 border-[#00FF9D]/60 text-[#00FF9D]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}
+              >
+                {s.toLocaleString()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Game-specific options */}
+        {gameType === 'poker5o' && (
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={completeWinBonus} onChange={e => setCompleteWinBonus(e.target.checked)} className="w-4 h-4 accent-[#00FF9D]" />
+              <span className="text-sm text-gray-300">Complete Win Bonus <span className="text-gray-500">(2× stake for 5-0 win)</span></span>
+            </label>
             <div>
-              <p className="text-xs text-gray-500 mb-2 text-center uppercase tracking-widest">Game Type</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedGameType('poker5o')}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border
-                    ${selectedGameType === 'poker5o'
-                      ? 'border-[#45F3FF]/60 text-[#45F3FF] bg-[#45F3FF]/10'
-                      : 'lby-btn border-white/10 text-gray-400'}`}
-                  style={selectedGameType === 'poker5o' ? { boxShadow: '0 0 15px rgba(69,243,255,0.2)' } : {}}
-                >
-                  Poker5O
-                </button>
-                <button
-                  onClick={() => { setSelectedGameType('pazpaz'); setCompleteWinBonus(false); setTimerDuration(null); }}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all border
-                    ${selectedGameType === 'pazpaz'
-                      ? 'border-[#45F3FF]/60 text-[#45F3FF] bg-[#45F3FF]/10'
-                      : 'lby-btn border-white/10 text-gray-400'}`}
-                  style={selectedGameType === 'pazpaz' ? { boxShadow: '0 0 15px rgba(69,243,255,0.2)' } : {}}
-                >
-                  PAZPAZ
-                </button>
-              </div>
-              {selectedGameType === 'pazpaz' && (
-                <>
-                  <p className="text-xs text-gray-600 text-center mt-1">
-                    3-flop Omaha — assign your 12 cards to 3 flops simultaneously
-                  </p>
-                  <div className="space-y-2 mt-3">
-                    <p className="text-xs text-gray-500 text-center uppercase tracking-widest">⏱ Assignment Time</p>
-                    <div className="flex gap-2">
-                      {([60, 180, 300] as const).map(val => (
-                        <button
-                          key={val}
-                          onClick={() => setAssignmentDuration(val)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all border
-                            ${assignmentDuration === val
-                              ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10'
-                              : 'lby-btn border-white/10 text-gray-400'}`}
-                        >
-                          {val === 60 ? '1 min' : val === 180 ? '3 min' : '5 min'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-2 text-center uppercase tracking-widest">Select stake</p>
-              <div className="grid grid-cols-5 gap-2">
-                {STAKE_OPTIONS.map(amount => (
-                  <button
-                    key={amount}
-                    onClick={() => setSelectedStake(amount)}
-                    disabled={(profile?.chips ?? 0) < amount}
-                    className={`py-2 rounded-xl text-sm font-semibold transition-all border
-                      ${selectedStake === amount
-                        ? 'border-[#45F3FF]/60 text-[#45F3FF] bg-[#45F3FF]/10'
-                        : 'lby-btn border-white/10 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed'
-                      }`}
-                    style={selectedStake === amount ? { boxShadow: '0 0 10px rgba(69,243,255,0.2)' } : {}}
-                  >
-                    {amount >= 1000 ? `${amount / 1000}k` : amount}
+              <label className="text-xs text-gray-400 uppercase tracking-widest mb-1 block">Move Timer</label>
+              <div className="flex gap-1.5">
+                {([null, 30, 45, 60] as (null | 30 | 45 | 60)[]).map(t => (
+                  <button key={String(t)} onClick={() => setTimerDuration(t)}
+                    className={`px-3 py-1 rounded-lg text-xs border transition-all ${timerDuration === t ? 'bg-[#45F3FF]/15 border-[#45F3FF]/60 text-[#45F3FF]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
+                    {t === null ? 'Off' : `${t}s`}
                   </button>
                 ))}
               </div>
             </div>
+          </div>
+        )}
 
-            {selectedGameType === 'poker5o' && (
-              <>
-                <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-                  ${completeWinBonus ? 'border-[#FFD700]/40 bg-[#FFD700]/5' : 'border-white/5 bg-white/2 hover:border-white/10'}`}>
-                  <input
-                    type="checkbox"
-                    checked={completeWinBonus}
-                    onChange={e => setCompleteWinBonus(e.target.checked)}
-                    className="mt-0.5 accent-yellow-400 w-4 h-4 shrink-0"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-white/90">Complete Win Bonus (5-0)</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      A 5-0 sweep doubles the payout.
-                      Both players need <span className="text-[#FFD700] font-medium">{(selectedStake * 2).toLocaleString()} chips</span>.
-                    </p>
-                    {completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2 && (
-                      <p className="text-xs text-[#FF3366] mt-1">You don't have enough chips for this option.</p>
-                    )}
-                  </div>
-                </label>
-
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-500 uppercase tracking-widest">⏱ Move Timer</p>
-                  <div className="flex gap-2">
-                    {([null, 30, 45, 60] as const).map(val => (
-                      <button
-                        key={String(val)}
-                        onClick={() => setTimerDuration(val)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all border
-                          ${timerDuration === val
-                            ? 'border-[#FFD700]/60 text-[#FFD700] bg-[#FFD700]/10'
-                            : 'lby-btn border-white/10 text-gray-400'}`}
-                      >
-                        {val === null ? 'Off' : `${val}s`}
-                      </button>
-                    ))}
-                  </div>
-                  {timerDuration && (
-                    <p className="text-xs text-gray-600">
-                      Each player must act within {timerDuration}s or a card is auto-placed.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Voice chat toggle */}
-            <label className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer transition-all select-none
-              ${vocal ? 'border-[#45F3FF]/40 bg-[#45F3FF]/5' : 'border-white/5 bg-white/2 hover:border-white/10'}`}>
-              <input
-                type="checkbox"
-                checked={vocal}
-                onChange={e => setVocal(e.target.checked)}
-                className="mt-0.5 accent-cyan-400 w-4 h-4 shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-white/90">🎙 Voice Chat</p>
-                <p className="text-xs text-gray-500 mt-0.5">Both players can talk throughout the game</p>
-              </div>
-            </label>
-
-            <div className="flex gap-3 pt-1">
-              <button
-                onClick={() => { setChallengeTarget(null); setCompleteWinBonus(false); setTimerDuration(null); setSelectedGameType('poker5o'); setVocal(false); }}
-                className="lby-btn flex-1 py-2.5 rounded-xl font-medium border border-white/10"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={sendChallenge}
-                disabled={
-                  selectedGameType === 'poker5o' && completeWinBonus && (profile?.chips ?? 0) < selectedStake * 2
-                }
-                className="flex-1 py-2.5 rounded-xl lby-h text-sm tracking-widest uppercase font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105"
-                style={{ background: '#00FF9D', color: '#000', boxShadow: '0 0 25px rgba(0,255,157,0.3)', border: '1px solid #00FF9D' }}
-              >
-                Send Challenge
-              </button>
+        {gameType === 'pazpaz' && (
+          <div>
+            <label className="text-xs text-gray-400 uppercase tracking-widest mb-1 block">Assignment Time</label>
+            <div className="flex gap-1.5">
+              {([60, 180, 300] as (60 | 180 | 300)[]).map(d => (
+                <button key={d} onClick={() => setAssignmentDuration(d)}
+                  className={`px-3 py-1 rounded-lg text-xs border transition-all ${assignmentDuration === d ? 'bg-[#45F3FF]/15 border-[#45F3FF]/60 text-[#45F3FF]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
+                  {d === 60 ? '1 min' : d === 180 ? '3 min' : '5 min'}
+                </button>
+              ))}
             </div>
           </div>
-        </Modal>
-      )}
+        )}
 
-      {/* Incoming challenge */}
-      {incomingChallenge && (
-        <Modal onClose={declineChallenge}>
-          <div className="space-y-5 text-center">
-            <p className="text-xs text-gray-500 uppercase tracking-widest">Incoming challenge</p>
-            <div className="flex justify-center">
-              <img src={incomingChallenge.from.avatarUrl} alt="" className="w-16 h-16 rounded-full border-2 border-[#45F3FF]/50 object-cover" />
-            </div>
-            <h3 className="lby-h text-xl text-[#45F3FF] tracking-wide">{incomingChallenge.from.nickname}</h3>
-            {incomingChallenge.gameType === 'pazpaz' && (
-              <div className="flex items-center justify-center gap-2 bg-[#45F3FF]/5 border border-[#45F3FF]/20 rounded-xl px-4 py-2">
-                <span className="text-lg">🃏</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#45F3FF]">PAZPAZ</p>
-                  <p className="text-xs text-gray-500">3-flop Omaha game</p>
-                </div>
-              </div>
-            )}
-            <div className="glass-panel rounded-xl py-4 border border-white/5">
-              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Stake</p>
-              <p className="lby-h text-3xl text-[#45F3FF]" style={{ textShadow: '0 0 15px rgba(69,243,255,0.4)' }}>
-                {incomingChallenge.stake.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">chips</p>
-            </div>
-            {incomingChallenge.completeWinBonus && (
-              <div className="flex items-center justify-center gap-2 bg-[#FFD700]/5 border border-[#FFD700]/20 rounded-xl px-4 py-2">
-                <span className="text-lg">🏆</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#FFD700]">Complete Win Bonus Active</p>
-                  <p className="text-xs text-gray-500">A 5-0 sweep pays <span className="text-[#FFD700] font-medium">{(incomingChallenge.stake * 2).toLocaleString()}</span> chips</p>
-                </div>
-              </div>
-            )}
-            {incomingChallenge.timerDuration && (
-              <div className="flex items-center justify-center gap-2 bg-[#FFD700]/5 border border-[#FFD700]/20 rounded-xl px-4 py-2">
-                <span className="text-lg">⏱</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#FFD700]">{incomingChallenge.timerDuration}-Second Move Timer</p>
-                  <p className="text-xs text-gray-500">Auto-plays if you don't act in time</p>
-                </div>
-              </div>
-            )}
-            {incomingChallenge.gameType === 'pazpaz' && incomingChallenge.assignmentDuration && (
-              <div className="flex items-center justify-center gap-2 bg-[#FFD700]/5 border border-[#FFD700]/20 rounded-xl px-4 py-2">
-                <span className="text-lg">⏱</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#FFD700]">
-                    {incomingChallenge.assignmentDuration === 60 ? '1 min' : incomingChallenge.assignmentDuration === 180 ? '3 min' : '5 min'} to assign
-                  </p>
-                  <p className="text-xs text-gray-500">Assignment timer</p>
-                </div>
-              </div>
-            )}
-            {incomingChallenge.vocal && (
-              <div className="flex items-center justify-center gap-2 bg-[#45F3FF]/5 border border-[#45F3FF]/20 rounded-xl px-4 py-2">
-                <span className="text-lg">🎙</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#45F3FF]">Voice Chat Enabled</p>
-                  <p className="text-xs text-gray-500">Microphone access required</p>
-                </div>
-              </div>
-            )}
-            {(profile?.chips ?? 0) < (incomingChallenge.completeWinBonus ? incomingChallenge.stake * 2 : incomingChallenge.stake) && (
-              <p className="text-[#FF3366] text-sm">You don't have enough chips to accept</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                onClick={declineChallenge}
-                className="lby-btn flex-1 py-2.5 rounded-xl font-medium border border-[#FF3366]/30 text-[#FF3366] hover:bg-[#FF3366]/10"
-              >
-                Decline
-              </button>
-              <button
-                onClick={acceptChallenge}
-                disabled={(profile?.chips ?? 0) < (incomingChallenge.completeWinBonus ? incomingChallenge.stake * 2 : incomingChallenge.stake)}
-                className="flex-1 py-2.5 rounded-xl lby-h text-sm tracking-widest uppercase font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105"
-                style={{ background: '#00FF9D', color: '#000', boxShadow: '0 0 25px rgba(0,255,157,0.3)', border: '1px solid #00FF9D' }}
-              >
-                Accept
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
+        {/* Voice */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={vocal} onChange={e => setVocal(e.target.checked)} className="w-4 h-4 accent-[#6E56CF]" />
+          <span className="text-sm text-gray-300">🎙 Voice Chat</span>
+        </label>
 
-const STATUS_DOT: Record<PlayerStatus, string> = {
-  idle:      'bg-[#00FF9D]',
-  busy:      'bg-[#FF3366]',
-  'in-game': 'bg-[#8B5CF6]',
-  invited:   'bg-[#45F3FF]',
-};
-
-const STATUS_BADGE: Partial<Record<PlayerStatus, { border: string; text: string; bg: string; label: string }>> = {
-  busy:      { border: 'border-[#FF3366]/30', text: 'text-[#FF3366]', bg: 'bg-[#FF3366]/10', label: 'Busy' },
-  'in-game': { border: 'border-[#8B5CF6]/30', text: 'text-[#8B5CF6]', bg: 'bg-[#8B5CF6]/10', label: 'In Game' },
-  invited:   { border: 'border-[#45F3FF]/30', text: 'text-[#45F3FF]', bg: 'bg-[#45F3FF]/10', label: 'In Queue' },
-};
-
-function PlayerRow({ player, myChips, onChallenge }: {
-  player: OnlinePlayer;
-  myChips: number;
-  onChallenge: () => void;
-}) {
-  const badge = STATUS_BADGE[player.status];
-  const totalGames = player.wins + player.losses + player.draws;
-  const canChallenge = player.status === 'idle' && myChips >= 10;
-
-  return (
-    <div className="glass-panel flex items-center gap-3 rounded-xl px-4 py-3 border border-white/5 hover:border-white/10 transition-all">
-      <div className="relative">
-        <img src={player.avatarUrl} alt={player.nickname}
-          className="w-10 h-10 rounded-full border border-white/10 object-cover" />
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0B0C10] ${STATUS_DOT[player.status]}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-white/90 truncate">{player.nickname}</p>
-          {badge && (
-            <span className={`text-xs ${badge.bg} ${badge.text} ${badge.border} border rounded-md px-1.5 py-0.5 shrink-0`}>
-              {badge.label}
-            </span>
+        {/* Private */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} className="w-4 h-4 accent-[#FFD700]" />
+            <span className="text-sm text-gray-300">🔒 Password Protected</span>
+          </label>
+          {isPrivate && (
+            <input
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Enter password"
+              type="password"
+              className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-[#FFD700]/50"
+            />
           )}
         </div>
-        <p className="text-xs text-gray-600 mt-0.5">
-          {totalGames.toLocaleString()} games&nbsp;&nbsp;
-          <span className="text-[#00FF9D]/70">W:{player.wins}</span>&nbsp;
-          <span className="text-[#FF3366]/70">L:{player.losses}</span>&nbsp;
-          <span className="text-gray-600">D:{player.draws}</span>
-        </p>
+
+        {!canCreate && (
+          <p className="text-[#FF3366] text-xs text-center">You need {required.toLocaleString()} chips to create this room</p>
+        )}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl border border-white/10 text-gray-400 text-sm font-medium hover:border-white/20 transition-all">
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={!canCreate}
+            className="flex-1 py-2.5 rounded-2xl text-sm font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#45F3FF', color: '#000', borderColor: '#45F3FF' }}
+          >
+            Create Room
+          </button>
+        </div>
       </div>
-      <button
-        onClick={onChallenge}
-        disabled={!canChallenge}
-        className="text-sm px-4 py-1.5 rounded-xl font-semibold transition-all border disabled:opacity-30 disabled:cursor-not-allowed"
-        style={canChallenge ? {
-          border: '1px solid rgba(69,243,255,0.4)',
-          color: '#45F3FF',
-          background: 'rgba(69,243,255,0.08)',
-          boxShadow: '0 0 10px rgba(69,243,255,0.1)',
-        } : {
-          border: '1px solid rgba(255,255,255,0.05)',
-          color: '#555',
-        }}
-      >
-        Challenge
-      </button>
     </div>
   );
 }
 
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+// ─── Password prompt modal ─────────────────────────────────────────────────────
+interface PasswordModalProps {
+  roomName: string;
+  onConfirm: (password: string) => void;
+  onClose: () => void;
+}
+
+function PasswordModal({ roomName, onConfirm, onClose }: PasswordModalProps) {
+  const [password, setPassword] = useState('');
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="glass-panel border border-white/10 rounded-2xl p-5 w-full max-w-sm shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}>
-        {children}
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="glass-panel rounded-3xl border border-[#FFD700]/30 p-6 w-full max-w-sm shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="text-center">
+          <p className="text-3xl mb-1">🔒</p>
+          <h2 className="lby-h text-xl text-[#FFD700] font-bold">{roomName}</h2>
+          <p className="text-gray-400 text-sm mt-1">This room is password protected</p>
+        </div>
+        <input
+          autoFocus
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && password && onConfirm(password)}
+          placeholder="Enter password"
+          type="password"
+          className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-[#FFD700]/50"
+        />
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl border border-white/10 text-gray-400 text-sm font-medium hover:border-white/20 transition-all">Cancel</button>
+          <button
+            onClick={() => password && onConfirm(password)}
+            disabled={!password}
+            className="flex-1 py-2.5 rounded-2xl text-sm font-bold border transition-all disabled:opacity-40"
+            style={{ background: '#FFD700', color: '#000', borderColor: '#FFD700' }}
+          >
+            Enter Room
+          </button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Main LobbyPage ────────────────────────────────────────────────────────────
+
+export function LobbyPage() {
+  const { profile, signOut } = useAuthStore();
+  const navigate = useNavigate();
+  const { players, lobbyRooms } = useLobbyStore();
+
+  const [myWaitingRoomId, setMyWaitingRoomId] = useState<string | null>(null);
+  const [showCreate, setShowCreate]           = useState(false);
+  const [passwordPrompt, setPasswordPrompt]   = useState<{ roomId: string; name: string } | null>(null);
+
+  useSocketEvents();
+
+  useEffect(() => {
+    const socket = getSocket();
+    socket.emit('lobby:enter');
+    socket.emit('lobbyRoom:list');
+    return () => { socket.emit('lobby:leave'); };
+  }, []);
+
+  // Sync my waiting room state from socket events
+  useEffect(() => {
+    const socket = getSocket();
+
+    function onGameStarted() {
+      setMyWaitingRoomId(null);
+    }
+
+    socket.on('lobbyRoom:game_started', onGameStarted);
+    return () => { socket.off('lobbyRoom:game_started', onGameStarted); };
+  }, []);
+
+  function joinRoom(room: LobbyRoomView, password?: string) {
+    if (room.status === 'playing') return;
+
+    if (room.isPrivate && !password) {
+      setPasswordPrompt({ roomId: room.id, name: room.name });
+      return;
+    }
+
+    // If already waiting in this room, do nothing
+    if (myWaitingRoomId === room.id) return;
+
+    const socket = getSocket();
+    socket.emit('lobbyRoom:join', { roomId: room.id, password });
+    setMyWaitingRoomId(room.id);
+  }
+
+  function leaveRoom() {
+    if (!myWaitingRoomId) return;
+    getSocket().emit('lobbyRoom:leave', { roomId: myWaitingRoomId });
+    setMyWaitingRoomId(null);
+  }
+
+  function deleteRoom(roomId: string) {
+    getSocket().emit('lobbyRoom:delete', { roomId });
+    if (myWaitingRoomId === roomId) setMyWaitingRoomId(null);
+  }
+
+  const onlinePlayers = players.length + 1; // +1 for self
+
+  return (
+    <div className="min-h-screen overflow-auto relative" style={{ background: 'radial-gradient(circle at 50% 30%, #12141D 0%, #0B0C10 100%)' }}>
+      <style>{LOBBY_STYLES}</style>
+      <div className="lby-stars" />
+      <div className="lby-nebula" />
+
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <p className="lby-h text-2xl font-bold" style={{ color: '#45F3FF', letterSpacing: '0.05em' }}>Poker5O</p>
+          <span className="text-xs text-gray-500 font-medium border border-white/10 px-2 py-0.5 rounded-full">
+            {onlinePlayers} online
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {profile?.role === 'admin' && (
+            <button onClick={() => navigate('/admin')} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+              Admin
+            </button>
+          )}
+          <button onClick={() => navigate('/cashier')} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+            Cashier
+          </button>
+          <button onClick={() => navigate('/settings')} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+            Settings
+          </button>
+
+          {/* Profile chip */}
+          <div className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded-full border border-white/10">
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} className="w-7 h-7 rounded-full border border-[#45F3FF]/40 object-cover" alt="" />
+              : <div className="w-7 h-7 rounded-full bg-[#45F3FF]/20 flex items-center justify-center text-[#45F3FF] text-xs font-bold">{profile?.nickname?.[0]}</div>
+            }
+            <div>
+              <p className="text-xs font-semibold text-white">{profile?.nickname}</p>
+              <p className="text-[10px] text-[#45F3FF]">💰 {profile?.chips?.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <button onClick={signOut} className="text-xs text-gray-500 hover:text-white transition-colors px-2">Sign out</button>
+        </div>
+      </header>
+
+      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
+        <div>
+          <h1 className="lby-h text-xl font-bold text-white">Game Rooms</h1>
+          <p className="text-gray-500 text-xs mt-0.5">Enter a room to play · Gray = open · Green = waiting · Red = in game</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {myWaitingRoomId && (
+            <button
+              onClick={leaveRoom}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-[#FF3366]/50 text-[#FF3366] hover:bg-[#FF3366]/10 transition-all"
+            >
+              ← Leave Room
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 rounded-xl text-sm font-bold border transition-all"
+            style={{ background: '#45F3FF', color: '#000', borderColor: '#45F3FF' }}
+          >
+            + Create Room
+          </button>
+        </div>
+      </div>
+
+      {/* ── Rooms Grid ────────────────────────────────────────────────────── */}
+      <main className="relative z-10 px-6 pb-10">
+        {lobbyRooms.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-5xl mb-4">🎲</p>
+            <p className="lby-h text-xl text-gray-400 font-semibold">No rooms yet</p>
+            <p className="text-gray-600 text-sm mt-2">An admin can create rooms, or you can create a private room</p>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="mt-6 px-6 py-3 rounded-2xl text-sm font-bold border"
+              style={{ background: '#45F3FF', color: '#000', borderColor: '#45F3FF' }}
+            >
+              + Create Room
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {lobbyRooms.map(room => {
+              const isMyRoom  = myWaitingRoomId === room.id;
+              const colors    = roomColors(room.status, isMyRoom);
+              const isLocked  = room.status === 'playing';
+              const isMyOwn   = room.createdBy === profile?.id;
+
+              return (
+                <div
+                  key={room.id}
+                  className={`room-card glass-panel rounded-2xl p-4 border-2 flex flex-col gap-3 ${isLocked ? 'opacity-70' : 'cursor-pointer'}`}
+                  style={{
+                    borderColor: colors.border,
+                    boxShadow: `0 0 20px ${colors.glow}`,
+                    background: colors.bg,
+                  }}
+                  onClick={() => !isLocked && !isMyRoom && joinRoom(room)}
+                >
+                  {/* Status dot + label */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colors.dot, boxShadow: `0 0 6px ${colors.dot}` }} />
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{colors.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {room.isPrivate && <span className="text-[10px] text-[#FFD700]">🔒</span>}
+                      {room.isRecurring && <span title="Recurring" className="text-[10px] text-gray-500">↺</span>}
+                      {isMyOwn && room.createdBy && (
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteRoom(room.id); }}
+                          className="text-[10px] text-gray-600 hover:text-[#FF3366] transition-colors ml-1"
+                          title="Delete room"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Room name */}
+                  <div>
+                    <p className="lby-h text-base font-bold text-white leading-tight truncate">{room.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {room.gameType === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}
+                      {room.vocal && ' · 🎙 Voice'}
+                    </p>
+                  </div>
+
+                  {/* Stake + rules */}
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#00FF9D]/40 text-[#00FF9D]">
+                      💰 {room.stake.toLocaleString()}
+                    </span>
+                    {room.completeWinBonus && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#FFD700]/40 text-[#FFD700]">2× bonus</span>
+                    )}
+                    {room.timerDuration && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/20 text-gray-400">⏱ {room.timerDuration}s</span>
+                    )}
+                    {room.gameType === 'pazpaz' && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/20 text-gray-400">
+                        {room.assignmentDuration === 60 ? '1 min' : room.assignmentDuration === 180 ? '3 min' : '5 min'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Waiting player info */}
+                  {room.status === 'waiting' && room.waitingPlayerName && (
+                    <div className="flex items-center gap-2 mt-auto pt-2 border-t border-white/5">
+                      {room.waitingPlayerAvatar
+                        ? <img src={room.waitingPlayerAvatar} className="w-6 h-6 rounded-full object-cover border border-[#00FF9D]/40" alt="" />
+                        : <div className="w-6 h-6 rounded-full bg-[#00FF9D]/20 flex items-center justify-center text-[#00FF9D] text-[9px] font-bold">{room.waitingPlayerName[0]}</div>
+                      }
+                      <p className="text-xs text-gray-300 truncate">{isMyRoom ? 'You are waiting…' : `${room.waitingPlayerName} is waiting`}</p>
+                    </div>
+                  )}
+
+                  {/* Action area */}
+                  {!isLocked && (
+                    <div className="mt-auto pt-2">
+                      {isMyRoom ? (
+                        <div className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-[#45F3FF]/40 text-[#45F3FF]">
+                          Waiting for opponent…
+                        </div>
+                      ) : room.status === 'waiting' ? (
+                        <div
+                          className="w-full py-1.5 rounded-xl text-xs font-bold text-center cursor-pointer transition-all hover:opacity-90"
+                          style={{ background: '#00FF9D', color: '#000' }}
+                        >
+                          Join & Play!
+                        </div>
+                      ) : (
+                        <div
+                          className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-white/10 text-gray-400 group-hover:border-white/20"
+                        >
+                          Enter Room
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isLocked && (
+                    <div className="mt-auto pt-2">
+                      <div className="w-full py-1.5 rounded-xl text-xs font-semibold text-center border border-[#FF3366]/30 text-[#FF3366]/70">
+                        Game in progress
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* ── Create Room Modal ──────────────────────────────────────────────── */}
+      {showCreate && profile && (
+        <CreateRoomModal profile={{ chips: profile.chips }} onClose={() => setShowCreate(false)} />
+      )}
+
+      {/* ── Password Prompt ────────────────────────────────────────────────── */}
+      {passwordPrompt && (
+        <PasswordModal
+          roomName={passwordPrompt.name}
+          onClose={() => setPasswordPrompt(null)}
+          onConfirm={(pw) => {
+            const room = lobbyRooms.find(r => r.id === passwordPrompt.roomId);
+            if (room) joinRoom(room, pw);
+            setPasswordPrompt(null);
+          }}
+        />
+      )}
     </div>
   );
 }

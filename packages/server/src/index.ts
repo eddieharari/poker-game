@@ -6,6 +6,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import { redis } from './redis.js';
 import { createSocketServer } from './socket/index.js';
+import { stableLobbyRoomService } from './services/stableLobbyRoomService.js';
 import { roomRouter } from './routes/room.js';
 import { lobbyRouter } from './routes/lobby.js';
 import { profileRouter } from './routes/profile.js';
@@ -17,6 +18,8 @@ async function main(): Promise<void> {
   await redis.connect();
   // Clear stale lobby state from previous server instance
   await redis.del('lobby:online');
+  // Load persistent lobby rooms from Supabase into Redis
+  await stableLobbyRoomService.loadFromSupabase();
 
   const app = express();
 

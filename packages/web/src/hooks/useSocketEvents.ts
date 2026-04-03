@@ -26,7 +26,9 @@ export function useSocketEvents() {
   const upsertPlayer        = useLobbyStore(s => s.upsertPlayer);
   const removePlayer        = useLobbyStore(s => s.removePlayer);
   const updatePlayerStatus  = useLobbyStore(s => s.updatePlayerStatus);
-  const setIncomingChallenge= useLobbyStore(s => s.setIncomingChallenge);
+  const setLobbyRooms       = useLobbyStore(s => s.setLobbyRooms);
+  const upsertLobbyRoom     = useLobbyStore(s => s.upsertLobbyRoom);
+  const removeLobbyRoom     = useLobbyStore(s => s.removeLobbyRoom);
   const setGameState        = useGameStore(s => s.setGameState);
   const setScore            = useGameStore(s => s.setScore);
   const setRoom             = useGameStore(s => s.setRoom);
@@ -42,21 +44,19 @@ export function useSocketEvents() {
     socket.on('lobby:player:left',   ({ playerId }) => removePlayer(playerId));
     socket.on('lobby:player:status', ({ playerId, status }) => updatePlayerStatus(playerId, status));
 
-    socket.on('lobby:challenge:incoming', ({ challengeId, from, stake, completeWinBonus, timerDuration, gameType, assignmentDuration, vocal }) => {
-      setIncomingChallenge({ challengeId, from, stake, completeWinBonus, timerDuration: timerDuration ?? null, gameType, assignmentDuration, vocal });
-    });
-
-    socket.on('lobby:challenge:accepted', ({ roomId, gameType, vocal }) => {
-      setIncomingChallenge(null);
+    // ─── Lobby Rooms ─────────────────────────────────────────────────────────────
+    socket.on('lobbyRoom:list',    setLobbyRooms);
+    socket.on('lobbyRoom:update',  upsertLobbyRoom);
+    socket.on('lobbyRoom:added',   upsertLobbyRoom);
+    socket.on('lobbyRoom:removed', ({ roomId }) => removeLobbyRoom(roomId));
+    socket.on('lobbyRoom:error',   ({ message }) => toast.error(message));
+    socket.on('lobbyRoom:game_started', ({ roomId, gameType, vocal }) => {
       if (gameType === 'pazpaz') {
         navigate(`/pazpaz/${roomId}`, { state: { vocal: !!vocal } });
       } else {
         navigate(`/game/${roomId}`, { state: { vocal: !!vocal } });
       }
     });
-
-    socket.on('lobby:challenge:declined', () => toast.error('Challenge declined'));
-    socket.on('lobby:challenge:expired',  () => toast('Challenge expired', { icon: '⏱' }));
 
     // ─── Game ────────────────────────────────────────────────────────────────
     socket.on('room:joined', ({ roomId, playerIndex, stake, completeWinBonus }) => setRoom(roomId, playerIndex, stake, completeWinBonus));
@@ -141,10 +141,12 @@ export function useSocketEvents() {
       socket.off('lobby:player:joined');
       socket.off('lobby:player:left');
       socket.off('lobby:player:status');
-      socket.off('lobby:challenge:incoming');
-      socket.off('lobby:challenge:accepted');
-      socket.off('lobby:challenge:declined');
-      socket.off('lobby:challenge:expired');
+      socket.off('lobbyRoom:list');
+      socket.off('lobbyRoom:update');
+      socket.off('lobbyRoom:added');
+      socket.off('lobbyRoom:removed');
+      socket.off('lobbyRoom:error');
+      socket.off('lobbyRoom:game_started');
       socket.off('room:joined');
       socket.off('game:state');
       socket.off('game:starting');
@@ -158,5 +160,6 @@ export function useSocketEvents() {
       socket.off('profile:chips_updated');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,
-      setIncomingChallenge, setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, setStartingPlayer]);
+      setLobbyRooms, upsertLobbyRoom, removeLobbyRoom,
+      setGameState, setScore, setRoom, setOpponentDisconnected, setOpponentLeft, setStartingPlayer]);
 }

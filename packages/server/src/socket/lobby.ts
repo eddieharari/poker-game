@@ -249,6 +249,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         status: 'active',
         stake: challenge.stake,
         assignmentDuration: challenge.assignmentDuration,
+        lobbyRoomId: null,
         createdAt: Date.now(),
       });
 

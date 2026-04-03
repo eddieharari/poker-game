@@ -4,6 +4,7 @@ import { getLogs } from '../logger.js';
 import { lobbyService } from '../services/lobbyService.js';
 import { settingsService } from '../services/settingsService.js';
 import { getIo } from '../socket/index.js';
+import { stableLobbyRoomService } from '../services/stableLobbyRoomService.js';
 
 async function pushChipsUpdate(playerId: string): Promise<void> {
   const { data } = await supabase.from('profiles').select('chips').eq('id', playerId).single();
@@ -213,4 +214,74 @@ adminRouter.get('/agents/:agentId/players', async (req, res) => {
     .order('nickname');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data ?? []);
+});
+
+// ─── Lobby Rooms ──────────────────────────────────────────────────────────────
+
+// GET /api/admin/lobby-rooms
+adminRouter.get('/lobby-rooms', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const rooms = await stableLobbyRoomService.getAll();
+  res.json(rooms);
+});
+
+// POST /api/admin/lobby-rooms
+adminRouter.post('/lobby-rooms', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const room = await stableLobbyRoomService.adminCreate(req.body);
+  if (!room) return res.status(500).json({ error: 'Failed to create room' });
+  getIo()?.to('lobby').emit('lobbyRoom:added', room);
+  res.json(room);
+});
+
+// PATCH /api/admin/lobby-rooms/:id
+adminRouter.patch('/lobby-rooms/:id', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const room = await stableLobbyRoomService.adminUpdate(req.params.id, req.body);
+  if (!room) return res.status(404).json({ error: 'Room not found or not an admin room' });
+  getIo()?.to('lobby').emit('lobbyRoom:update', room);
+  res.json(room);
+});
+
+// DELETE /api/admin/lobby-rooms/:id
+adminRouter.delete('/lobby-rooms/:id', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const deleted = await stableLobbyRoomService.adminDelete(req.params.id);
+  if (!deleted) return res.status(404).json({ error: 'Room not found' });
+  getIo()?.to('lobby').emit('lobbyRoom:removed', { roomId: req.params.id });
+  res.json({ ok: true });
+});
+
+// POST /api/admin/lobby-rooms/:id/reset
+adminRouter.post('/lobby-rooms/:id/reset', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  await stableLobbyRoomService.resetRoom(req.params.id);
+  const room = await stableLobbyRoomService.getView(req.params.id);
+  if (room) getIo()?.to('lobby').emit('lobbyRoom:update', room);
+  res.json({ ok: true });
+});
+
+// ─── Lobby Room Templates ─────────────────────────────────────────────────────
+
+// GET /api/admin/lobby-room-templates
+adminRouter.get('/lobby-room-templates', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const templates = await stableLobbyRoomService.getTemplates();
+  res.json(templates);
+});
+
+// POST /api/admin/lobby-room-templates
+adminRouter.post('/lobby-room-templates', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const template = await stableLobbyRoomService.createTemplate(req.body);
+  if (!template) return res.status(500).json({ error: 'Failed to create template' });
+  res.json(template);
+});
+
+// DELETE /api/admin/lobby-room-templates/:id
+adminRouter.delete('/lobby-room-templates/:id', async (req, res) => {
+  if (!checkAuth(req, res)) return;
+  const deleted = await stableLobbyRoomService.deleteTemplate(req.params.id);
+  if (!deleted) return res.status(404).json({ error: 'Template not found' });
+  res.json({ ok: true });
 });
