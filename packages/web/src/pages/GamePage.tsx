@@ -235,26 +235,35 @@ export function GamePage() {
         <div className="flex items-center gap-2">
           {isRevealMode ? (
             allRevealed ? (
-              <>
-                <span className="text-xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
-                <span className="pz-h text-lg font-bold"
-                  style={{ color: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366', textShadow: isDraw ? '0 0 15px rgba(255,215,0,0.5)' : iWon ? '0 0 15px rgba(0,255,157,0.5)' : '0 0 15px rgba(255,51,102,0.5)' }}>
-                  {isDraw ? 'Draw!' : iWon ? 'You Win!' : 'You Lose!'}
-                </span>
-                <span className="text-gray-500 text-xs font-semibold glass-panel px-2 py-0.5 rounded-full border border-white/10">
-                  {score!.player0Wins}–{score!.player1Wins}
-                  {score!.draws > 0 ? ` (${score!.draws} tied)` : ''}
-                </span>
-                {score!.completeWinBonus && score!.isCompleteWin && (
-                  <span className="text-xs font-semibold bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/30 rounded-full px-2 py-0.5">
-                    🏆 5-0 Double!
+              <div className="flex items-center gap-3 px-5 py-2 rounded-2xl border"
+                style={{
+                  background: isDraw ? 'rgba(255,215,0,0.08)' : iWon ? 'rgba(0,255,157,0.08)' : 'rgba(255,51,102,0.08)',
+                  borderColor: isDraw ? 'rgba(255,215,0,0.4)' : iWon ? 'rgba(0,255,157,0.4)' : 'rgba(255,51,102,0.4)',
+                  boxShadow: `0 0 30px ${isDraw ? 'rgba(255,215,0,0.2)' : iWon ? 'rgba(0,255,157,0.2)' : 'rgba(255,51,102,0.2)'}`,
+                }}>
+                <span className="text-4xl">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</span>
+                <div>
+                  <span className="pz-h text-2xl font-black tracking-wide block"
+                    style={{ color: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366', textShadow: `0 0 20px ${isDraw ? 'rgba(255,215,0,0.6)' : iWon ? 'rgba(0,255,157,0.6)' : 'rgba(255,51,102,0.6)'}` }}>
+                    {isDraw ? 'DRAW!' : iWon ? 'YOU WIN!' : 'YOU LOSE!'}
                   </span>
-                )}
-                <span className="text-xs font-bold glass-panel px-2 py-0.5 rounded-full border"
-                  style={{ color: netChips >= 0 ? '#00FF9D' : '#FF3366', borderColor: netChips >= 0 ? 'rgba(0,255,157,0.3)' : 'rgba(255,51,102,0.3)' }}>
-                  {netChips >= 0 ? '+' : ''}{netChips.toLocaleString()} chips
-                </span>
-              </>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-white/60 text-sm font-semibold">
+                      {score!.player0Wins}–{score!.player1Wins}
+                      {score!.draws > 0 ? ` (${score!.draws} tied)` : ''}
+                    </span>
+                    {score!.completeWinBonus && score!.isCompleteWin && (
+                      <span className="text-xs font-bold bg-[#FFD700]/15 text-[#FFD700] border border-[#FFD700]/30 rounded-full px-2 py-0.5">
+                        5-0 Double!
+                      </span>
+                    )}
+                    <span className="text-sm font-bold"
+                      style={{ color: netChips >= 0 ? '#00FF9D' : '#FF3366' }}>
+                      {netChips >= 0 ? '+' : ''}{netChips.toLocaleString()} chips
+                    </span>
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
                 <span className="text-gray-500 text-xs animate-pulse glass-panel px-3 py-1 rounded-full border border-white/10">Revealing…</span>

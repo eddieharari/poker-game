@@ -550,26 +550,31 @@ export function PazPazPage() {
       {/* ── Floating top-right: timer / result ────────────────────────────── */}
       <div className="absolute top-4 right-4 z-50">
         {isScoringPhase && allRevealed ? (
-          <div className="glass-panel px-5 py-2 rounded-2xl border text-center"
+          <div className="glass-panel px-8 py-5 rounded-3xl border-2 text-center"
             style={{
               borderColor: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366',
-              boxShadow: `0 0 25px ${isDraw ? 'rgba(255,215,0,0.25)' : iWon ? 'rgba(0,255,157,0.25)' : 'rgba(255,51,102,0.25)'}`,
+              boxShadow: `0 0 50px ${isDraw ? 'rgba(255,215,0,0.3)' : iWon ? 'rgba(0,255,157,0.3)' : 'rgba(255,51,102,0.3)'}`,
+              background: isDraw ? 'rgba(255,215,0,0.08)' : iWon ? 'rgba(0,255,157,0.08)' : 'rgba(255,51,102,0.08)',
             }}>
-            <div className={`pz-h text-2xl leading-tight ${isDraw ? 'text-[#FFD700]' : iWon ? 'text-[#00FF9D]' : 'text-[#FF3366]'}`}>
-              {isDraw ? '🤝 DRAW' : iWon ? '🏆 YOU WIN!' : '😞 YOU LOSE'}
+            <div className="text-5xl mb-1">{isDraw ? '🤝' : iWon ? '🏆' : '😞'}</div>
+            <div className="pz-h text-3xl font-black tracking-wide leading-tight"
+              style={{
+                color: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366',
+                textShadow: `0 0 25px ${isDraw ? 'rgba(255,215,0,0.6)' : iWon ? 'rgba(0,255,157,0.6)' : 'rgba(255,51,102,0.6)'}`,
+              }}>
+              {isDraw ? 'DRAW' : iWon ? 'YOU WIN!' : 'YOU LOSE'}
             </div>
             {gameState.stake != null && (() => {
               const totalRake = gameState.rake ?? 0;
-              // rake = fee per player; Winner: +stake-fee; Loser: -(stake+fee); Draw: -fee
               const net = isDraw
                 ? -totalRake
                 : iWon
                   ? gameState.stake - totalRake
                   : -(gameState.stake + totalRake);
               return (
-                <div className="text-sm font-medium opacity-80">
+                <div className="text-lg font-bold mt-2" style={{ color: net >= 0 ? '#00FF9D' : '#FF3366' }}>
                   {net >= 0 ? '+' : ''}{net.toLocaleString()} chips
-                  {totalRake > 0 && <span className="opacity-60 text-xs ml-1">(rake: {totalRake})</span>}
+                  {totalRake > 0 && <span className="opacity-50 text-sm ml-1">(rake: {totalRake})</span>}
                 </div>
               );
             })()}
