@@ -19,6 +19,7 @@ interface RoomDef {
   password: string | null;
   createdBy: string | null; // null = admin-created (persistent)
   displayOrder: number;
+  withBot: boolean;
 }
 
 export interface RoomState {
@@ -66,6 +67,7 @@ export const stableLobbyRoomService = {
         password:          row.password_hash ?? null,
         createdBy:         null,
         displayOrder:      row.display_order,
+        withBot:           row.with_bot ?? false,
       };
       await redis.set(DEF(row.id), JSON.stringify(def));
       await redis.sadd(ALL_IDS_KEY, row.id);
@@ -223,6 +225,7 @@ export const stableLobbyRoomService = {
       password:          settings.password ?? null,
       createdBy:         creator.id,
       displayOrder:      9999,
+      withBot:           false,
     };
     await redis.set(DEF(id), JSON.stringify(def), 'EX', PRIVATE_TTL);
     await redis.set(STATE(id), JSON.stringify(emptyState()), 'EX', PRIVATE_TTL);
@@ -251,6 +254,7 @@ export const stableLobbyRoomService = {
     isPrivate: boolean;
     password?: string;
     displayOrder?: number;
+    withBot?: boolean;
   }): Promise<LobbyRoomView | null> {
     const { data, error } = await supabase
       .from('lobby_rooms')
@@ -286,6 +290,7 @@ export const stableLobbyRoomService = {
       password:          data.password_hash ?? null,
       createdBy:         null,
       displayOrder:      data.display_order,
+      withBot:           settings.withBot ?? false,
     };
     await redis.set(DEF(data.id), JSON.stringify(def));
     await redis.set(STATE(data.id), JSON.stringify(emptyState()));

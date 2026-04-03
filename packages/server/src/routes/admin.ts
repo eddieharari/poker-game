@@ -231,27 +231,32 @@ adminRouter.get('/lobby-rooms', async (req, res) => {
 adminRouter.post('/lobby-rooms', async (req, res) => {
   if (!checkAuth(req, res)) return;
   const { withBot, ...settings } = req.body;
-  const room = await stableLobbyRoomService.adminCreate(settings);
+  const room = await stableLobbyRoomService.adminCreate({ ...settings, withBot: !!withBot });
   if (!room) return res.status(500).json({ error: 'Failed to create room' });
 
   // If withBot is true, seat a bot player in the room
   if (withBot) {
-    const { data: botProfile } = await supabase
+    const { data: botProfile, error: botErr } = await supabase
       .from('profiles')
       .select('id, nickname, avatar_url')
       .eq('role', 'bot')
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    if (botErr) console.error('[admin] bot query error:', botErr.message);
 
     if (botProfile) {
-      await stableLobbyRoomService.joinRoom(
+      const joinResult = await stableLobbyRoomService.joinRoom(
         room.id,
         { id: botProfile.id, name: botProfile.nickname, avatar: botProfile.avatar_url ?? '', socketId: '' },
       );
+      console.log('[admin] bot join result:', JSON.stringify(joinResult));
       const updatedRoom = await stableLobbyRoomService.getView(room.id);
       getIo()?.to('lobby').emit('lobbyRoom:added', updatedRoom ?? room);
-      res.json(updatedRoom ?? room);
+      res.json({ ...(updatedRoom ?? room), botSeated: true });
       return;
+    } else {
+      console.warn('[admin] withBot=true but no bot profile found (role=bot)');
     }
   }
 

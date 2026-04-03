@@ -278,6 +278,12 @@ export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefin
   const def = await stableLobbyRoomService.getDef(lobbyRoomId);
   if (!def) return;
 
+  // If the room was created with a bot, reset and re-seat the bot
+  if ((def as any).withBot) {
+    const reseated = await reseatBot(io, lobbyRoomId);
+    if (reseated) return;
+  }
+
   if (def.isRecurring) {
     // Recurring rooms stay in lobby, just reset to empty
     await stableLobbyRoomService.resetRoom(lobbyRoomId);
@@ -293,4 +299,29 @@ export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefin
     }
     io.to('lobby').emit('lobbyRoom:removed', { roomId: lobbyRoomId });
   }
+}
+
+/** Reset a bot room and re-seat the bot player. Returns true if successful. */
+async function reseatBot(io: Server, lobbyRoomId: string): Promise<boolean> {
+  const { data: botProfile } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url')
+    .eq('role', 'bot')
+    .limit(1)
+    .maybeSingle();
+
+  if (!botProfile) return false;
+
+  await stableLobbyRoomService.resetRoom(lobbyRoomId);
+  const joinResult = await stableLobbyRoomService.joinRoom(
+    lobbyRoomId,
+    { id: botProfile.id, name: botProfile.nickname, avatar: botProfile.avatar_url ?? '', socketId: '' },
+  );
+
+  if (joinResult.ok) {
+    broadcastRoomUpdate(io, lobbyRoomId);
+    return true;
+  }
+
+  return false;
 }
