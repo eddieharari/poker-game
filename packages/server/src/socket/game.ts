@@ -10,6 +10,8 @@ import type { Room } from '../types.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { settingsService, calculateHouseFee } from '../services/settingsService.js';
+import { triggerPoker5oBotIfNeeded } from '../services/poker5oBotRunner.js';
+import { isBot } from '../services/pazpazBotRunner.js';
 
 // ─── Turn Timers ──────────────────────────────────────────────────────────────
 
@@ -24,6 +26,27 @@ function clearTurnTimer(roomId: string): void {
 }
 
 async function handleGameOver(io: Server, room: Room, newState: GameState): Promise<void> {
+  // Bot games are free — no chip settlement
+  const p0IsBot = await isBot(room.player0.playerId);
+  const p1IsBot = room.player1 ? await isBot(room.player1.playerId) : false;
+  const isFreeGame = p0IsBot || p1IsBot;
+
+  if (isFreeGame) {
+    const rawScore = getGameScore(newState);
+    if (rawScore) {
+      const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin: false, rake: 0 };
+      io.to(`player:${room.player0.playerId}`).emit('game:over', score);
+      if (room.player1) io.to(`player:${room.player1.playerId}`).emit('game:over', score);
+    }
+    await roomService.save({ ...room, gameState: newState, status: 'finished' });
+    await lobbyService.setStatus(room.player0.playerId, 'idle');
+    if (room.player1) await lobbyService.setStatus(room.player1.playerId, 'idle');
+    io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
+    if (room.player1) io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
+    await onGameEnd(io, room.lobbyRoomId);
+    return;
+  }
+
   const rawScore = getGameScore(newState);
   if (rawScore && room.player1 && room.stake) {
     const isCompleteWin = rawScore.winner !== 'draw' &&
@@ -310,7 +333,14 @@ async function runSetupPhase(io: Server, roomId: string): Promise<void> {
     const firstName = roomAfterSetup.gameState.players[firstIdx].name;
     io.to(roomId).emit('game:starting', { firstPlayerIndex: firstIdx, firstPlayerName: firstName });
     await new Promise<void>(r => setTimeout(r, 2000));
-    await startTurnTimer(io, roomId, roomAfterSetup.gameState, roomAfterSetup);
+
+    // If the first player is a bot, let the bot play instead of starting a timer
+    const firstPlayerId = roomAfterSetup.gameState.players[firstIdx].id;
+    if (await isBot(firstPlayerId)) {
+      triggerPoker5oBotIfNeeded(io, roomId, roomAfterSetup.gameState, emitStateToRoom, handleGameOver, startTurnTimer);
+    } else {
+      await startTurnTimer(io, roomId, roomAfterSetup.gameState, roomAfterSetup);
+    }
   }
 }
 
@@ -490,7 +520,13 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       if (newState.phase === 'GAME_OVER') {
         await handleGameOver(io, room, newState);
       } else {
-        await startTurnTimer(io, roomId, newState, room);
+        // If the next player is a bot, let it play
+        const nextPlayerId = newState.players[newState.currentPlayerIndex].id;
+        if (await isBot(nextPlayerId)) {
+          triggerPoker5oBotIfNeeded(io, roomId, newState, emitStateToRoom, handleGameOver, startTurnTimer);
+        } else {
+          await startTurnTimer(io, roomId, newState, room);
+        }
       }
     },
   );

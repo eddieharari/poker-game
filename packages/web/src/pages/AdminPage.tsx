@@ -996,12 +996,10 @@ export function AdminPage() {
                         <input type="checkbox" checked={roomForm.isPrivate} onChange={e => setRoomForm(f => ({ ...f, isPrivate: e.target.checked }))} className="accent-gold" />
                         Password Protected
                       </label>
-                      {roomForm.gameType === 'pazpaz' && (
-                        <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
-                          <input type="checkbox" checked={roomForm.withBot} onChange={e => setRoomForm(f => ({ ...f, withBot: e.target.checked }))} className="accent-gold" />
-                          🤖 Bot Player
-                        </label>
-                      )}
+                      <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                        <input type="checkbox" checked={roomForm.withBot} onChange={e => setRoomForm(f => ({ ...f, withBot: e.target.checked }))} className="accent-gold" />
+                        🤖 Bot Player
+                      </label>
                     </div>
 
                     {roomForm.isPrivate && (
