@@ -380,11 +380,10 @@ export function PazPazPage() {
   function handleCardClick(cardIdx: number) {
     if (iHaveSubmitted || isScoringPhase) return;
     if (assignment[cardIdx] !== null && assignment[cardIdx] !== undefined) {
-      setAssignment(prev => { const n = [...prev]; n[cardIdx] = null; return n; });
-      setSelectedCardIdx(null);
-    } else {
-      setSelectedCardIdx(cardIdx === selectedCardIdx ? null : cardIdx);
+      // Already assigned — grayed-out cards are not clickable
+      return;
     }
+    setSelectedCardIdx(cardIdx === selectedCardIdx ? null : cardIdx);
   }
 
   function handleFlopDrop(flopIdx: 0 | 1 | 2, cardIdx: number) {
@@ -704,9 +703,9 @@ export function PazPazPage() {
                           <div
                             key={s}
                             style={isUsed ? { borderRadius: 8, boxShadow: '0 0 10px 3px rgba(255,0,64,0.9)', outline: '2px solid #ff0040' } : {}}
-                            onClick={!iHaveSubmitted && !isScoringPhase ? (e) => { e.stopPropagation(); handleUnassignCard(card); } : undefined}
-                            className={!iHaveSubmitted && !isScoringPhase ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}
-                            title={!iHaveSubmitted && !isScoringPhase ? 'Click to remove' : undefined}
+                            onClick={!iHaveSubmitted && !isScoringPhase && selectedCardIdx === null ? (e) => { e.stopPropagation(); handleUnassignCard(card); } : undefined}
+                            className={!iHaveSubmitted && !isScoringPhase && selectedCardIdx === null ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}
+                            title={!iHaveSubmitted && !isScoringPhase && selectedCardIdx === null ? 'Click to remove' : undefined}
                           >
                             <PlayingCard card={card} width={cardW} height={cardH} />
                           </div>
