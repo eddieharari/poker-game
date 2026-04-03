@@ -62,16 +62,7 @@ export function App() {
     disconnectSocket();
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-felt-dark flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <p className="font-display text-4xl text-gold">Poker5O</p>
-          <div className="w-6 h-6 border-2 border-gold border-t-transparent rounded-full animate-spin mx-auto" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return null;
 
   return (
     <BrowserRouter>
