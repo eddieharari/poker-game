@@ -230,8 +230,31 @@ adminRouter.get('/lobby-rooms', async (req, res) => {
 // POST /api/admin/lobby-rooms
 adminRouter.post('/lobby-rooms', async (req, res) => {
   if (!checkAuth(req, res)) return;
-  const room = await stableLobbyRoomService.adminCreate(req.body);
+  const { withBot, ...settings } = req.body;
+  const room = await stableLobbyRoomService.adminCreate(settings);
   if (!room) return res.status(500).json({ error: 'Failed to create room' });
+
+  // If withBot is true, seat a bot player in the room
+  if (withBot) {
+    const { data: botProfile } = await supabase
+      .from('profiles')
+      .select('id, nickname, avatar_url')
+      .eq('role', 'bot')
+      .limit(1)
+      .single();
+
+    if (botProfile) {
+      await stableLobbyRoomService.joinRoom(
+        room.id,
+        { id: botProfile.id, name: botProfile.nickname, avatar: botProfile.avatar_url ?? '', socketId: '' },
+      );
+      const updatedRoom = await stableLobbyRoomService.getView(room.id);
+      getIo()?.to('lobby').emit('lobbyRoom:added', updatedRoom ?? room);
+      res.json(updatedRoom ?? room);
+      return;
+    }
+  }
+
   getIo()?.to('lobby').emit('lobbyRoom:added', room);
   res.json(room);
 });

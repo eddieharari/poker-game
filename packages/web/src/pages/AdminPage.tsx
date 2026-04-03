@@ -91,7 +91,7 @@ export function AdminPage() {
     completeWinBonus: false, timerDuration: null as null | 30 | 45 | 60,
     assignmentDuration: 180 as 60 | 180 | 300,
     vocal: false, isRecurring: false, isPrivate: false, password: '', displayOrder: 0,
-    count: 1,
+    count: 1, withBot: false,
   });
   const [templateForm, setTemplateForm] = useState({
     name: '', gameType: 'poker5o' as GameType, stake: 100 as StakeAmount,
@@ -199,12 +199,12 @@ export function AdminPage() {
 
   async function createRoom(e: React.FormEvent) {
     e.preventDefault();
-    const { count, ...rest } = roomForm;
+    const { count, withBot, ...rest } = roomForm;
     const n = Math.max(1, Math.min(count, 20));
     let errors = 0;
     for (let i = 1; i <= n; i++) {
       const name = n > 1 ? `${rest.name || 'Table'} #${i}` : rest.name;
-      const body = { ...rest, name, password: rest.isPrivate && rest.password ? rest.password : undefined };
+      const body = { ...rest, name, password: rest.isPrivate && rest.password ? rest.password : undefined, withBot };
       const res = await fetch('/api/admin/lobby-rooms', {
         method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
         body: JSON.stringify(body),
@@ -996,6 +996,12 @@ export function AdminPage() {
                         <input type="checkbox" checked={roomForm.isPrivate} onChange={e => setRoomForm(f => ({ ...f, isPrivate: e.target.checked }))} className="accent-gold" />
                         Password Protected
                       </label>
+                      {roomForm.gameType === 'pazpaz' && (
+                        <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+                          <input type="checkbox" checked={roomForm.withBot} onChange={e => setRoomForm(f => ({ ...f, withBot: e.target.checked }))} className="accent-gold" />
+                          🤖 Bot Player
+                        </label>
+                      )}
                     </div>
 
                     {roomForm.isPrivate && (
