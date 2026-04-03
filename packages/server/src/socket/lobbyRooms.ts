@@ -8,7 +8,7 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
 import type { StakeAmount, GameType } from '@poker5o/shared';
 import { log } from '../logger.js';
-import { triggerBotIfNeeded } from '../services/pazpazBotRunner.js';
+import { triggerBotIfNeeded, isBot } from '../services/pazpazBotRunner.js';
 import { handlePazPazGameOver } from './pazpaz.js';
 
 // Track: playerId → lobbyRoomId they are currently waiting in
@@ -56,11 +56,18 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    // Check if the waiting player (opponent) is a bot — bot games are free
+    const state = await stableLobbyRoomService.getState(roomId);
+    const opponentIsBot = state?.waitingPlayerId ? await isBot(state.waitingPlayerId) : false;
+    const isFreeGame = opponentIsBot;
+
     const required = def.completeWinBonus ? def.stake * 2 : def.stake;
-    const { data: profile } = await supabase.from('profiles').select('chips').eq('id', playerId).single();
-    if (!profile || profile.chips < required) {
-      socket.emit('lobbyRoom:error', { message: `You need at least ${required} chips to join this room` });
-      return;
+    if (!isFreeGame) {
+      const { data: profile } = await supabase.from('profiles').select('chips').eq('id', playerId).single();
+      if (!profile || profile.chips < required) {
+        socket.emit('lobbyRoom:error', { message: `You need at least ${required} chips to join this room` });
+        return;
+      }
     }
 
     const result = await stableLobbyRoomService.joinRoom(
@@ -88,17 +95,18 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
     const { opponentId, opponentName, opponentAvatar } = result;
     const gameRoomId = uuidv4().slice(0, 6).toUpperCase();
 
-    // Verify opponent chips too
-    const { data: oppProfile } = await supabase.from('profiles').select('chips').eq('id', opponentId).single();
-    if (!oppProfile || oppProfile.chips < required) {
-      socket.emit('lobbyRoom:error', { message: 'Opponent no longer has enough chips' });
-      // Reset room so opponent can leave cleanly
-      await stableLobbyRoomService.resetRoom(roomId);
-      waitingIn.delete(opponentId);
-      await lobbyService.setStatus(opponentId, 'idle');
-      io.to('lobby').emit('lobby:player:status', { playerId: opponentId, status: 'idle' });
-      broadcastRoomUpdate(io, roomId);
-      return;
+    // Verify opponent chips too (skip for bots)
+    if (!isFreeGame) {
+      const { data: oppProfile } = await supabase.from('profiles').select('chips').eq('id', opponentId).single();
+      if (!oppProfile || oppProfile.chips < required) {
+        socket.emit('lobbyRoom:error', { message: 'Opponent no longer has enough chips' });
+        await stableLobbyRoomService.resetRoom(roomId);
+        waitingIn.delete(opponentId);
+        await lobbyService.setStatus(opponentId, 'idle');
+        io.to('lobby').emit('lobby:player:status', { playerId: opponentId, status: 'idle' });
+        broadcastRoomUpdate(io, roomId);
+        return;
+      }
     }
 
     if (def.gameType === 'pazpaz') {

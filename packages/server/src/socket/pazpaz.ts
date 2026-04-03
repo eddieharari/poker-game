@@ -7,6 +7,7 @@ import { supabase } from '../supabase.js';
 import { settingsService, calculateHouseFee } from '../services/settingsService.js';
 import { log } from '../logger.js';
 import { onGameEnd } from './lobbyRooms.js';
+import { isBot } from '../services/pazpazBotRunner.js';
 
 // assignment deadline timers: roomId → timeout handle
 const assignmentTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -79,14 +80,30 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   const p0Flops = gameState.flopResults?.filter(r => r.winner === 0).length ?? 0;
   const p1Flops = gameState.flopResults?.filter(r => r.winner === 1).length ?? 0;
 
+  // Check if either player is a bot — bot games are free (no chips)
+  const p0IsBot = await isBot(p0Id);
+  const p1IsBot = await isBot(p1Id);
+  const isFreeGame = p0IsBot || p1IsBot;
+
   log('PAZPAZ_GAME_END', {
     roomId,
     p0Id,
     p1Id,
-    stake,
+    stake: isFreeGame ? 0 : stake,
     winner: winner === 'draw' ? 'draw' : winner === 0 ? gameState.players[0].name : gameState.players[1].name,
     score: `${p0Flops}-${p1Flops}`,
+    isFreeGame,
   });
+
+  if (isFreeGame) {
+    // Bot games: no chip settlement, no rake — just log, reset status, and end
+    await lobbyService.setStatus(p0Id, 'idle');
+    await lobbyService.setStatus(p1Id, 'idle');
+    io.to('lobby').emit('lobby:player:status', { playerId: p0Id, status: 'idle' });
+    io.to('lobby').emit('lobby:player:status', { playerId: p1Id, status: 'idle' });
+    await onGameEnd(io, lobbyRoomId);
+    return;
+  }
 
   // Settle chips via RPC
   const { data: gameId, error: settleError } = await supabase.rpc('settle_game', {
