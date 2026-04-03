@@ -91,6 +91,7 @@ export function AdminPage() {
     completeWinBonus: false, timerDuration: null as null | 30 | 45 | 60,
     assignmentDuration: 180 as 60 | 180 | 300,
     vocal: false, isRecurring: false, isPrivate: false, password: '', displayOrder: 0,
+    count: 1,
   });
   const [templateForm, setTemplateForm] = useState({
     name: '', gameType: 'poker5o' as GameType, stake: 100 as StakeAmount,
@@ -198,16 +199,23 @@ export function AdminPage() {
 
   async function createRoom(e: React.FormEvent) {
     e.preventDefault();
-    const body = { ...roomForm, password: roomForm.isPrivate && roomForm.password ? roomForm.password : undefined };
-    const res = await fetch('/api/admin/lobby-rooms', {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      setRoomsMsg('Room created!');
+    const { count, ...rest } = roomForm;
+    const n = Math.max(1, Math.min(count, 20));
+    let errors = 0;
+    for (let i = 1; i <= n; i++) {
+      const name = n > 1 ? `${rest.name || 'Table'} #${i}` : rest.name;
+      const body = { ...rest, name, password: rest.isPrivate && rest.password ? rest.password : undefined };
+      const res = await fetch('/api/admin/lobby-rooms', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-password': authedPassword! },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) errors++;
+    }
+    if (errors === 0) {
+      setRoomsMsg(n > 1 ? `${n} rooms created!` : 'Room created!');
       setShowRoomForm(false);
       await fetchLobbyRooms();
-    } else { setRoomsMsg('Error creating room'); }
+    } else { setRoomsMsg(`${errors} room(s) failed to create`); }
     setTimeout(() => setRoomsMsg(''), 3000);
   }
 
@@ -939,6 +947,10 @@ export function AdminPage() {
                         <label className="text-white/50 text-xs block mb-1">Display Order</label>
                         <input type="number" value={roomForm.displayOrder} onChange={e => setRoomForm(f => ({ ...f, displayOrder: Number(e.target.value) }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
                       </div>
+                      <div>
+                        <label className="text-white/50 text-xs block mb-1"># of Tables</label>
+                        <input type="number" min={1} max={20} value={roomForm.count} onChange={e => setRoomForm(f => ({ ...f, count: Math.max(1, Math.min(20, Number(e.target.value))) }))} className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
+                      </div>
                     </div>
 
                     {roomForm.gameType === 'poker5o' && (
@@ -990,7 +1002,9 @@ export function AdminPage() {
                       <input value={roomForm.password} onChange={e => setRoomForm(f => ({ ...f, password: e.target.value }))} placeholder="Room password" className="w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-white text-sm" />
                     )}
 
-                    <button type="submit" className="px-6 py-2 bg-gold text-black rounded-xl font-semibold text-sm">Create Room</button>
+                    <button type="submit" className="px-6 py-2 bg-gold text-black rounded-xl font-semibold text-sm">
+                      {roomForm.count > 1 ? `Create ${roomForm.count} Rooms` : 'Create Room'}
+                    </button>
                   </form>
                 )}
 
