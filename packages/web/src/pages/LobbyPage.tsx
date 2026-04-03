@@ -540,7 +540,11 @@ export function LobbyPage() {
   const [stakeHighMin, setStakeHighMin]       = useState(601);
 
 
-  const filteredRooms = lobbyRooms.filter(room => {
+  const statusOrder = { waiting: 0, empty: 1, playing: 2 } as const;
+  const sortedRooms = [...lobbyRooms].sort((a, b) =>
+    (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || a.displayOrder - b.displayOrder
+  );
+  const filteredRooms = sortedRooms.filter(room => {
     if (activeFilters.has('all')) return true;
 
     // Status filters
