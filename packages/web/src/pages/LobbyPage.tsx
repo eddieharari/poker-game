@@ -385,22 +385,47 @@ type Filter = 'all' | 'low' | 'mid' | 'high' | 'pazpaz' | 'poker5o' | 'free' | '
 
 interface FilterDropdownProps {
   activeFilters: Set<Filter>;
-  onToggle: (f: Filter) => void;
+  onApply: (filters: Set<Filter>) => void;
   stakeMidMin: number;
   stakeHighMin: number;
   onClose: () => void;
 }
 
-function FilterDropdown({ activeFilters, onToggle, stakeMidMin, stakeHighMin, onClose }: FilterDropdownProps) {
+function FilterDropdown({ activeFilters, onApply, stakeMidMin, stakeHighMin, onClose }: FilterDropdownProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<Set<Filter>>(new Set(activeFilters));
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleDown(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('mousedown', handleDown);
+    return () => document.removeEventListener('mousedown', handleDown);
   }, [onClose]);
+
+  function toggle(f: Filter) {
+    setDraft(prev => {
+      const next = new Set(prev);
+      if (f === 'all') return new Set(['all']);
+      next.delete('all');
+      if (next.has(f)) {
+        next.delete(f);
+        if (next.size === 0) next.add('all');
+      } else {
+        next.add(f);
+      }
+      return next;
+    });
+  }
+
+  function handleApply() {
+    onApply(draft);
+    onClose();
+  }
+
+  function handleClear() {
+    setDraft(new Set(['all']));
+  }
 
   const groups: { label: string; items: { id: Filter; label: string }[] }[] = [
     {
@@ -428,44 +453,55 @@ function FilterDropdown({ activeFilters, onToggle, stakeMidMin, stakeHighMin, on
     },
   ];
 
-  const hasActive = !activeFilters.has('all');
+  const hasDraft = !draft.has('all');
 
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 glass-panel rounded-2xl border border-white/10 p-4 w-56 z-30 shadow-2xl space-y-4"
+      className="absolute right-0 top-full mt-2 rounded-2xl p-4 w-60 z-50 shadow-2xl space-y-4"
+      style={{ background: '#13151E', border: '1px solid rgba(255,255,255,0.14)' }}
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Filter</span>
-        {hasActive && (
-          <button onClick={() => onToggle('all')} className="text-[10px] text-[#45F3FF] hover:underline">Clear all</button>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-white font-bold uppercase tracking-widest">Filter</span>
+        {hasDraft && (
+          <button onClick={handleClear} className="text-[10px] text-[#45F3FF] hover:underline">Clear all</button>
         )}
       </div>
+
       {groups.map(group => (
         <div key={group.label}>
-          <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-1.5">{group.label}</p>
-          <div className="flex flex-col gap-1">
+          <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-2">{group.label}</p>
+          <div className="flex flex-col gap-1.5">
             {group.items.map(({ id, label }) => {
-              const active = activeFilters.has(id);
+              const active = draft.has(id);
               return (
                 <button
                   key={id}
-                  onClick={() => onToggle(id)}
-                  className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left"
-                  style={{
-                    background: active ? 'rgba(69,243,255,0.12)' : 'rgba(255,255,255,0.03)',
-                    color: active ? '#45F3FF' : 'rgba(255,255,255,0.5)',
-                    border: `1px solid ${active ? 'rgba(69,243,255,0.4)' : 'rgba(255,255,255,0.06)'}`,
-                  }}
+                  onClick={() => toggle(id)}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left"
+                  style={active
+                    ? { background: '#45F3FF', color: '#000', border: '1px solid #45F3FF' }
+                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.08)' }
+                  }
                 >
                   {label}
-                  {active && <span className="text-[#45F3FF]">✓</span>}
+                  {active && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  )}
                 </button>
               );
             })}
           </div>
         </div>
       ))}
+
+      <button
+        onClick={handleApply}
+        className="w-full py-2 rounded-xl text-sm font-bold transition-all"
+        style={{ background: '#45F3FF', color: '#000' }}
+      >
+        Apply
+      </button>
     </div>
   );
 }
@@ -486,20 +522,6 @@ export function LobbyPage() {
   const [stakeMidMin, setStakeMidMin]         = useState(101);
   const [stakeHighMin, setStakeHighMin]       = useState(601);
 
-  function toggleFilter(f: Filter) {
-    setActiveFilters(prev => {
-      const next = new Set(prev);
-      if (f === 'all') return new Set(['all']);
-      next.delete('all');
-      if (next.has(f)) {
-        next.delete(f);
-        if (next.size === 0) next.add('all');
-      } else {
-        next.add(f);
-      }
-      return next;
-    });
-  }
 
   const filteredRooms = lobbyRooms.filter(room => {
     if (activeFilters.has('all')) return true;
@@ -658,7 +680,7 @@ export function LobbyPage() {
             {showFilter && (
               <FilterDropdown
                 activeFilters={activeFilters}
-                onToggle={toggleFilter}
+                onApply={(filters) => setActiveFilters(filters)}
                 stakeMidMin={stakeMidMin}
                 stakeHighMin={stakeHighMin}
                 onClose={() => setShowFilter(false)}
