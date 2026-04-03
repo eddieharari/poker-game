@@ -423,8 +423,9 @@ function FilterDropdown({ activeFilters, onApply, stakeMidMin, stakeHighMin, onC
     onClose();
   }
 
-  function handleClear() {
-    setDraft(new Set(['all']));
+  function handleReset() {
+    onApply(new Set(['all']));
+    onClose();
   }
 
   const groups: { label: string; items: { id: Filter; label: string }[] }[] = [
@@ -453,8 +454,6 @@ function FilterDropdown({ activeFilters, onApply, stakeMidMin, stakeHighMin, onC
     },
   ];
 
-  const hasDraft = !draft.has('all');
-
   return (
     <div
       ref={ref}
@@ -463,9 +462,6 @@ function FilterDropdown({ activeFilters, onApply, stakeMidMin, stakeHighMin, onC
     >
       <div className="flex items-center justify-between">
         <span className="text-xs text-white font-bold uppercase tracking-widest">Filter</span>
-        {hasDraft && (
-          <button onClick={handleClear} className="text-[10px] text-[#45F3FF] hover:underline">Clear all</button>
-        )}
       </div>
 
       {groups.map(group => (
@@ -495,13 +491,21 @@ function FilterDropdown({ activeFilters, onApply, stakeMidMin, stakeHighMin, onC
         </div>
       ))}
 
-      <button
-        onClick={handleApply}
-        className="w-full py-2 rounded-xl text-sm font-bold transition-all"
-        style={{ background: '#45F3FF', color: '#000' }}
-      >
-        Apply
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={handleReset}
+          className="flex-1 py-2 rounded-xl text-sm font-semibold border border-white/10 text-gray-400 hover:border-white/20 transition-all"
+        >
+          Reset
+        </button>
+        <button
+          onClick={handleApply}
+          className="flex-1 py-2 rounded-xl text-sm font-bold transition-all"
+          style={{ background: '#45F3FF', color: '#000' }}
+        >
+          Apply
+        </button>
+      </div>
     </div>
   );
 }
@@ -651,7 +655,7 @@ export function LobbyPage() {
       </header>
 
       {/* ── Toolbar ───────────────────────────────────────────────────────── */}
-      <div className="relative z-10 flex items-center justify-between px-6 py-4">
+      <div className="relative flex items-center justify-between px-6 py-4" style={{ zIndex: showFilter ? 60 : 10 }}>
         <div>
           <h1 className="lby-h text-xl font-bold text-white">Game Rooms</h1>
           <p className="text-gray-500 text-xs mt-0.5">Click a room to view details and sit in</p>
