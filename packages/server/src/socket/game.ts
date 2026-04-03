@@ -561,6 +561,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       score: forfeiterIndex === 0 ? '0-5' : '5-0',
       rake: fee,
     });
+
+    await onGameEnd(io, room.lobbyRoomId);
   });
 
   // ─── Ping (keepalive) ────────────────────────────────────────────────────────
@@ -618,6 +620,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         if (current.player1) await lobbyService.setStatus(current.player1.playerId, 'idle');
         io.to('lobby').emit('lobby:player:status', { playerId: current.player0.playerId, status: 'idle' });
         if (current.player1) io.to('lobby').emit('lobby:player:status', { playerId: current.player1.playerId, status: 'idle' });
+        await onGameEnd(io, current.lobbyRoomId);
       }
     }, config.disconnectTtl * 1000);
   });
