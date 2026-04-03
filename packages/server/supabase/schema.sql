@@ -9,7 +9,7 @@ create table if not exists profiles (
   nickname         text        not null unique,
   avatar_url       text        not null,
   avatar_is_preset boolean     not null default true,
-  chips            int         not null default 0,
+  chips            int         not null default 100,
   wins             int         not null default 0,
   losses           int         not null default 0,
   draws            int         not null default 0,
