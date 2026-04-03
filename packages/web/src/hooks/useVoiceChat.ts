@@ -13,20 +13,22 @@ const ICE_SERVERS = [
 ];
 
 interface UseVoiceChatOptions {
-  vocal: boolean;
   opponentPlayerId: string | null;
   isInitiator: boolean;
 }
 
 interface VoiceChatState {
+  active: boolean;
   connected: boolean;
   muted: boolean;
+  toggleActive: () => void;
   toggleMute: () => void;
 }
 
 type SignalData = { type: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
 
-export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceChatOptions): VoiceChatState {
+export function useVoiceChat({ opponentPlayerId, isInitiator }: UseVoiceChatOptions): VoiceChatState {
+  const [active, setActive] = useState(false);
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
@@ -41,8 +43,23 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
     }
   }, []);
 
+  const toggleActive = useCallback(() => {
+    setActive(prev => !prev);
+  }, []);
+
+  // Tear down voice when deactivated
   useEffect(() => {
-    if (!vocal || !opponentPlayerId) return;
+    if (!active) {
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+      if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+      if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current = null; }
+      setConnected(false);
+      setMuted(false);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || !opponentPlayerId) return;
 
     const socket = getSocket();
     const targetPlayerId: string = opponentPlayerId;
@@ -61,7 +78,6 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
         pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
           .then(() => {
             hasRemoteDesc = true;
-            // Drain buffered ICE candidates
             return Promise.all(
               pendingIce.splice(0).map(c =>
                 pc!.addIceCandidate(new RTCIceCandidate(c))
@@ -90,7 +106,6 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
           .catch(err => console.error('[useVoiceChat] set answer error:', err));
       } else if (signal.type === 'ice' && signal.candidate) {
         if (!hasRemoteDesc) {
-          // Buffer until remote description is set
           pendingIce.push(signal.candidate);
         } else {
           pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
@@ -102,7 +117,6 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
     function onSignal({ signal: rawSignal }: { fromPlayerId: string; signal: unknown }) {
       const signal = rawSignal as SignalData;
       if (!pc) {
-        // Buffer until pc is created (getUserMedia is still pending)
         pendingSignals.push(signal);
         return;
       }
@@ -149,13 +163,11 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
         setConnected(pc.connectionState === 'connected');
       };
 
-      // Drain any signals that arrived while getUserMedia was pending
       const buffered = pendingSignals.splice(0);
       for (const s of buffered) {
         processSignal(s);
       }
 
-      // Only create offer if we are the initiator AND the responder hasn't already sent us one
       if (isInitiator && buffered.length === 0) {
         try {
           const offer = await pc.createOffer();
@@ -180,7 +192,7 @@ export function useVoiceChat({ vocal, opponentPlayerId, isInitiator }: UseVoiceC
       if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current = null; }
       setConnected(false);
     };
-  }, [vocal, opponentPlayerId, isInitiator]);
+  }, [active, opponentPlayerId, isInitiator]);
 
-  return { connected, muted, toggleMute };
+  return { active, connected, muted, toggleActive, toggleMute };
 }

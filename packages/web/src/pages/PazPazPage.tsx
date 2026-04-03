@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { getSocket } from '../socket.js';
@@ -181,7 +181,6 @@ const PZ_STYLES = `
 export function PazPazPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { profile } = useAuthStore();
   const reset = useGameStore(s => s.reset);
 
@@ -221,8 +220,6 @@ export function PazPazPage() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const vocal = !!(location.state as { vocal?: boolean } | null)?.vocal;
-
   const timerSeconds    = useCountdown(gameState?.assignDeadline  ?? null);
   const pressureSeconds = useCountdown(gameState?.pressureDeadline ?? null);
 
@@ -235,7 +232,7 @@ export function PazPazPage() {
   const myPlayer  = playerIndex !== null && gameState ? gameState.players[playerIndex] : null;
   const oppPlayer = playerIndex !== null && gameState ? gameState.players[playerIndex === 0 ? 1 : 0] : null;
   const opponentPlayerId = oppPlayer?.id ?? null;
-  const { connected: voiceConnected, muted, toggleMute } = useVoiceChat({ vocal, opponentPlayerId, isInitiator: playerIndex === 0 });
+  const { active: voiceActive, connected: voiceConnected, muted, toggleActive: toggleVoice, toggleMute } = useVoiceChat({ opponentPlayerId, isInitiator: playerIndex === 0 });
 
   // Init assignment array
   useEffect(() => {
@@ -497,37 +494,39 @@ export function PazPazPage() {
           >
             🏳 Give Up
           </button>
-          {vocal && (
-            <button
-              onClick={toggleMute}
-              title={muted ? 'Unmute' : 'Mute'}
+          <button
+              onClick={voiceActive ? toggleMute : toggleVoice}
+              title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
               className="relative glass-panel w-10 h-10 rounded-xl flex items-center justify-center border"
-              style={{ border: `1px solid ${muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
+              style={{ border: `1px solid ${!voiceActive ? 'rgba(255,255,255,0.1)' : muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
             >
-              <span className="text-base">{muted ? '🔇' : '🎙'}</span>
-              <span
-                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
-                style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
-              />
+              <span className="text-base">{!voiceActive ? '🎙' : muted ? '🔇' : '🎙'}</span>
+              {voiceActive && (
+                <span
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
+                  style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
+                />
+              )}
             </button>
-          )}
         </div>
       )}
 
       {/* ── Floating top-left during scoring: voice button ───────────────── */}
-      {isScoringPhase && vocal && (
+      {isScoringPhase && (
         <div className="absolute top-4 left-4 z-50">
           <button
-            onClick={toggleMute}
-            title={muted ? 'Unmute' : 'Mute'}
+            onClick={voiceActive ? toggleMute : toggleVoice}
+            title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
             className="relative glass-panel w-10 h-10 rounded-xl flex items-center justify-center border"
-            style={{ border: `1px solid ${muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
+            style={{ border: `1px solid ${!voiceActive ? 'rgba(255,255,255,0.1)' : muted ? 'rgba(255,51,102,0.5)' : voiceConnected ? 'rgba(0,255,157,0.5)' : 'rgba(255,255,255,0.1)'}` }}
           >
-            <span className="text-base">{muted ? '🔇' : '🎙'}</span>
-            <span
-              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
-              style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
-            />
+            <span className="text-base">{!voiceActive ? '🎙' : muted ? '🔇' : '🎙'}</span>
+            {voiceActive && (
+              <span
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-[#0B0C10]"
+                style={{ background: voiceConnected ? '#00FF9D' : '#FF3366' }}
+              />
+            )}
           </button>
         </div>
       )}
