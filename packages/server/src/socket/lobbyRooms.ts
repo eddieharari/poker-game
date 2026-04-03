@@ -228,19 +228,25 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
   }
 }
 
-/** Called by game handlers when a game ends — resets the lobby room if recurring */
+/** Called by game handlers when a game ends — resets recurring rooms, removes non-recurring ones */
 export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefined): Promise<void> {
   if (!lobbyRoomId) return;
   const def = await stableLobbyRoomService.getDef(lobbyRoomId);
   if (!def) return;
 
-  if (def.isRecurring || def.createdBy) {
-    // Recurring admin rooms and private rooms reset automatically
+  if (def.isRecurring) {
+    // Recurring rooms stay in lobby, just reset to empty
     await stableLobbyRoomService.resetRoom(lobbyRoomId);
     broadcastRoomUpdate(io, lobbyRoomId);
   } else {
-    // Non-recurring admin rooms also reset (they never go away)
-    await stableLobbyRoomService.resetRoom(lobbyRoomId);
-    broadcastRoomUpdate(io, lobbyRoomId);
+    // Non-recurring rooms disappear after the game
+    if (!def.createdBy) {
+      // Admin room — delete from Supabase so it doesn't reload on restart
+      await stableLobbyRoomService.adminDelete(lobbyRoomId);
+    } else {
+      // Private player room — only in Redis
+      await stableLobbyRoomService.deleteFromRedis(lobbyRoomId);
+    }
+    io.to('lobby').emit('lobbyRoom:removed', { roomId: lobbyRoomId });
   }
 }
