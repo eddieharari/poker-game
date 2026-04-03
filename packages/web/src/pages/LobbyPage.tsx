@@ -375,7 +375,6 @@ export function LobbyPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <p className="lby-h text-2xl font-bold" style={{ color: '#45F3FF', letterSpacing: '0.05em' }}>Poker5O</p>
           <span className="text-xs text-gray-500 font-medium border border-white/10 px-2 py-0.5 rounded-full">
             {onlinePlayers} online
           </span>
