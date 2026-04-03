@@ -77,11 +77,13 @@ adminRouter.get('/settings', async (req, res) => {
 // POST /api/admin/settings
 adminRouter.post('/settings', async (req, res) => {
   if (!checkAuth(req, res)) return;
-  const { feePercent, feeCap, housePlayerId } = req.body;
+  const { feePercent, feeCap, housePlayerId, stakeMidMin, stakeHighMin } = req.body;
   await settingsService.save({
-    ...(typeof feePercent === 'number' && { feePercent }),
-    ...(typeof feeCap === 'number' && { feeCap }),
+    ...(typeof feePercent    === 'number' && { feePercent }),
+    ...(typeof feeCap        === 'number' && { feeCap }),
     ...(typeof housePlayerId === 'string' && { housePlayerId }),
+    ...(typeof stakeMidMin   === 'number' && stakeMidMin > 0              && { stakeMidMin }),
+    ...(typeof stakeHighMin  === 'number' && stakeHighMin > 0             && { stakeHighMin }),
   });
   res.json({ ok: true });
 });

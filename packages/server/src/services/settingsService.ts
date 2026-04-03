@@ -3,12 +3,14 @@ import { redis } from '../redis.js';
 const SETTINGS_KEY = 'settings:house';
 
 export interface HouseSettings {
-  feePercent: number;   // default 5
-  feeCap: number;       // 0 = no cap
+  feePercent: number;    // default 5
+  feeCap: number;        // 0 = no cap
   housePlayerId: string; // Supabase player ID to receive fees
+  stakeMidMin: number;   // stake >= this value is "Mid" (default 101)
+  stakeHighMin: number;  // stake >= this value is "High" (default 601)
 }
 
-const DEFAULTS: HouseSettings = { feePercent: 5, feeCap: 0, housePlayerId: '' };
+const DEFAULTS: HouseSettings = { feePercent: 5, feeCap: 0, housePlayerId: '', stakeMidMin: 101, stakeHighMin: 601 };
 
 export const settingsService = {
   async get(): Promise<HouseSettings> {

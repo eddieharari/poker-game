@@ -43,6 +43,8 @@ interface HouseSettings {
   feePercent: number;
   feeCap: number;
   housePlayerId: string;
+  stakeMidMin: number;
+  stakeHighMin: number;
 }
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
@@ -64,6 +66,8 @@ export function AdminPage() {
   const [settingsFeePercent, setSettingsFeePercent] = useState('');
   const [settingsFeeCap, setSettingsFeeCap] = useState('');
   const [settingsHousePlayerId, setSettingsHousePlayerId] = useState('');
+  const [settingsMidMin, setSettingsMidMin] = useState('101');
+  const [settingsHighMin, setSettingsHighMin] = useState('601');
   const [settingsSaved, setSettingsSaved] = useState('');
   const [addChipsPlayerId, setAddChipsPlayerId] = useState<string | null>(null);
   const [chipAmount, setChipAmount] = useState('');
@@ -177,6 +181,8 @@ export function AdminPage() {
       setSettingsFeePercent(String(data.feePercent));
       setSettingsFeeCap(String(data.feeCap));
       setSettingsHousePlayerId(data.housePlayerId);
+      setSettingsMidMin(String(data.stakeMidMin ?? 101));
+      setSettingsHighMin(String(data.stakeHighMin ?? 601));
     }
   }
 
@@ -386,10 +392,16 @@ export function AdminPage() {
     e.preventDefault();
     if (!authedPassword) return;
     setSettingsSaved('');
-    const feePercent = parseFloat(settingsFeePercent);
-    const feeCap = parseFloat(settingsFeeCap);
-    if (isNaN(feePercent) || isNaN(feeCap)) {
+    const feePercent  = parseFloat(settingsFeePercent);
+    const feeCap      = parseFloat(settingsFeeCap);
+    const stakeMidMin  = parseInt(settingsMidMin, 10);
+    const stakeHighMin = parseInt(settingsHighMin, 10);
+    if (isNaN(feePercent) || isNaN(feeCap) || isNaN(stakeMidMin) || isNaN(stakeHighMin)) {
       setSettingsSaved('Invalid numbers');
+      return;
+    }
+    if (stakeMidMin >= stakeHighMin) {
+      setSettingsSaved('Mid minimum must be less than High minimum');
       return;
     }
     const res = await fetch('/api/admin/settings', {
@@ -398,7 +410,7 @@ export function AdminPage() {
         'Content-Type': 'application/json',
         'x-admin-password': authedPassword,
       },
-      body: JSON.stringify({ feePercent, feeCap, housePlayerId: settingsHousePlayerId }),
+      body: JSON.stringify({ feePercent, feeCap, housePlayerId: settingsHousePlayerId, stakeMidMin, stakeHighMin }),
     });
     if (res.ok) {
       setSettingsSaved('Settings saved!');
@@ -807,6 +819,34 @@ export function AdminPage() {
                     className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
                   />
                   <p className="text-xs text-white/30 mt-1">Player ID that receives house fees (empty = fee is burned)</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/50 mb-1 uppercase tracking-wider">Stake Tiers — Lobby Filter Thresholds</label>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-[10px] text-white/30 mb-1">Mid starts at (≥)</p>
+                      <input
+                        type="number"
+                        min="1"
+                        value={settingsMidMin}
+                        onChange={e => setSettingsMidMin(e.target.value)}
+                        className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] text-white/30 mb-1">High starts at (≥)</p>
+                      <input
+                        type="number"
+                        min="1"
+                        value={settingsHighMin}
+                        onChange={e => setSettingsHighMin(e.target.value)}
+                        className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-white/30 mt-1">
+                    Low = &lt;{settingsMidMin} · Mid = {settingsMidMin}–{Number(settingsHighMin) - 1} · High = {settingsHighMin}+
+                  </p>
                 </div>
                 {settingsSaved && (
                   <p className={`text-sm text-center ${settingsSaved.includes('saved') ? 'text-green-400' : 'text-red-400'}`}>

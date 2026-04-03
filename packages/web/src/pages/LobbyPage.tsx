@@ -277,6 +277,8 @@ export function LobbyPage() {
 
   type Filter = 'all' | 'low' | 'mid' | 'high' | 'pazpaz' | 'poker5o';
   const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set(['all']));
+  const [stakeMidMin, setStakeMidMin]     = useState(101);
+  const [stakeHighMin, setStakeHighMin]   = useState(601);
 
   function toggleFilter(f: Filter) {
     setActiveFilters(prev => {
@@ -299,9 +301,9 @@ export function LobbyPage() {
     if (activeFilters.has('pazpaz')  && room.gameType !== 'pazpaz')  return false;
     const stakeFilters = (['low', 'mid', 'high'] as Filter[]).filter(f => activeFilters.has(f));
     if (stakeFilters.length > 0) {
-      const inLow  = room.stake <= 100;
-      const inMid  = room.stake >= 250 && room.stake <= 1000;
-      const inHigh = room.stake >= 2000;
+      const inLow  = room.stake < stakeMidMin;
+      const inMid  = room.stake >= stakeMidMin && room.stake < stakeHighMin;
+      const inHigh = room.stake >= stakeHighMin;
       const passStake = stakeFilters.some(f =>
         (f === 'low' && inLow) || (f === 'mid' && inMid) || (f === 'high' && inHigh)
       );
@@ -316,6 +318,10 @@ export function LobbyPage() {
     const socket = getSocket();
     socket.emit('lobby:enter');
     socket.emit('lobbyRoom:list');
+    fetch('/lobby/stake-tiers')
+      .then(r => r.json())
+      .then(d => { setStakeMidMin(d.stakeMidMin); setStakeHighMin(d.stakeHighMin); })
+      .catch(() => {});
     return () => { socket.emit('lobby:leave'); };
   }, []);
 
@@ -433,9 +439,9 @@ export function LobbyPage() {
       <div className="relative z-10 px-6 pb-3 flex flex-wrap gap-2">
         {([
           { id: 'all',     label: 'All Rooms' },
-          { id: 'low',     label: '🟢 Low  ≤100' },
-          { id: 'mid',     label: '🟡 Mid  250–1k' },
-          { id: 'high',    label: '🔴 High  2k+' },
+          { id: 'low',     label: `🟢 Low <${stakeMidMin}` },
+          { id: 'mid',     label: `🟡 Mid ${stakeMidMin}–${stakeHighMin - 1}` },
+          { id: 'high',    label: `🔴 High ${stakeHighMin}+` },
           { id: 'pazpaz',  label: '🎴 PazPaz' },
           { id: 'poker5o', label: '🃏 Poker5O' },
         ] as { id: Filter; label: string }[]).map(({ id, label }) => {
