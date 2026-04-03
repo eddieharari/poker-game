@@ -69,7 +69,7 @@ export function App() {
       <Toaster
         position="top-center"
         toastOptions={{
-          style: { background: '#134f2d', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' },
+          style: { background: '#1A1C23', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' },
         }}
       />
       <Routes>
@@ -134,7 +134,7 @@ export function App() {
       {/* Duplicate session confirmation modal */}
       {duplicateSession && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-felt border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 animate-slide-up">
+          <div className="border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 animate-slide-up" style={{ background: '#1A1C23' }}>
             <div className="text-center space-y-2">
               <p className="text-3xl">⚠️</p>
               <h2 className="font-display text-xl text-gold">Already Logged In</h2>
