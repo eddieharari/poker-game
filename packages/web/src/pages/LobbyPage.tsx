@@ -275,6 +275,41 @@ export function LobbyPage() {
   const [showCreate, setShowCreate]           = useState(false);
   const [passwordPrompt, setPasswordPrompt]   = useState<{ roomId: string; name: string } | null>(null);
 
+  type Filter = 'all' | 'low' | 'mid' | 'high' | 'pazpaz' | 'poker5o';
+  const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set(['all']));
+
+  function toggleFilter(f: Filter) {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (f === 'all') return new Set(['all']);
+      next.delete('all');
+      if (next.has(f)) {
+        next.delete(f);
+        if (next.size === 0) next.add('all');
+      } else {
+        next.add(f);
+      }
+      return next;
+    });
+  }
+
+  const filteredRooms = lobbyRooms.filter(room => {
+    if (activeFilters.has('all')) return true;
+    if (activeFilters.has('poker5o') && room.gameType !== 'poker5o') return false;
+    if (activeFilters.has('pazpaz')  && room.gameType !== 'pazpaz')  return false;
+    const stakeFilters = (['low', 'mid', 'high'] as Filter[]).filter(f => activeFilters.has(f));
+    if (stakeFilters.length > 0) {
+      const inLow  = room.stake <= 100;
+      const inMid  = room.stake >= 250 && room.stake <= 1000;
+      const inHigh = room.stake >= 2000;
+      const passStake = stakeFilters.some(f =>
+        (f === 'low' && inLow) || (f === 'mid' && inMid) || (f === 'high' && inHigh)
+      );
+      if (!passStake) return false;
+    }
+    return true;
+  });
+
   useSocketEvents();
 
   useEffect(() => {
@@ -394,9 +429,44 @@ export function LobbyPage() {
         </div>
       </div>
 
+      {/* ── Filters ───────────────────────────────────────────────────────── */}
+      <div className="relative z-10 px-6 pb-3 flex flex-wrap gap-2">
+        {([
+          { id: 'all',     label: 'All Rooms' },
+          { id: 'low',     label: '🟢 Low  ≤100' },
+          { id: 'mid',     label: '🟡 Mid  250–1k' },
+          { id: 'high',    label: '🔴 High  2k+' },
+          { id: 'pazpaz',  label: '🎴 PazPaz' },
+          { id: 'poker5o', label: '🃏 Poker5O' },
+        ] as { id: Filter; label: string }[]).map(({ id, label }) => {
+          const active = activeFilters.has(id);
+          return (
+            <button
+              key={id}
+              onClick={() => toggleFilter(id)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
+              style={{
+                background: active ? 'rgba(69,243,255,0.15)' : 'rgba(255,255,255,0.04)',
+                borderColor: active ? '#45F3FF' : 'rgba(255,255,255,0.1)',
+                color: active ? '#45F3FF' : 'rgba(255,255,255,0.45)',
+                boxShadow: active ? '0 0 10px rgba(69,243,255,0.2)' : 'none',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Rooms Grid ────────────────────────────────────────────────────── */}
       <main className="relative z-10 px-6 pb-10">
-        {lobbyRooms.length === 0 ? (
+        {filteredRooms.length === 0 && lobbyRooms.length > 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-3xl mb-3">🔍</p>
+            <p className="lby-h text-lg text-gray-400 font-semibold">No rooms match your filters</p>
+            <button onClick={() => setActiveFilters(new Set(['all']))} className="mt-4 text-xs text-[#45F3FF] underline">Clear filters</button>
+          </div>
+        ) : lobbyRooms.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <p className="text-5xl mb-4">🎲</p>
             <p className="lby-h text-xl text-gray-400 font-semibold">No rooms yet</p>
@@ -411,7 +481,7 @@ export function LobbyPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {lobbyRooms.map(room => {
+            {filteredRooms.map(room => {
               const isMyRoom  = myWaitingRoomId === room.id;
               const colors    = roomColors(room.status, isMyRoom);
               const isLocked  = room.status === 'playing';
