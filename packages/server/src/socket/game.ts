@@ -409,9 +409,13 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       }
     }
 
-    // If both players are now in the socket room, notify them the game is ready
+    // If both players are now in the socket room (or one is a bot), notify and start
     const socketsInRoom = await io.in(roomId).fetchSockets();
-    if (socketsInRoom.length === 2 && room.gameState) {
+    const opponentId = isPlayer0 ? room.player1?.playerId : room.player0.playerId;
+    const opponentIsBot = opponentId ? await isBot(opponentId) : false;
+    const readyToStart = opponentIsBot ? socketsInRoom.length >= 1 : socketsInRoom.length >= 2;
+
+    if (readyToStart && room.gameState) {
       io.to(roomId).emit('room:ready', { gameState: room.gameState });
 
       // Auto-deal setup phase if not yet started (Redis lock prevents double-start)

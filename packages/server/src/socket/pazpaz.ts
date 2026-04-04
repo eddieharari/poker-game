@@ -241,9 +241,12 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     const filtered = filterStateForPlayer(room.gameState, playerIndex);
     socket.emit('pazpaz:state', filtered);
 
-    // Start assignment deadline timer once both players have joined
+    // Start assignment deadline timer once both players have joined (or one is a bot)
     const socketsInRoom = await io.in(`pazpaz:${roomId}`).fetchSockets();
-    if (socketsInRoom.length >= 2 && !timerStarted.has(roomId)) {
+    const opponentId = playerIndex === 0 ? room.player1.playerId : room.player0.playerId;
+    const opponentIsBot = await isBot(opponentId);
+    const readyToStart = opponentIsBot ? socketsInRoom.length >= 1 : socketsInRoom.length >= 2;
+    if (readyToStart && !timerStarted.has(roomId)) {
       timerStarted.add(roomId);
 
       const durationMs = (room.assignmentDuration ?? 180) * 1000;

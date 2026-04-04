@@ -279,7 +279,7 @@ export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefin
   if (!def) return;
 
   // If the room was created with a bot, reset and re-seat the bot
-  if ((def as any).withBot) {
+  if (def.withBot) {
     const reseated = await reseatBot(io, lobbyRoomId);
     if (reseated) return;
   }
