@@ -496,12 +496,6 @@ export function PazPazPage() {
           >
             🏳 Give Up
           </button>
-          {fsSupported && (
-            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              className="glass-panel w-10 h-10 rounded-xl flex items-center justify-center border border-white/10">
-              <span className="text-base">{isFullscreen ? '⊡' : '⛶'}</span>
-            </button>
-          )}
           <button
               onClick={voiceActive ? toggleMute : toggleVoice}
               title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
@@ -846,7 +840,17 @@ export function PazPazPage() {
       </div>
 
       {/* ── Bottom-right: confirm / back ───────────────────────────────────── */}
-      <div className="absolute bottom-4 right-4 z-50">
+      <div className="absolute bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+        {fsSupported && !isScoringPhase && (
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            className="glass-panel w-14 h-14 rounded-2xl flex items-center justify-center border border-white/15 hover:scale-105 transition-all"
+            style={{ boxShadow: '0 0 15px rgba(69,243,255,0.1)' }}
+          >
+            <span className="text-2xl">{isFullscreen ? '⊡' : '⛶'}</span>
+          </button>
+        )}
         {isScoringPhase ? (
           <div className="flex items-center gap-2">
             {allRevealed && rematchState === 'idle' && (
