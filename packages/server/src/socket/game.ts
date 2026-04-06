@@ -648,6 +648,11 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const playerIndex: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
     socket.to(room.roomId).emit('player:disconnected', { playerIndex });
 
+    // For bot games, use a short grace period (10s) since bot can't reconnect
+    const opponentId = playerIndex === 0 ? room.player1?.playerId : room.player0.playerId;
+    const opponentIsBotPlayer = opponentId ? await isBot(opponentId) : false;
+    const gracePeriod = opponentIsBotPlayer ? 10_000 : config.disconnectTtl * 1000;
+
     // Auto-abandon after grace period
     setTimeout(async () => {
       const current = await roomService.get(room.roomId);
@@ -662,6 +667,6 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         if (current.player1) io.to('lobby').emit('lobby:player:status', { playerId: current.player1.playerId, status: 'idle' });
         await onGameEnd(io, current.lobbyRoomId);
       }
-    }, config.disconnectTtl * 1000);
+    }, gracePeriod);
   });
 }
