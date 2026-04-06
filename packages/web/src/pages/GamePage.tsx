@@ -10,6 +10,7 @@ import type { GameState, Player } from '@poker5o/shared';
 import { PlayerGrid } from '../components/game/PlayerGrid.js';
 import { DrawnCard } from '../components/game/DrawnCard.js';
 import { useVoiceChat } from '../hooks/useVoiceChat.js';
+import { useFullscreen } from '../hooks/useFullscreen.js';
 
 // ─── Progressive reveal helper ────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ export function GamePage() {
     ? gameState.players[playerIndex === 0 ? 1 : 0].id
     : null;
   const { active: voiceActive, connected: voiceConnected, muted, toggleActive: toggleVoice, toggleMute } = useVoiceChat({ opponentPlayerId, isInitiator: playerIndex === 0 });
+  const { isFullscreen, toggle: toggleFullscreen, supported: fsSupported } = useFullscreen();
 
   useEffect(() => {
     if (!score) { setRevealedCols(-1); setRematchState('idle'); return; }
@@ -287,6 +289,13 @@ export function GamePage() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
+          {fsSupported && (
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              className="w-8 h-8 rounded-xl flex items-center justify-center border border-white/10 transition-all"
+              style={{ background: 'linear-gradient(180deg, #2A2A40 0%, #1A1C23 100%)' }}>
+              <span className="text-sm">{isFullscreen ? '⊡' : '⛶'}</span>
+            </button>
+          )}
           <button
               onClick={voiceActive ? toggleMute : toggleVoice}
               title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
@@ -385,6 +394,12 @@ export function GamePage() {
         </div>
         {/* Right: actions */}
         <div className="flex items-center gap-1.5">
+          {fsSupported && (
+            <button onClick={toggleFullscreen}
+              className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/10">
+              <span className="text-xs">{isFullscreen ? '⊡' : '⛶'}</span>
+            </button>
+          )}
           <button
             onClick={voiceActive ? toggleMute : toggleVoice}
             className="relative w-7 h-7 rounded-lg flex items-center justify-center border"

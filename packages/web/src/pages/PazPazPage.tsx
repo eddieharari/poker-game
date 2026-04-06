@@ -6,6 +6,7 @@ import { getSocket } from '../socket.js';
 import { PlayingCard } from '../components/game/PlayingCard.js';
 import { playDealSound, playWinSound, playLoseSound } from '../sounds.js';
 import { useVoiceChat } from '../hooks/useVoiceChat.js';
+import { useFullscreen } from '../hooks/useFullscreen.js';
 import type {
   PazPazGameState,
   PazPazAssignment,
@@ -233,6 +234,7 @@ export function PazPazPage() {
   const oppPlayer = playerIndex !== null && gameState ? gameState.players[playerIndex === 0 ? 1 : 0] : null;
   const opponentPlayerId = oppPlayer?.id ?? null;
   const { active: voiceActive, connected: voiceConnected, muted, toggleActive: toggleVoice, toggleMute } = useVoiceChat({ opponentPlayerId, isInitiator: playerIndex === 0 });
+  const { isFullscreen, toggle: toggleFullscreen, supported: fsSupported } = useFullscreen();
 
   // Init assignment array
   useEffect(() => {
@@ -494,6 +496,12 @@ export function PazPazPage() {
           >
             🏳 Give Up
           </button>
+          {fsSupported && (
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              className="glass-panel w-10 h-10 rounded-xl flex items-center justify-center border border-white/10">
+              <span className="text-base">{isFullscreen ? '⊡' : '⛶'}</span>
+            </button>
+          )}
           <button
               onClick={voiceActive ? toggleMute : toggleVoice}
               title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
@@ -511,9 +519,15 @@ export function PazPazPage() {
         </div>
       )}
 
-      {/* ── Floating top-left during scoring: voice button ───────────────── */}
+      {/* ── Floating top-left during scoring: voice + fullscreen ────────── */}
       {isScoringPhase && (
-        <div className="absolute top-4 left-4 z-50">
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
+          {fsSupported && (
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              className="glass-panel w-10 h-10 rounded-xl flex items-center justify-center border border-white/10">
+              <span className="text-base">{isFullscreen ? '⊡' : '⛶'}</span>
+            </button>
+          )}
           <button
             onClick={voiceActive ? toggleMute : toggleVoice}
             title={!voiceActive ? 'Enable voice' : muted ? 'Unmute' : 'Mute'}
