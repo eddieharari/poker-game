@@ -58,7 +58,7 @@ export function ScoreScreen({ score, state, playerIndex }: Props) {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#0B0C10' }}>
+    <div className="h-[100dvh] flex flex-col overflow-hidden" style={{ background: '#0B0C10' }}>
       {/* Header — result banner */}
       <header className="flex-shrink-0 bg-black/60 border-b border-white/10 px-4 py-2 flex items-center justify-between gap-4">
         <h1 className="font-display text-lg text-gold shrink-0">Poker5O</h1>

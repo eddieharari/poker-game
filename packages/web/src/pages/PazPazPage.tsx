@@ -445,7 +445,7 @@ export function PazPazPage() {
   return (
     /* Outer shell: always fills the viewport, clips overflow, centers the canvas */
     <div
-      className="w-screen h-screen overflow-hidden flex items-center justify-center"
+      className="w-screen h-[100dvh] overflow-hidden flex items-center justify-center"
       style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)' }}
     >
       <style>{PZ_STYLES}</style>

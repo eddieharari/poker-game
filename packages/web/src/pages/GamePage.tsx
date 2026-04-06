@@ -217,15 +217,15 @@ export function GamePage() {
 
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden relative"
+      className="h-[100dvh] flex flex-col overflow-hidden relative"
       style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}
     >
       <style>{PZ_STYLES}</style>
       <div className="gp-stars" />
       <div className="gp-nebula" />
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 relative z-10 glass-panel border-b border-white/5 px-4 py-2 flex items-center justify-between">
+      {/* ── Header (hidden on mobile for more game space) ─────────────────── */}
+      <header className="flex-shrink-0 relative z-10 glass-panel border-b border-white/5 px-4 py-2 hidden sm:flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
           <h1 className="pz-h text-lg tracking-widest text-white uppercase">Poker5O</h1>
@@ -362,6 +362,60 @@ export function GamePage() {
           )}
         </div>
       </header>
+
+      {/* ── Mobile compact bar (visible only on small screens) ────────────── */}
+      <div className="flex-shrink-0 relative z-20 sm:hidden flex items-center justify-between px-2 py-1">
+        {/* Left: result or phase */}
+        <div className="flex items-center gap-1.5">
+          {isRevealMode && allRevealed ? (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ color: isDraw ? '#FFD700' : iWon ? '#00FF9D' : '#FF3366', background: isDraw ? 'rgba(255,215,0,0.1)' : iWon ? 'rgba(0,255,157,0.1)' : 'rgba(255,51,102,0.1)' }}>
+              {isDraw ? '🤝 Draw' : iWon ? '🏆 Win!' : '😞 Lose'}
+              {' '}{netChips >= 0 ? '+' : ''}{netChips.toLocaleString()}
+            </span>
+          ) : (
+            <>
+              {stake != null && (
+                <span className="text-[10px] font-bold text-[#FFD700] px-1.5 py-0.5 rounded-full border border-[#FFD700]/20">
+                  {(stake * 2).toLocaleString()}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        {/* Right: actions */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={voiceActive ? toggleMute : toggleVoice}
+            className="relative w-7 h-7 rounded-lg flex items-center justify-center border"
+            style={{ border: `1px solid ${!voiceActive ? 'rgba(255,255,255,0.1)' : muted ? 'rgba(255,51,102,0.4)' : voiceConnected ? 'rgba(0,255,157,0.4)' : 'rgba(255,255,255,0.1)'}` }}
+          >
+            <span className="text-xs">{!voiceActive ? '🎙' : muted ? '🔇' : '🎙'}</span>
+          </button>
+          {isRevealMode ? (
+            <>
+              {allRevealed && rematchState === 'idle' && (
+                <button onClick={() => { if (roomId) { getSocket().emit('rematch:request', { roomId }); setRematchState('sent'); } }}
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: '#F97316', color: '#000' }}>Rematch</button>
+              )}
+              {allRevealed && rematchState === 'received' && (
+                <>
+                  <button onClick={() => { if (roomId) getSocket().emit('rematch:accept', { roomId }); }}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: '#00FF9D', color: '#000' }}>Accept</button>
+                  <button onClick={() => { if (roomId) { getSocket().emit('rematch:decline', { roomId }); setRematchState('declined'); } }}
+                    className="text-[10px] px-2 py-1 rounded-lg border border-[#FF3366]/40 text-[#FF3366]">No</button>
+                </>
+              )}
+              <button onClick={goToLobby} className="text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: '#00FF9D', color: '#000' }}>Lobby</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setConfirmExit(true)} className="text-[10px] px-2 py-1 rounded-lg border border-white/10 text-gray-400">Exit</button>
+              <button onClick={() => setConfirmForfeit(true)} className="text-[10px] px-2 py-1 rounded-lg border border-[#FF3366]/30 text-[#FF3366]">Give Up</button>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ── Main content — neon-bordered game area ─────────────────────────── */}
       <div
