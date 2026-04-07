@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../supabase.js';
+import { log } from '../logger.js';
 
 export const cashierRouter = Router();
 
@@ -84,5 +85,6 @@ cashierRouter.post('/request', async (req: any, res) => {
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });
+  log('CHIPS_REQUESTED', { playerId, amount, note: note ?? null });
   res.json(data);
 });

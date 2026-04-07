@@ -31,7 +31,8 @@ export function createSocketServer(httpServer: HttpServer): Server {
   io.use(authenticateSocket);
 
   io.on('connection', (socket) => {
-    const { playerId, nickname } = socket.auth;
+    const { playerId, nickname, email } = socket.auth;
+    const ip = socket.handshake.headers['x-forwarded-for'] as string ?? socket.handshake.address;
 
     // Check for an existing socket connected with the same playerId
     const existingSocket = [...io.sockets.sockets.values()]
@@ -48,7 +49,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
 
         socket.join(`player:${playerId}`);
         socket.emit('session:init', { bootId: SERVER_BOOT_ID });
-        log('PLAYER_LOGIN', { playerId, nickname, note: 'takeover' });
+        log('USER_LOGIN', { playerId, nickname, email, ip, note: 'takeover' });
         registerLobbyHandlers(io, socket);
         registerGameHandlers(io, socket);
         registerPazPazHandlers(io, socket);
@@ -73,7 +74,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
         });
 
         socket.on('disconnect', (reason) => {
-          log('PLAYER_LOGOUT', { playerId, nickname, reason });
+          log('USER_DISCONNECT', { playerId, nickname, email, ip, reason });
         });
       });
 
@@ -82,7 +83,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
 
     socket.join(`player:${playerId}`);
     socket.emit('session:init', { bootId: SERVER_BOOT_ID });
-    log('PLAYER_LOGIN', { playerId, nickname });
+    log('USER_LOGIN', { playerId, nickname, email, ip });
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
     registerPazPazHandlers(io, socket);
@@ -107,7 +108,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     });
 
     socket.on('disconnect', (reason) => {
-      log('PLAYER_LOGOUT', { playerId, nickname, reason });
+      log('USER_DISCONNECT', { playerId, nickname, email, ip, reason });
     });
   });
 

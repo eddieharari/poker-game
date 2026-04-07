@@ -183,7 +183,7 @@ export function registerRematchHandlers(io: Server, socket: Socket): void {
     io.to(`player:${info.requesterId}`).emit('rematch:starting', payload);
     io.to(`player:${info.opponentId}`).emit('rematch:starting', payload);
 
-    log('GAME_END', { note: 'rematch_started', oldRoomId: roomId, newRoomId, gameType: info.gameType });
+    log('GAME_START', { gameRoomId: newRoomId, player0: info.requesterName, player1: info.opponentName, gameType: info.gameType, stake: info.stake, rematch: true });
 
     if (info.gameType === 'pazpaz') {
       triggerBotIfNeeded(io, newRoomId, handlePazPazGameOver).catch(err =>

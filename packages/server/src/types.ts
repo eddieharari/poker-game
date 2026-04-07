@@ -64,6 +64,7 @@ export interface AuthenticatedSocket {
   playerId: string;
   nickname: string;
   avatarUrl: string;
+  email: string;
 }
 
 // ─── Socket.io Typed Events (server-side extension) ───────────────────────────

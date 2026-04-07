@@ -874,6 +874,19 @@ export function AdminPage() {
 
         {/* Logs Tab */}
         {activeTab === 'logs' && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <p className="text-white/50 text-sm">{logs.length} log entries</p>
+              <button
+                onClick={async () => {
+                  await fetch('/api/admin/logs', { method: 'DELETE', headers: { 'x-admin-password': authedPassword! } });
+                  setLogs([]);
+                }}
+                className="px-3 py-1 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-600/30"
+              >
+                Clear Logs
+              </button>
+            </div>
           <div
             className="bg-black/80 border border-white/10 rounded-2xl p-4 overflow-y-auto font-mono text-xs text-green-300/80"
             style={{ maxHeight: '70vh' }}
@@ -894,6 +907,7 @@ export function AdminPage() {
                 </div>
               ))
             )}
+          </div>
           </div>
         )}
 

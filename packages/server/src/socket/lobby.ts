@@ -8,7 +8,6 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
 import type { StakeAmount, GameType } from '@poker5o/shared';
 import type { Challenge } from '../types.js';
-import { log } from '../logger.js';
 
 // Grace-period timers: playerId → timeout handle
 const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -151,15 +150,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     await lobbyService.setStatus(toPlayerId, 'invited');
 
     const toPlayer = await lobbyService.getPlayer(toPlayerId);
-    log('INVITE_SENT', {
-      challengeId,
-      roomId,
-      fromId: playerId,
-      fromNick: nickname,
-      toId: toPlayerId,
-      toNick: toPlayer?.nickname ?? toPlayerId,
-      stake,
-    });
+    // internal
 
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'invited' });
     io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'invited' });
@@ -187,7 +178,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
         socket.emit('lobby:challenge:expired', { challengeId });
         io.to('lobby').emit('lobby:player:status', { playerId, status: 'idle' });
         io.to('lobby').emit('lobby:player:status', { playerId: toPlayerId, status: 'idle' });
-        log('INVITE_EXPIRED', { challengeId, fromId: playerId, fromNick: nickname, toId: toPlayerId, stake });
+        // internal
       }
     }, 25_000);
   });
@@ -258,16 +249,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
       io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
 
-      log('INVITE_ACCEPTED', {
-        challengeId,
-        roomId,
-        fromId: challenge.fromId,
-        fromNick: challenge.fromNickname,
-        toId: playerId,
-        toNick: nickname,
-        stake: challenge.stake,
-        gameType: 'pazpaz',
-      });
+      // internal
 
       socket.emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const, vocal: challenge.vocal });
       io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId, gameType: 'pazpaz' as const, vocal: challenge.vocal });
@@ -291,16 +273,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
       io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
       io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'in-game' });
 
-      log('INVITE_ACCEPTED', {
-        challengeId,
-        roomId: room.roomId,
-        fromId: challenge.fromId,
-        fromNick: challenge.fromNickname,
-        toId: playerId,
-        toNick: nickname,
-        stake: challenge.stake,
-        gameType: 'poker5o',
-      });
+      // internal
 
       socket.emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const, vocal: challenge.vocal });
       io.to(`player:${challenge.fromId}`).emit('lobby:challenge:accepted', { challengeId, roomId: room.roomId, gameType: 'poker5o' as const, vocal: challenge.vocal });
@@ -321,14 +294,7 @@ export function registerLobbyHandlers(io: Server, socket: Socket): void {
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'idle' });
     io.to('lobby').emit('lobby:player:status', { playerId: challenge.fromId, status: 'idle' });
 
-    log('INVITE_DECLINED', {
-      challengeId,
-      fromId: challenge.fromId,
-      fromNick: challenge.fromNickname,
-      toId: playerId,
-      toNick: nickname,
-      stake: challenge.stake,
-    });
+    // internal
 
     io.to(`player:${challenge.fromId}`).emit('lobby:challenge:declined', { challengeId });
   });

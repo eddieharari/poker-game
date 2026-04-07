@@ -40,6 +40,7 @@ export async function authenticateSocket(
     playerId: data.user.id,
     nickname: nickname.trim(),
     avatarUrl: avatarUrl ?? '',
+    email: data.user.email ?? '',
   };
 
   next();

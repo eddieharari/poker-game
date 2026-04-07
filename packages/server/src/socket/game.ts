@@ -115,7 +115,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       const settings = await settingsService.get();
       const p0Id = room.player0.playerId;
       const p1Id = room.player1.playerId;
-      log('RAKE_CALC', { roomId: room.roomId, stakePerPlayer: effectiveStake, feePercent: settings.feePercent, feeCap: settings.feeCap, feePerPlayer: fee, totalFee: fee * 2, housePlayerId: settings.housePlayerId || '(none)' });
+      // rake calculated internally
 
       if (fee > 0) {
         // Deduct fee from each player
@@ -424,9 +424,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         const locked = await redis.set(lockKey, '1', 'EX', 120, 'NX');
         if (locked === 'OK') {
           log('GAME_START', {
-            roomId,
+            gameRoomId: roomId,
             player0: room.player0.playerName,
             player1: room.player1?.playerName,
+            gameType: 'poker5o',
             stake: room.stake ?? undefined,
           });
           runSetupPhase(io, roomId);

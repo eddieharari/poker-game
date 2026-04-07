@@ -85,7 +85,7 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   const p1IsBot = await isBot(p1Id);
   const isFreeGame = p0IsBot || p1IsBot;
 
-  log('PAZPAZ_GAME_END', {
+  log('GAME_END', {
     roomId,
     p0Id,
     p1Id,
@@ -135,7 +135,7 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   try {
     const settings = await settingsService.get();
     fee = calculateHouseFee(stake, settings);
-    log('RAKE_CALC', { roomId, stakePerPlayer: stake, feePercent: settings.feePercent, feeCap: settings.feeCap, feePerPlayer: fee, totalFee: fee * 2, winnerId: winnerId ?? 'draw', housePlayerId: settings.housePlayerId || '(none)' });
+    // rake calculated internally
 
     if (fee > 0) {
       // Deduct fee from each player
@@ -285,7 +285,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
               updated.gameState.players[1],
             ],
           };
-          log('PAZPAZ_AUTO_SUBMIT', { roomId, playerIndex: 0 });
+          // auto-submit handled internally
         }
         if (!assignments[1]) {
           assignments[1] = makeRandomAssignment(currentRoom.gameState.players[1].dealtCards);
@@ -296,7 +296,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
               { ...updated.gameState.players[1], hasSubmitted: true },
             ],
           };
-          log('PAZPAZ_AUTO_SUBMIT', { roomId, playerIndex: 1 });
+          // auto-submit handled internally
         }
 
         updated.gameState = { ...updated.gameState, assignments };
@@ -323,7 +323,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
       assignmentTimers.set(roomId, timer);
     }
 
-    log('PAZPAZ_JOIN', { roomId, playerId, nickname, playerIndex });
+    // join handled internally
   });
 
   // ─── Submit assignment ────────────────────────────────────────────────────
@@ -424,7 +424,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     const updatedRoom = { ...room, gameState: updatedGameState, status: bothSubmitted ? 'finished' as const : room.status };
     await pazpazRoomService.save(updatedRoom);
 
-    log('PAZPAZ_SUBMIT', { roomId, playerId, nickname, playerIndex, bothSubmitted });
+    // submit handled internally
 
     if (bothSubmitted) {
       io.to(`pazpaz:${roomId}`).emit('pazpaz:state', updatedGameState);
@@ -473,13 +473,13 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
           const complete = buildCompleteAssignment(partials[0], currentRoom.gameState.players[0].dealtCards);
           pressureState.assignments = [complete, ca1];
           pressureState.players = [{ ...pressureState.players[0], hasSubmitted: true }, pressureState.players[1]];
-          log('PAZPAZ_PRESSURE_SUBMIT', { roomId, playerIndex: 0 });
+          // pressure submit handled internally
         }
         if (!ca1) {
           const complete = buildCompleteAssignment(partials[1], currentRoom.gameState.players[1].dealtCards);
           pressureState.assignments = [pressureState.assignments[0], complete];
           pressureState.players = [pressureState.players[0], { ...pressureState.players[1], hasSubmitted: true }];
-          log('PAZPAZ_PRESSURE_SUBMIT', { roomId, playerIndex: 1 });
+          // pressure submit handled internally
         }
 
         const scored = revealAndScore(pressureState);
@@ -553,7 +553,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     const updatedRoom = { ...room, gameState: forfeitState, status: 'finished' as const };
     await pazpazRoomService.save(updatedRoom);
 
-    log('PAZPAZ_FORFEIT', { roomId, playerId, nickname, playerIndex, winnerIndex });
+    log('GAME_END', { roomId, playerId, nickname, result: 'forfeit', gameType: 'pazpaz' });
 
     io.to(`pazpaz:${roomId}`).emit('pazpaz:forfeited', { forfeiterIndex: playerIndex });
 
@@ -569,7 +569,7 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     const room = await pazpazRoomService.findByPlayerId(playerId);
     if (room && room.status === 'active') {
       // State is already persisted; nothing extra needed
-      log('PAZPAZ_DISCONNECT', { roomId: room.roomId, playerId, nickname });
+      // disconnect handled by socket index
     }
   });
 }

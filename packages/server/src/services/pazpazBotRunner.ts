@@ -4,7 +4,7 @@ import type { PazPazGameState, PazPazAssignment } from '@poker5o/shared';
 import { pazpazRoomService } from './pazpazRoomService.js';
 import { supabase } from '../supabase.js';
 import { computeBotAssignment } from './pazpazBot.js';
-import { log } from '../logger.js';
+// internal bot runner — no log needed
 
 /**
  * Check if a player is a bot. Returns true if their profile has role='bot'.
@@ -70,7 +70,7 @@ export async function triggerBotIfNeeded(
       await pazpazRoomService.save(updatedRoom);
 
       const botName = currentRoom.gameState.players[botIndex].name;
-      log('PAZPAZ_SUBMIT', { roomId, playerId: currentRoom.gameState.players[botIndex].id, nickname: botName, playerIndex: botIndex, bothSubmitted, isBot: true });
+      // bot submit handled internally
 
       if (bothSubmitted) {
         io.to(`pazpaz:${roomId}`).emit('pazpaz:state', updatedGameState);

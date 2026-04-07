@@ -86,7 +86,7 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       await lobbyService.setStatus(playerId, 'invited');
       io.to('lobby').emit('lobby:player:status', { playerId, status: 'invited' });
       broadcastRoomUpdate(io, roomId);
-      log('ROOM_WAITING', { roomId, playerId, nickname });
+      // internal
       return;
     }
 
@@ -153,7 +153,7 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
     io.to('lobby').emit('lobby:player:status', { playerId, status: 'in-game' });
     io.to('lobby').emit('lobby:player:status', { playerId: opponentId, status: 'in-game' });
 
-    log('ROOM_GAME_STARTED', { lobbyRoomId: roomId, gameRoomId, player0: opponentName, player1: nickname, gameType: def.gameType, stake: def.stake });
+    log('GAME_START', { lobbyRoomId: roomId, gameRoomId, player0: opponentName, player1: nickname, gameType: def.gameType, stake: def.stake });
 
     // Navigate both players to the game
     const payload = { roomId: gameRoomId, gameType: def.gameType as GameType, vocal: def.vocal };

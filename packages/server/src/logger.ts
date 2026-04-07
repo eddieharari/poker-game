@@ -1,58 +1,40 @@
 /**
- * Structured server logger — writes JSON lines to stdout.
- * Each line: { ts, event, ...payload }
+ * Structured server logger — keeps a circular buffer for the admin panel
+ * and writes JSON lines to stdout.
  */
 
-type LogEvent =
-  | 'PLAYER_LOGIN'
-  | 'PLAYER_LOGOUT'
-  | 'INVITE_SENT'
-  | 'INVITE_ACCEPTED'
-  | 'INVITE_DECLINED'
-  | 'INVITE_EXPIRED'
+export type LogEvent =
+  | 'USER_LOGIN'
+  | 'USER_DISCONNECT'
+  | 'ROOM_CREATED'
   | 'GAME_START'
   | 'GAME_END'
-  | 'PAZPAZ_JOIN'
-  | 'PAZPAZ_SUBMIT'
-  | 'PAZPAZ_AUTO_SUBMIT'
-  | 'PAZPAZ_PRESSURE_SUBMIT'
-  | 'PAZPAZ_GAME_END'
-  | 'PAZPAZ_DISCONNECT'
-  | 'PAZPAZ_FORFEIT'
-  | 'RAKE_CALC'
-  | 'ROOM_WAITING'
-  | 'ROOM_GAME_STARTED'
-  | 'ROOM_CREATED';
+  | 'CHIPS_REQUESTED'
+  | 'CHIPS_ADDED'
+  | 'CHIPS_REQUEST_APPROVED'
+  | 'CHIPS_REQUEST_DECLINED';
 
-interface LogPayload {
-  playerId?:   string;
-  nickname?:   string;
-  fromId?:     string;
-  fromNick?:   string;
-  toId?:       string;
-  toNick?:     string;
-  challengeId?: string;
-  roomId?:     string;
-  stake?:      number;
-  player0?:    string;  // nickname
-  player1?:    string;  // nickname
-  winner?:     string;  // nickname or 'draw'
-  score?:      string;  // e.g. "3-2"
-  durationMs?: number;
+export interface LogEntry {
+  ts: string;
+  event: LogEvent;
   [key: string]: unknown;
 }
 
 // ─── Circular Log Buffer ───────────────────────────────────────────────────────
 
 const MAX_LOG_ENTRIES = 500;
-const logBuffer: Array<{ ts: string; event: string; [key: string]: unknown }> = [];
+const logBuffer: LogEntry[] = [];
 
-export function getLogs(): Array<{ ts: string; event: string; [key: string]: unknown }> {
+export function getLogs(): LogEntry[] {
   return [...logBuffer];
 }
 
-export function log(event: LogEvent, payload: LogPayload = {}): void {
-  const entry = { ts: new Date().toISOString(), event, ...payload };
+export function clearLogs(): void {
+  logBuffer.length = 0;
+}
+
+export function log(event: LogEvent, payload: Record<string, unknown> = {}): void {
+  const entry: LogEntry = { ts: new Date().toISOString(), event, ...payload };
   logBuffer.push(entry);
   if (logBuffer.length > MAX_LOG_ENTRIES) {
     logBuffer.shift();
