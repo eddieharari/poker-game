@@ -35,6 +35,22 @@ function prepareReveal(state: GameState, revealedCols: number, myPlayerIndex: 0 
 const PZ_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
   .pz-h { font-family: 'Space Grotesk', sans-serif !important; }
+  .pz-rotate-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    color: #E0E6ED;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  @media (orientation: portrait) and (max-width: 1024px) {
+    .pz-rotate-overlay { display: flex !important; }
+  }
   .glass-panel {
     background: rgba(26, 28, 35, 0.6);
     backdrop-filter: blur(16px);
@@ -163,6 +179,15 @@ export function GamePage() {
       <div className="min-h-screen flex items-center justify-center"
         style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', color: '#E0E6ED' }}>
         <style>{PZ_STYLES}</style>
+        <div className="pz-rotate-overlay">
+          <div style={{ fontSize: 72, lineHeight: 1 }}>↺</div>
+          <p style={{ fontSize: 22, fontWeight: 600, color: '#45F3FF', textAlign: 'center', padding: '0 32px' }}>
+            Please rotate your device
+          </p>
+          <p style={{ fontSize: 14, color: 'rgba(224,230,237,0.5)', textAlign: 'center', padding: '0 48px' }}>
+            Poker5O is designed for landscape mode
+          </p>
+        </div>
         <div className="gp-stars" /><div className="gp-nebula" />
         <div className="glass-panel relative z-10 text-center space-y-3 p-10 rounded-3xl border border-white/10 shadow-xl">
           <div className="text-6xl animate-bounce">🃏</div>
@@ -223,6 +248,16 @@ export function GamePage() {
       style={{ background: 'radial-gradient(circle at 50% 50%, #12141D 0%, #0B0C10 100%)', fontFamily: "'Inter', sans-serif", color: '#E0E6ED' }}
     >
       <style>{PZ_STYLES}</style>
+      {/* Portrait-mode blocker — hidden in landscape via CSS */}
+      <div className="pz-rotate-overlay">
+        <div style={{ fontSize: 72, lineHeight: 1 }}>↺</div>
+        <p style={{ fontSize: 22, fontWeight: 600, color: '#45F3FF', textAlign: 'center', padding: '0 32px' }}>
+          Please rotate your device
+        </p>
+        <p style={{ fontSize: 14, color: 'rgba(224,230,237,0.5)', textAlign: 'center', padding: '0 48px' }}>
+          Poker5O is designed for landscape mode
+        </p>
+      </div>
       <div className="gp-stars" />
       <div className="gp-nebula" />
 
