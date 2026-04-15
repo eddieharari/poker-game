@@ -557,9 +557,17 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
     io.to(`pazpaz:${roomId}`).emit('pazpaz:forfeited', { forfeiterIndex: playerIndex });
 
-    if (updatedRoom.stake) {
-      await handlePazPazGameOver(io, roomId, forfeitState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake, updatedRoom.lobbyRoomId ?? null);
-    }
+    // Always run game-over handling so the lobby room resets (bot re-seat, empty, etc.)
+    // handlePazPazGameOver short-circuits chip settlement for bot/free games internally.
+    await handlePazPazGameOver(
+      io,
+      roomId,
+      forfeitState,
+      updatedRoom.player0.playerId,
+      updatedRoom.player1.playerId,
+      updatedRoom.stake ?? 0,
+      updatedRoom.lobbyRoomId ?? null,
+    );
   });
 
   // ─── Disconnect ───────────────────────────────────────────────────────────
