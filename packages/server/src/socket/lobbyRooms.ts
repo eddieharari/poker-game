@@ -283,10 +283,13 @@ export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefin
   const def = await stableLobbyRoomService.getDef(lobbyRoomId);
   if (!def) return;
 
-  // If the room was created with a bot, reset and re-seat the bot
+  // If the room was created with a bot, reset and re-seat the bot.
+  // Never fall through to the delete/reset path for bot rooms — a second
+  // game-over call (from a stray pressure/assignment timer) would otherwise
+  // wipe the bot or delete the room.
   if (def.withBot) {
-    const reseated = await reseatBot(io, lobbyRoomId);
-    if (reseated) return;
+    await reseatBot(io, lobbyRoomId);
+    return;
   }
 
   if (def.isRecurring) {
@@ -306,7 +309,8 @@ export async function onGameEnd(io: Server, lobbyRoomId: string | null | undefin
   }
 }
 
-/** Reset a bot room and re-seat the bot player. Returns true if successful. */
+/** Reset a bot room and re-seat the bot player. Idempotent: if the bot is
+ *  already waiting, does nothing and returns true. */
 async function reseatBot(io: Server, lobbyRoomId: string): Promise<boolean> {
   const { data: botProfile } = await supabase
     .from('profiles')
@@ -316,6 +320,14 @@ async function reseatBot(io: Server, lobbyRoomId: string): Promise<boolean> {
     .maybeSingle();
 
   if (!botProfile) return false;
+
+  // If the bot is already seated and waiting, do nothing — a second game-over
+  // call must not tear down the seated bot.
+  const currentState = await stableLobbyRoomService.getState(lobbyRoomId);
+  if (currentState?.status === 'waiting' && currentState.waitingPlayerId === botProfile.id) {
+    broadcastRoomUpdate(io, lobbyRoomId);
+    return true;
+  }
 
   await stableLobbyRoomService.resetRoom(lobbyRoomId);
   const joinResult = await stableLobbyRoomService.joinRoom(
