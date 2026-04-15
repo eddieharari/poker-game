@@ -542,7 +542,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     clearTurnTimer(roomId);
 
     const room = await roomService.get(roomId);
-    if (!room || room.status !== 'active' || !room.player1 || !room.stake) return;
+    if (!room || room.status !== 'active' || !room.player1 || room.stake == null) return;
 
     const forfeiterIndex: 0 | 1 = room.player0.playerId === playerId ? 0 : 1;
     const winnerId = forfeiterIndex === 0 ? room.player1.playerId : room.player0.playerId;
