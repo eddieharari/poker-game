@@ -314,10 +314,8 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
         io.to(`pazpaz:${roomId}`).emit('pazpaz:state', scored);
 
-        // Settle chips
-        if (updated.stake) {
-          await handlePazPazGameOver(io, roomId, scored, updated.player0.playerId, updated.player1.playerId, updated.stake, updated.lobbyRoomId ?? null);
-        }
+        // Always run game-over handler — it short-circuits chip settlement for free/bot games
+        await handlePazPazGameOver(io, roomId, scored, updated.player0.playerId, updated.player1.playerId, updated.stake ?? 0, updated.lobbyRoomId ?? null);
       }, durationMs);
 
       assignmentTimers.set(roomId, timer);
@@ -429,10 +427,8 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
     if (bothSubmitted) {
       io.to(`pazpaz:${roomId}`).emit('pazpaz:state', updatedGameState);
 
-      // Settle chips
-      if (updatedRoom.stake) {
-        await handlePazPazGameOver(io, roomId, updatedGameState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake, updatedRoom.lobbyRoomId ?? null);
-      }
+      // Always run game-over handler — it short-circuits chip settlement for free/bot games
+      await handlePazPazGameOver(io, roomId, updatedGameState, updatedRoom.player0.playerId, updatedRoom.player1.playerId, updatedRoom.stake ?? 0, updatedRoom.lobbyRoomId ?? null);
     } else {
       // Tell everyone about submission status (still hide cards)
       const allSockets = await io.in(`pazpaz:${roomId}`).fetchSockets();
@@ -489,9 +485,8 @@ export function registerPazPazHandlers(io: Server, socket: Socket): void {
 
         io.to(`pazpaz:${roomId}`).emit('pazpaz:state', scored);
 
-        if (updatedRoomP.stake) {
-          await handlePazPazGameOver(io, roomId, scored, updatedRoomP.player0.playerId, updatedRoomP.player1.playerId, updatedRoomP.stake, updatedRoomP.lobbyRoomId ?? null);
-        }
+        // Always run game-over handler — it short-circuits chip settlement for free/bot games
+        await handlePazPazGameOver(io, roomId, scored, updatedRoomP.player0.playerId, updatedRoomP.player1.playerId, updatedRoomP.stake ?? 0, updatedRoomP.lobbyRoomId ?? null);
       }, pressureMs);
 
       pressureTimers.set(roomId, pressureTimer);
