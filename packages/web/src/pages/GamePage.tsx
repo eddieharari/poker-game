@@ -48,7 +48,7 @@ const PZ_STYLES = `
     color: #E0E6ED;
     font-family: 'Space Grotesk', sans-serif;
   }
-  @media (orientation: portrait) and (max-width: 1024px) {
+  @media (orientation: landscape) and (max-height: 600px) {
     .pz-rotate-overlay { display: flex !important; }
   }
   .glass-panel {
@@ -185,7 +185,7 @@ export function GamePage() {
             Please rotate your device
           </p>
           <p style={{ fontSize: 14, color: 'rgba(224,230,237,0.5)', textAlign: 'center', padding: '0 48px' }}>
-            Poker5O is designed for landscape mode
+            Poker5O is designed for portrait mode
           </p>
         </div>
         <div className="gp-stars" /><div className="gp-nebula" />
@@ -255,7 +255,7 @@ export function GamePage() {
           Please rotate your device
         </p>
         <p style={{ fontSize: 14, color: 'rgba(224,230,237,0.5)', textAlign: 'center', padding: '0 48px' }}>
-          Poker5O is designed for landscape mode
+          Poker5O is designed for portrait mode
         </p>
       </div>
       <div className="gp-stars" />
