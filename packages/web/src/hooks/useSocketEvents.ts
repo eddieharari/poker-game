@@ -117,13 +117,15 @@ export function useSocketEvents() {
     });
 
     socket.on('game:forfeited', ({ forfeiterIndex }) => {
-      const { playerIndex } = useGameStore.getState();
+      const { playerIndex, reset } = useGameStore.getState();
       const forfeiterIsMe = forfeiterIndex === playerIndex;
       toast(forfeiterIsMe ? 'You forfeited the game.' : 'Opponent forfeited — you win!', {
         icon: forfeiterIsMe ? '🏳️' : '🏆',
         duration: 4000,
       });
-      navigate('/lobby');
+      reset();
+      // Replace (not push) so the browser back button won't re-enter the finished game
+      navigate('/lobby', { replace: true });
     });
 
     // ─── Rematch ──────────────────────────────────────────────────────────────
