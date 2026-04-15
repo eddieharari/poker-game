@@ -59,7 +59,7 @@ export interface Player {
 
 // ─── Stakes ───────────────────────────────────────────────────────────────────
 
-export const STAKE_OPTIONS = [10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000] as const;
+export const STAKE_OPTIONS = [0, 10, 50, 100, 250, 500, 1000, 2000, 3000, 4000, 5000] as const;
 export type StakeAmount = typeof STAKE_OPTIONS[number];
 
 // ─── Game Phase ───────────────────────────────────────────────────────────────

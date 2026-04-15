@@ -124,7 +124,7 @@ function RoomDetailModal({ room, isMyRoom, myChips, onJoin, onLeave, onClose }: 
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-500">Stake</span>
-            <span className="font-semibold" style={{ color: '#00FF9D' }}>💰 {room.stake.toLocaleString()}</span>
+            <span className="font-semibold" style={{ color: '#00FF9D' }}>{room.stake === 0 ? '🆓 Free' : `💰 ${room.stake.toLocaleString()}`}</span>
           </div>
           {room.completeWinBonus && (
             <div className="flex justify-between items-center">
@@ -240,7 +240,7 @@ interface CreateRoomModalProps {
 function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
   const [name, setName]                           = useState('');
   const [gameType, setGameType]                   = useState<GameType>('poker5o');
-  const [stake, setStake]                         = useState<StakeAmount>(STAKE_OPTIONS[2]);
+  const [stake, setStake]                         = useState<StakeAmount>(100);
   const [completeWinBonus, setCompleteWinBonus]   = useState(false);
   const [timerDuration, setTimerDuration]         = useState<30 | 45 | 60 | null>(null);
   const [assignmentDuration, setAssignmentDuration] = useState<60 | 180 | 300>(180);
@@ -310,7 +310,7 @@ function CreateRoomModal({ onClose, profile }: CreateRoomModalProps) {
                 onClick={() => setStake(s)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${stake === s ? 'bg-[#00FF9D]/15 border-[#00FF9D]/60 text-[#00FF9D]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}
               >
-                {s.toLocaleString()}
+                {s === 0 ? 'Free' : s.toLocaleString()}
               </button>
             ))}
           </div>
@@ -534,6 +534,7 @@ export function LobbyPage() {
   const [showCreate, setShowCreate]           = useState(false);
   const [selectedRoom, setSelectedRoom]       = useState<LobbyRoomView | null>(null);
   const [showFilter, setShowFilter]           = useState(false);
+  const [showRules, setShowRules]             = useState(false);
 
   const [activeFilters, setActiveFilters]     = useState<Set<Filter>>(new Set(['all']));
   const [stakeMidMin, setStakeMidMin]         = useState(101);
@@ -657,6 +658,9 @@ export function LobbyPage() {
           <button onClick={() => navigate('/cashier')} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
             Cashier
           </button>
+          <button onClick={() => setShowRules(true)} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+            📖 Rules
+          </button>
           <button onClick={() => navigate('/settings')} className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
             Settings
           </button>
@@ -778,7 +782,7 @@ export function LobbyPage() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-[11px] text-gray-500">{room.gameType === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}</span>
-                      <span className="text-[11px] text-[#00FF9D] font-semibold">💰 {room.stake.toLocaleString()}</span>
+                      <span className="text-[11px] text-[#00FF9D] font-semibold">{room.stake === 0 ? '🆓 Free' : `💰 ${room.stake.toLocaleString()}`}</span>
                       {room.completeWinBonus && <span className="text-[11px] text-[#FFD700]">2×</span>}
                       {room.timerDuration    && <span className="text-[11px] text-gray-600">⏱{room.timerDuration}s</span>}
                       {room.vocal            && <span className="text-[11px] text-gray-600">🎙</span>}
@@ -839,6 +843,123 @@ export function LobbyPage() {
       {showCreate && profile && (
         <CreateRoomModal profile={{ chips: profile.chips }} onClose={() => setShowCreate(false)} />
       )}
+
+      {/* ── Rules Modal ────────────────────────────────────────────────────── */}
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+    </div>
+  );
+}
+
+// ─── Rules Modal ───────────────────────────────────────────────────────────────
+function RulesModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<GameType>('poker5o');
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="glass-panel rounded-3xl border border-[#45F3FF]/30 p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="text-center">
+          <h2 className="lby-h text-2xl text-[#45F3FF] font-bold">How to Play</h2>
+          <p className="text-gray-400 text-sm mt-1">Quick rules for each game</p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2">
+          {(['poker5o', 'pazpaz'] as GameType[]).map(g => (
+            <button
+              key={g}
+              onClick={() => setTab(g)}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                tab === g
+                  ? 'bg-[#45F3FF]/15 border-[#45F3FF]/60 text-[#45F3FF]'
+                  : 'border-white/10 text-gray-400 hover:border-white/20'
+              }`}
+            >
+              {g === 'poker5o' ? '🃏 Poker5O' : '🎴 PazPaz'}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        {tab === 'poker5o' && (
+          <div className="space-y-3 text-sm text-gray-300 leading-relaxed">
+            <p>
+              <span className="text-[#45F3FF] font-semibold">Goal:</span> Build the best five
+              5-card poker hands on a 5×5 grid — one hand per column — to beat your opponent.
+            </p>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">How it works</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Each player has a 5×5 grid. Each column is a 5-card poker hand.</li>
+                <li>Cards are drawn one at a time from a shared deck.</li>
+                <li>On your turn, draw a card and place it into one of your 5 columns.</li>
+                <li>Rows fill in order — you must finish row 1 before starting row 2.</li>
+                <li>After 25 cards each, the game ends and hands are revealed column by column.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">Scoring</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Each column is scored as a standard poker hand.</li>
+                <li>Whoever wins more columns (best of 5) wins the game.</li>
+                <li><span className="text-[#FFD700]">Complete Win Bonus</span>: winning all 5 columns (5–0) doubles the stake.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">Tips</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Plan your columns — commit strong cards to hands you can actually finish.</li>
+                <li>Don't leave all risk to the last row; balance across columns.</li>
+                <li>Watch the discard and your opponent's placements to read the deck.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {tab === 'pazpaz' && (
+          <div className="space-y-3 text-sm text-gray-300 leading-relaxed">
+            <p>
+              <span className="text-[#45F3FF] font-semibold">Goal:</span> Win at least 2 of 3
+              flops by assigning your best 2-card hands to them — Texas Hold'em style.
+            </p>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">How it works</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Three flops (3 community cards each) are dealt face up.</li>
+                <li>Each player receives 6 hole cards and splits them into three 2-card hands.</li>
+                <li>You assign one 2-card hand to each flop before the assignment timer runs out.</li>
+                <li>After both players confirm, the turn and river are dealt to each flop.</li>
+                <li>Each 2-card hand is evaluated against its flop's full 5-card board.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">Scoring</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Each flop is won by the player with the better 5-card poker hand.</li>
+                <li>Best of 3 flops wins the game and takes the pot.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[#45F3FF] font-semibold mb-1">Tips</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>Match your strongest pairs/draws to the flops they synergize with.</li>
+                <li>Sacrificing one flop to dominate the other two is a winning strategy.</li>
+                <li>Don't overthink — assignment timers are tight.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 rounded-2xl text-sm font-bold border transition-all"
+          style={{ background: '#45F3FF', color: '#000', borderColor: '#45F3FF' }}
+        >
+          Got it
+        </button>
+      </div>
     </div>
   );
 }
