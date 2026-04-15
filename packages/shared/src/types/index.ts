@@ -131,6 +131,10 @@ export interface LobbyRoomView {
   status: LobbyRoomStatus;
   waitingPlayerName: string | null;
   waitingPlayerAvatar: string | null;
+  playingPlayer0Name: string | null;
+  playingPlayer0Avatar: string | null;
+  playingPlayer1Name: string | null;
+  playingPlayer1Avatar: string | null;
 }
 
 export interface LobbyRoomTemplate {

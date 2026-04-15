@@ -167,6 +167,31 @@ function RoomDetailModal({ room, isMyRoom, myChips, onJoin, onLeave, onClose }: 
           </div>
         )}
 
+        {/* Players currently in game */}
+        {isPlaying && (room.playingPlayer0Name || room.playingPlayer1Name) && (
+          <div className="py-2 border-t border-white/5 space-y-2">
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest">In Game</p>
+            {room.playingPlayer0Name && (
+              <div className="flex items-center gap-2">
+                {room.playingPlayer0Avatar
+                  ? <img src={room.playingPlayer0Avatar} className="w-7 h-7 rounded-full border border-[#FF3366]/40 object-cover" alt="" />
+                  : <div className="w-7 h-7 rounded-full bg-[#FF3366]/20 flex items-center justify-center text-[#FF3366] text-[10px] font-bold">{room.playingPlayer0Name[0]}</div>
+                }
+                <p className="text-sm text-gray-300">{room.playingPlayer0Name}</p>
+              </div>
+            )}
+            {room.playingPlayer1Name && (
+              <div className="flex items-center gap-2">
+                {room.playingPlayer1Avatar
+                  ? <img src={room.playingPlayer1Avatar} className="w-7 h-7 rounded-full border border-[#FF3366]/40 object-cover" alt="" />
+                  : <div className="w-7 h-7 rounded-full bg-[#FF3366]/20 flex items-center justify-center text-[#FF3366] text-[10px] font-bold">{room.playingPlayer1Name[0]}</div>
+                }
+                <p className="text-sm text-gray-300">{room.playingPlayer1Name}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Required chips warning */}
         {!canJoin && !isPlaying && !isMyRoom && (
           <p className="text-[#FF3366] text-xs text-center">You need {required.toLocaleString()} chips to join</p>

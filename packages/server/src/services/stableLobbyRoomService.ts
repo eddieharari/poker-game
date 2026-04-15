@@ -29,6 +29,10 @@ export interface RoomState {
   waitingPlayerAvatar: string | null;
   waitingPlayerSocketId: string | null;
   gameRoomId: string | null; // active poker5o game room when status='playing'
+  playingPlayer0Name: string | null;
+  playingPlayer0Avatar: string | null;
+  playingPlayer1Name: string | null;
+  playingPlayer1Avatar: string | null;
 }
 
 // ─── Redis Keys ────────────────────────────────────────────────────────────────
@@ -165,6 +169,10 @@ export const stableLobbyRoomService = {
       waitingPlayerAvatar: player.avatar,
       waitingPlayerSocketId: player.socketId,
       gameRoomId: null,
+      playingPlayer0Name: null,
+      playingPlayer0Avatar: null,
+      playingPlayer1Name: null,
+      playingPlayer1Avatar: null,
     }, def2);
 
     return { ok: true, action: 'waiting' };
@@ -179,12 +187,28 @@ export const stableLobbyRoomService = {
     return true;
   },
 
-  async setPlaying(roomId: string, gameRoomId: string): Promise<void> {
+  async setPlaying(
+    roomId: string,
+    gameRoomId: string,
+    players?: { p0Name: string; p0Avatar: string | null; p1Name: string; p1Avatar: string | null },
+  ): Promise<void> {
     const state = await this.getState(roomId);
     if (!state) return;
     const def = await this.getDef(roomId);
     const ttl = def?.createdBy ? PRIVATE_TTL : undefined;
-    await this.setState(roomId, { ...state, status: 'playing', gameRoomId }, ttl);
+    await this.setState(
+      roomId,
+      {
+        ...state,
+        status: 'playing',
+        gameRoomId,
+        playingPlayer0Name:   players?.p0Name   ?? state.playingPlayer0Name   ?? null,
+        playingPlayer0Avatar: players?.p0Avatar ?? state.playingPlayer0Avatar ?? null,
+        playingPlayer1Name:   players?.p1Name   ?? state.playingPlayer1Name   ?? null,
+        playingPlayer1Avatar: players?.p1Avatar ?? state.playingPlayer1Avatar ?? null,
+      },
+      ttl,
+    );
   },
 
   async resetRoom(roomId: string): Promise<void> {
@@ -411,6 +435,10 @@ function emptyState(): RoomState {
     waitingPlayerAvatar: null,
     waitingPlayerSocketId: null,
     gameRoomId: null,
+    playingPlayer0Name: null,
+    playingPlayer0Avatar: null,
+    playingPlayer1Name: null,
+    playingPlayer1Avatar: null,
   };
 }
 
@@ -431,5 +459,9 @@ function toView(def: RoomDef, state: RoomState): LobbyRoomView {
     status:            state.status,
     waitingPlayerName: state.waitingPlayerName,
     waitingPlayerAvatar: state.waitingPlayerAvatar,
+    playingPlayer0Name:   state.playingPlayer0Name,
+    playingPlayer0Avatar: state.playingPlayer0Avatar,
+    playingPlayer1Name:   state.playingPlayer1Name,
+    playingPlayer1Avatar: state.playingPlayer1Avatar,
   };
 }

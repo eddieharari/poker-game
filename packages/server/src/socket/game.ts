@@ -550,6 +550,29 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     await roomService.save({ ...room, status: 'finished' });
     io.to(roomId).emit('game:forfeited', { forfeiterIndex });
 
+    // Bot games are free — skip chip settlement, just reset lobby room
+    const p0IsBot = await isBot(room.player0.playerId);
+    const p1IsBot = await isBot(room.player1.playerId);
+    const isFreeGame = p0IsBot || p1IsBot;
+
+    if (isFreeGame) {
+      await lobbyService.setStatus(room.player0.playerId, 'idle');
+      await lobbyService.setStatus(room.player1.playerId, 'idle');
+      io.to('lobby').emit('lobby:player:status', { playerId: room.player0.playerId, status: 'idle' });
+      io.to('lobby').emit('lobby:player:status', { playerId: room.player1.playerId, status: 'idle' });
+      log('GAME_END', {
+        roomId,
+        player0: room.player0.playerName,
+        player1: room.player1.playerName,
+        stake: 0,
+        winner: forfeiterIndex === 0 ? room.player1.playerName : room.player0.playerName,
+        score: forfeiterIndex === 0 ? '0-5' : '5-0',
+        isFreeGame: true,
+      });
+      await onGameEnd(io, room.lobbyRoomId);
+      return;
+    }
+
     const { data: gameId } = await supabase.rpc('settle_game', {
       p_room_id:        roomId,
       p_player0_id:     room.player0.playerId,

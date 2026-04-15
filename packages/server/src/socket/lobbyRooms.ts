@@ -143,8 +143,13 @@ export function registerLobbyRoomHandlers(io: Server, socket: Socket): void {
       }, def.stake as StakeAmount, def.completeWinBonus, def.timerDuration);
     }
 
-    // Mark lobby room as playing
-    await stableLobbyRoomService.setPlaying(roomId, gameRoomId);
+    // Mark lobby room as playing (with both players so lobby UI can show them)
+    await stableLobbyRoomService.setPlaying(roomId, gameRoomId, {
+      p0Name:   opponentName,
+      p0Avatar: opponentAvatar || null,
+      p1Name:   nickname,
+      p1Avatar: avatarUrl || null,
+    });
 
     // Update player statuses
     waitingIn.delete(opponentId);
