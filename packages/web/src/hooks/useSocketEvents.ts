@@ -139,6 +139,14 @@ export function useSocketEvents() {
 
     socket.on('room:error', ({ message }) => toast.error(message));
 
+    socket.on('lobby:jackpot', ({ playerName, amount }: { playerName: string; amount: number }) => {
+      toast(`${playerName} hit a Royal Flush! Jackpot: ${amount.toLocaleString()} chips!`, {
+        icon: '🏆',
+        duration: 8000,
+        style: { background: '#1a1a2e', color: '#FFD700', border: '1px solid #FFD700', fontWeight: 'bold' },
+      });
+    });
+
     socket.on('profile:chips_updated', ({ chips }) => {
       const { profile, setProfile } = useAuthStore.getState();
       if (profile) {
@@ -169,6 +177,7 @@ export function useSocketEvents() {
       socket.off('pazpaz:rejoin_required');
       socket.off('rematch:starting');
       socket.off('room:error');
+      socket.off('lobby:jackpot');
       socket.off('profile:chips_updated');
     };
   }, [navigate, setPlayers, upsertPlayer, removePlayer, updatePlayerStatus,

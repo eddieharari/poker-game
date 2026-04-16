@@ -213,6 +213,7 @@ export interface ServerToClientEvents {
   'session:kicked':             () => void;
   'session:init':               (payload: { bootId: string }) => void;
   'profile:chips_updated':      (payload: { chips: number }) => void;
+  'lobby:jackpot':              (payload: { playerName: string; amount: number }) => void;
 }
 
 export interface ClientToServerEvents {

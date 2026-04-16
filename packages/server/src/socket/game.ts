@@ -4,8 +4,8 @@ import { lobbyService } from '../services/lobbyService.js';
 import { onGameEnd } from './lobbyRooms.js';
 import { supabase } from '../supabase.js';
 import { redis } from '../redis.js';
-import { applyAction, canDrawCard, canPlaceCard, getGameScore } from '@poker5o/shared';
-import type { GameState, Player } from '@poker5o/shared';
+import { applyAction, canDrawCard, canPlaceCard, getGameScore, HandRank } from '@poker5o/shared';
+import type { GameState, Player, ColumnResult } from '@poker5o/shared';
 import type { Room } from '../types.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
@@ -168,6 +168,20 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
       }
     } catch (rakeErr) {
       console.error('[handleGameOver] rake error:', rakeErr);
+    }
+
+    // Royal Flush jackpot: award 1000 chips and announce in lobby
+    const JACKPOT = 1000;
+    const royalPlayers: { id: string; name: string }[] = [];
+    for (const cr of score.columnResults) {
+      if (cr.player0Hand.rank === HandRank.ROYAL_FLUSH) royalPlayers.push({ id: room.player0.playerId, name: room.player0.playerName });
+      if (cr.player1Hand.rank === HandRank.ROYAL_FLUSH) royalPlayers.push({ id: room.player1.playerId, name: room.player1.playerName });
+    }
+    for (const rp of royalPlayers) {
+      await supabase.rpc('add_chips', { p_amount: JACKPOT, p_player_id: rp.id });
+      io.to('lobby').emit('lobby:jackpot', { playerName: rp.name, amount: JACKPOT });
+      io.to(`player:${rp.id}`).emit('lobby:jackpot', { playerName: rp.name, amount: JACKPOT });
+      log('JACKPOT', { playerId: rp.id, playerName: rp.name, amount: JACKPOT, roomId: room.roomId, gameType: 'poker5o' });
     }
 
     // Notify both players of their updated chip balances

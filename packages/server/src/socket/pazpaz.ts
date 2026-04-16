@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { revealAndScore, shuffleDeck } from '@poker5o/shared';
+import { revealAndScore, shuffleDeck, HandRank } from '@poker5o/shared';
 import type { PazPazAssignment, PazPazGameState, Card } from '@poker5o/shared';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { lobbyService } from '../services/lobbyService.js';
@@ -206,6 +206,24 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   if (fee > 0) {
     const stateWithRake: PazPazGameState = { ...gameState, rake: fee };
     io.to(`pazpaz:${roomId}`).emit('pazpaz:state', stateWithRake);
+  }
+
+  // Royal Flush jackpot: award 1000 chips and announce in lobby
+  const JACKPOT = 1000;
+  const p0Name = gameState.players[0].name;
+  const p1Name = gameState.players[1].name;
+  if (gameState.flopResults) {
+    const royalPlayers: { id: string; name: string }[] = [];
+    for (const fr of gameState.flopResults) {
+      if (fr.player0Best.rank === HandRank.ROYAL_FLUSH) royalPlayers.push({ id: p0Id, name: p0Name });
+      if (fr.player1Best.rank === HandRank.ROYAL_FLUSH) royalPlayers.push({ id: p1Id, name: p1Name });
+    }
+    for (const rp of royalPlayers) {
+      await supabase.rpc('add_chips', { p_amount: JACKPOT, p_player_id: rp.id });
+      io.to('lobby').emit('lobby:jackpot', { playerName: rp.name, amount: JACKPOT });
+      io.to(`player:${rp.id}`).emit('lobby:jackpot', { playerName: rp.name, amount: JACKPOT });
+      log('JACKPOT', { playerId: rp.id, playerName: rp.name, amount: JACKPOT, roomId, gameType: 'pazpaz' });
+    }
   }
 
   // Notify players of updated chip balances

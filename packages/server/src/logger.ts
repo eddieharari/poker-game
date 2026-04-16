@@ -12,7 +12,8 @@ export type LogEvent =
   | 'CHIPS_REQUESTED'
   | 'CHIPS_ADDED'
   | 'CHIPS_REQUEST_APPROVED'
-  | 'CHIPS_REQUEST_DECLINED';
+  | 'CHIPS_REQUEST_DECLINED'
+  | 'JACKPOT';
 
 export interface LogEntry {
   ts: string;
