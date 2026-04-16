@@ -1,5 +1,5 @@
 import type { Server, Socket } from 'socket.io';
-import { revealAndScore, shuffleDeck } from '@poker5o/shared';
+import { revealAndScore, shuffleDeck, HandRank } from '@poker5o/shared';
 import type { PazPazAssignment, PazPazGameState, Card } from '@poker5o/shared';
 import { pazpazRoomService } from '../services/pazpazRoomService.js';
 import { lobbyService } from '../services/lobbyService.js';
@@ -206,6 +206,26 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   if (fee > 0) {
     const stateWithRake: PazPazGameState = { ...gameState, rake: fee };
     io.to(`pazpaz:${roomId}`).emit('pazpaz:state', stateWithRake);
+  }
+
+  // Royal Flush jackpot: requires Royal Flush AND winning all 3 flops (complete win)
+  const JACKPOT = 1000;
+  const isCompleteWinP0 = p0Flops === 3;
+  const isCompleteWinP1 = p1Flops === 3;
+  if (gameState.flopResults) {
+    const p0HasRoyal = gameState.flopResults.some(fr => fr.player0Best.rank === HandRank.ROYAL_FLUSH);
+    const p1HasRoyal = gameState.flopResults.some(fr => fr.player1Best.rank === HandRank.ROYAL_FLUSH);
+    for (const [id, name, qualifies] of [
+      [p0Id, gameState.players[0].name, p0HasRoyal && isCompleteWinP0],
+      [p1Id, gameState.players[1].name, p1HasRoyal && isCompleteWinP1],
+    ] as [string, string, boolean][]) {
+      if (qualifies) {
+        await supabase.rpc('add_chips', { p_amount: JACKPOT, p_player_id: id });
+        io.to('lobby').emit('lobby:jackpot', { playerName: name, amount: JACKPOT });
+        io.to(`player:${id}`).emit('lobby:jackpot', { playerName: name, amount: JACKPOT });
+        log('JACKPOT', { playerId: id, playerName: name, amount: JACKPOT, roomId, gameType: 'pazpaz' });
+      }
+    }
   }
 
   // Notify players of updated chip balances
