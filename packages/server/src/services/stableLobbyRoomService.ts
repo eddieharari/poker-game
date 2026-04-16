@@ -81,6 +81,27 @@ export const stableLobbyRoomService = {
       if (!existing) {
         await redis.set(STATE(row.id), JSON.stringify(emptyState()));
       }
+
+      // Auto-seat bot if this is a bot room and state is empty
+      if (def.withBot) {
+        const state: RoomState = existing ? JSON.parse(existing) : emptyState();
+        if (state.status === 'empty') {
+          const { data: botProfile } = await supabase
+            .from('profiles')
+            .select('id, nickname, avatar_url')
+            .eq('role', 'bot')
+            .limit(1)
+            .maybeSingle();
+          if (botProfile) {
+            await this.joinRoom(row.id, {
+              id: botProfile.id,
+              name: botProfile.nickname,
+              avatar: botProfile.avatar_url ?? '',
+              socketId: '',
+            });
+          }
+        }
+      }
     }
   },
 

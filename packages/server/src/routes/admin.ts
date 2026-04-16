@@ -296,6 +296,26 @@ adminRouter.delete('/lobby-rooms/:id', async (req, res) => {
 adminRouter.post('/lobby-rooms/:id/reset', async (req, res) => {
   if (!checkAuth(req, res)) return;
   await stableLobbyRoomService.resetRoom(req.params.id);
+
+  // Re-seat bot if this is a bot room
+  const def = await stableLobbyRoomService.getDef(req.params.id);
+  if (def?.withBot) {
+    const { data: botProfile } = await supabase
+      .from('profiles')
+      .select('id, nickname, avatar_url')
+      .eq('role', 'bot')
+      .limit(1)
+      .maybeSingle();
+    if (botProfile) {
+      await stableLobbyRoomService.joinRoom(req.params.id, {
+        id: botProfile.id,
+        name: botProfile.nickname,
+        avatar: botProfile.avatar_url ?? '',
+        socketId: '',
+      });
+    }
+  }
+
   const room = await stableLobbyRoomService.getView(req.params.id);
   if (room) getIo()?.to('lobby').emit('lobbyRoom:update', room);
   res.json({ ok: true });

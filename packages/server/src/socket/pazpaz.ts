@@ -96,7 +96,22 @@ export async function handlePazPazGameOver(io: Server, roomId: string, gameState
   });
 
   if (isFreeGame) {
-    // Bot games: no chip settlement, no rake — just log, reset status, and end
+    // Bot games: no chips, no rake — but record the game and update win/loss/draw counters
+    // settle_game with stake=0 inserts a game record and increments counters without moving chips
+    const { error: botSettleErr } = await supabase.rpc('settle_game', {
+      p_room_id:        roomId,
+      p_player0_id:     p0Id,
+      p_player1_id:     p1Id,
+      p_stake:          0,
+      p_winner_id:      winnerId,
+      p_is_draw:        winner === 'draw',
+      p_p0_columns:     p0Flops,
+      p_p1_columns:     p1Flops,
+      p_column_results: JSON.stringify(gameState.flopResults ?? []),
+      p_final_state:    JSON.stringify(gameState),
+    });
+    if (botSettleErr) console.error('[handlePazPazGameOver] bot settle error:', botSettleErr.message);
+
     await lobbyService.setStatus(p0Id, 'idle');
     await lobbyService.setStatus(p1Id, 'idle');
     io.to('lobby').emit('lobby:player:status', { playerId: p0Id, status: 'idle' });
