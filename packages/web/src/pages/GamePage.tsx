@@ -11,6 +11,7 @@ import { PlayerGrid } from '../components/game/PlayerGrid.js';
 import { DrawnCard } from '../components/game/DrawnCard.js';
 import { useVoiceChat } from '../hooks/useVoiceChat.js';
 import { useFullscreen } from '../hooks/useFullscreen.js';
+import JackpotBanner from '../components/JackpotBanner.js';
 
 // ─── Progressive reveal helper ────────────────────────────────────────────────
 
@@ -266,6 +267,7 @@ export function GamePage() {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#45F3FF] animate-pulse" style={{ boxShadow: '0 0 12px #45F3FF' }} />
           <h1 className="pz-h text-lg tracking-widest text-white uppercase">Poker5O</h1>
+          <JackpotBanner compact />
         </div>
 
         {/* Center: phase / result */}

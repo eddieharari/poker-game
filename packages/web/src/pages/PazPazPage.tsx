@@ -7,6 +7,7 @@ import { PlayingCard } from '../components/game/PlayingCard.js';
 import { playDealSound, playWinSound, playLoseSound } from '../sounds.js';
 import { useVoiceChat } from '../hooks/useVoiceChat.js';
 import { useFullscreen } from '../hooks/useFullscreen.js';
+import JackpotBanner from '../components/JackpotBanner.js';
 import type {
   PazPazGameState,
   PazPazAssignment,
@@ -490,6 +491,7 @@ export function PazPazPage() {
           >
             ← Lobby
           </button>
+          <JackpotBanner compact />
           <button
             onClick={() => setConfirmForfeit(true)}
             className="pz-btn glass-panel flex items-center gap-3 px-5 py-2.5 rounded-xl font-medium text-sm border border-[#FF3366]/40 text-[#FF3366] hover:text-white"

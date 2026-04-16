@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useLobbyStore } from '../store/lobbyStore.js';
 import { useSocketEvents } from '../hooks/useSocketEvents.js';
 import { getSocket } from '../socket.js';
+import JackpotBanner from '../components/JackpotBanner.js';
 import {
   STAKE_OPTIONS,
   type StakeAmount,
@@ -704,6 +705,8 @@ export function LobbyPage() {
           <button onClick={signOut} className="text-xs text-gray-500 hover:text-white transition-colors px-2">Sign out</button>
         </div>
       </header>
+
+      <JackpotBanner />
 
       {/* ── Toolbar ───────────────────────────────────────────────────────── */}
       <div className="relative flex items-center justify-between px-6 py-4" style={{ zIndex: showFilter ? 60 : 10 }}>
