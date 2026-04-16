@@ -381,6 +381,9 @@ create table if not exists lobby_rooms (
 
 create index if not exists lobby_rooms_order on lobby_rooms (display_order);
 
+alter table lobby_rooms
+  add column if not exists with_bot boolean not null default false;
+
 alter table lobby_rooms     enable row level security;
 alter table lobby_room_templates enable row level security;
 

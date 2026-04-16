@@ -315,6 +315,7 @@ export const stableLobbyRoomService = {
         is_private:         settings.isPrivate,
         password_hash:      settings.password ?? null,
         display_order:      settings.displayOrder ?? 0,
+        with_bot:           settings.withBot ?? false,
       })
       .select()
       .single();
