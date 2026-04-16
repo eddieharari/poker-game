@@ -7,7 +7,7 @@ import { supabase } from '../supabase.js';
 import { STAKE_OPTIONS, dealPazPaz } from '@poker5o/shared';
 import type { StakeAmount } from '@poker5o/shared';
 import { log } from '../logger.js';
-import { triggerBotIfNeeded } from '../services/pazpazBotRunner.js';
+import { triggerBotIfNeeded, isBot } from '../services/pazpazBotRunner.js';
 import { handlePazPazGameOver } from './pazpaz.js';
 
 // Track pending rematch offers: gameRoomId → { requesterId, gameType, stake, ... }
@@ -95,6 +95,9 @@ export function registerRematchHandlers(io: Server, socket: Socket): void {
     } else {
       return;
     }
+
+    // No rematches for bot games
+    if (await isBot(info.opponentId)) return;
 
     // Check both players have enough chips
     const required = info.completeWinBonus ? info.stake * 2 : info.stake;

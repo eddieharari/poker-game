@@ -40,5 +40,6 @@ export interface PazPazGameState {
   partialAssignments: [PazPazAssignment | null, PazPazAssignment | null];
   pressureDeadline: number | null;
   stake: number | null;
-  rake: number | null; // set after game over: total rake collected from both players combined
+  rake: number | null;
+  isBotGame?: boolean;
 }

@@ -108,7 +108,8 @@ export interface GameScore {
   columnResults: ColumnResult[];
   completeWinBonus: boolean;
   isCompleteWin: boolean;
-  rake?: number; // total rake collected from both players; set by server after settlement
+  rake?: number;
+  isBotGame?: boolean;
 }
 
 // ─── Lobby Rooms ──────────────────────────────────────────────────────────────
