@@ -120,6 +120,18 @@ export function GamePage() {
   }, [gameReady]);
   const [confirmForfeit, setConfirmForfeit] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+
+  // Browser back button → show forfeit confirmation instead of navigating away
+  useEffect(() => {
+    if (score) return; // game over — allow normal navigation
+    window.history.pushState({ inGame: true }, '');
+    const onPopState = () => {
+      setConfirmForfeit(true);
+      window.history.pushState({ inGame: true }, '');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [score]);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [revealedCols, setRevealedCols] = useState(-1);

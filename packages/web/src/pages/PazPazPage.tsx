@@ -194,6 +194,18 @@ export function PazPazPage() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [confirmForfeit, setConfirmForfeit] = useState(false);
 
+  // Browser back button → show forfeit confirmation instead of navigating away
+  useEffect(() => {
+    if (gameState?.phase === 'SCORING') return;
+    window.history.pushState({ inGame: true }, '');
+    const onPopState = () => {
+      setConfirmForfeit(true);
+      window.history.pushState({ inGame: true }, '');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [gameState?.phase]);
+
   // Assignment state
   const [assignment, setAssignment] = useState<(0 | 1 | 2 | null)[]>([]);
   const [selectedCardIdx, setSelectedCardIdx] = useState<number | null>(null);
