@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; width: 420px; height: 420px; }
+
+  .frame {
+    width: 400px; height: 400px;
+    position: relative;
+    margin: 10px;
+  }
+
+  .frame::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 20px;
+    border: 3px solid transparent;
+    background: linear-gradient(135deg, #FFD700, #FF6B00, #FFD700) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    z-index: 2;
+  }
+
+  /* Inner glow */
+  .frame::after {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 20px;
+    box-shadow: inset 0 0 30px rgba(255, 215, 0, 0.15), 0 0 20px rgba(255, 107, 0, 0.3);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Camera cutout */
+  .cam-hole {
+    width: 100%; height: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  /* Channel name bar */
+  .name-bar {
+    position: absolute;
+    bottom: -2px; left: 50%; transform: translateX(-50%);
+    z-index: 10;
+    background: linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%);
+    border: 2px solid #FFD700;
+    border-radius: 12px;
+    padding: 6px 20px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+  }
+
+  .name-bar .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #FF3333;
+    box-shadow: 0 0 8px #FF3333;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .name-bar .name {
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #FFD700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* Subtle corner accents */
+  .corner {
+    position: absolute; width: 20px; height: 20px; z-index: 3;
+  }
+  .corner::before, .corner::after {
+    content: ''; position: absolute; background: #FFD700;
+  }
+  .corner-tl { top: 6px; left: 6px; }
+  .corner-tl::before { width: 20px; height: 3px; top: 0; left: 0; border-radius: 2px; }
+  .corner-tl::after  { width: 3px; height: 20px; top: 0; left: 0; border-radius: 2px; }
+  .corner-tr { top: 6px; right: 6px; }
+  .corner-tr::before { width: 20px; height: 3px; top: 0; right: 0; border-radius: 2px; }
+  .corner-tr::after  { width: 3px; height: 20px; top: 0; right: 0; border-radius: 2px; }
+  .corner-bl { bottom: 6px; left: 6px; }
+  .corner-bl::before { width: 20px; height: 3px; bottom: 0; left: 0; border-radius: 2px; }
+  .corner-bl::after  { width: 3px; height: 20px; bottom: 0; left: 0; border-radius: 2px; }
+  .corner-br { bottom: 6px; right: 6px; }
+  .corner-br::before { width: 20px; height: 3px; bottom: 0; right: 0; border-radius: 2px; }
+  .corner-br::after  { width: 3px; height: 20px; bottom: 0; right: 0; border-radius: 2px; }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="cam-hole"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+    <div class="name-bar">
+      <div class="dot"></div>
+      <span class="name">viviputz</span>
+    </div>
+  </div>
+</body>
+</html>
