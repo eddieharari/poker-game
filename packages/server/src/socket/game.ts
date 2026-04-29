@@ -48,7 +48,7 @@ async function handleGameOver(io: Server, room: Room, newState: GameState): Prom
   }
 
   const rawScore = getGameScore(newState);
-  if (rawScore && room.player1 && room.stake) {
+  if (rawScore && room.player1 && room.stake != null) {
     const isCompleteWin = rawScore.winner !== 'draw' &&
       (rawScore.winner === 0 ? rawScore.player0Wins : rawScore.player1Wins) === 5;
     const score = { ...rawScore, completeWinBonus: room.completeWinBonus, isCompleteWin };
